@@ -187,6 +187,11 @@ fi
 PLATFORM_X11=no
 PLATFORM_MAC=no
 PLATFORM_QWS=no
+PLATFORM_HAIKU=no
+
+if [ $UNAME_SYSTEM = "Haiku" ]; then
+	PLATFORM_HAIKU=yes
+fi
 
 if [ -f "$relpath"/src/gui/kernel/qapplication_mac.mm ] && [ -d /System/Library/Frameworks/Carbon.framework ]; then
     # Qt/Mac
@@ -2593,6 +2598,9 @@ if [ -z "$PLATFORM" ]; then
      QNX:*)
         PLATFORM=unsupported/qnx-g++
         ;;
+      Haiku:*)
+                 PLATFORM=haiku-g++
+                 ;;
      *)
         if [ "$OPT_HELP" != "yes" ]; then
             echo
@@ -2842,6 +2850,9 @@ if [ -z "${CFG_HOST_ARCH}" ]; then
             ;;
         esac
         ;;
+     Haiku:*:*)
+         CFG_HOST_ARCH=i386
+         ;;
     *:*:*)
         if [ "$OPT_VERBOSE" = "yes" ]; then
             echo "    Trying '$UNAME_MACHINE'..."
@@ -3167,6 +3178,8 @@ if [ -z "$QT_INSTALL_PREFIX" ]; then
         if [ "$PLATFORM" != "$XPLATFORM" ]; then
             QT_INSTALL_PREFIX="${QT_INSTALL_PREFIX}-${CFG_ARCH}"
         fi
+    elif [ "$PLATFORM_HAIKU" = "yes" ]; then
+        QT_INSTALL_PREFIX="/boot/common"
     else
         QT_INSTALL_PREFIX="/usr/local/Trolltech/Qt-${QT_VERSION}" # the default install prefix is /usr/local/Trolltech/Qt-$QT_VERSION
     fi
@@ -4030,6 +4043,8 @@ elif [ "$PLATFORM_MAC" = "yes" ]; then
     Platform="Qt for Mac OS X"
 elif echo "$XPLATFORM" | grep "symbian" > /dev/null ; then
     Platform="Qt for Symbian"
+elif [ "$PLATFORM_HAIKU" = "yes" ]; then
+    Platform="Qt for Haiku"
 elif [ '!' -z "`getQMakeConf \"$XQMAKESPEC\" | grep QMAKE_LIBS_X11 | awk '{print $3;}'`" ]; then
     PLATFORM_X11=yes
     Platform="Qt for Linux/X11"
@@ -5081,7 +5096,7 @@ if [ "$PLATFORM_MAC" = "yes" -a ! -z "$QT_NAMESPACE" ]; then
     QT_NAMESPACE_MAC_CRC=`"$mactests/crc.test" "$XQMAKESPEC" "$QMAKE_CONFIG" $OPT_VERBOSE "$relpath" "$outpath" config.tests/mac/crc $QT_NAMESPACE $L_FLAGS $I_FLAGS $l_FLAGS`
 fi
 
-if [ "$PLATFORM_X11" = "yes" -o "$PLATFORM_QWS" = "yes" ]; then
+if [ "$PLATFORM_X11" = "yes" -o "$PLATFORM_QWS" = "yes" -o "$PLATFORM_HAIKU" = "yes" ]; then
 
     # detect EGL support
     if "$unixtests/compile.test" "$XQMAKESPEC" "$QMAKE_CONFIG" $OPT_VERBOSE "$relpath" "$outpath" "config.tests/unix/egl" "EGL (EGL/egl.h)" $L_FLAGS $I_FLAGS $l_FLAGS; then
