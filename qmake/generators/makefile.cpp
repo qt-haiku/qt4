@@ -2159,6 +2159,8 @@ QString MakefileGenerator::buildArgs(const QString &outdir)
             ret += " -unix";
         else if (Option::target_mode == Option::TARG_WIN_MODE)
             ret += " -win32";
+        else if(Option::target_mode == Option::TARG_HAIKU_MODE)
+            ret += " -haiku";
     }
 
     //configs

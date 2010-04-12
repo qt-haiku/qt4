@@ -786,7 +786,8 @@ UnixMakefileGenerator::defaultInstall(const QString &t)
         if(!links.isEmpty()) {
             for(int i = 0; i < links.size(); ++i) {
                 if(Option::target_mode == Option::TARG_UNIX_MODE ||
-                   Option::target_mode == Option::TARG_MACX_MODE) {
+                   Option::target_mode == Option::TARG_MACX_MODE ||
+                   Option::target_mode == Option::TARG_HAIKU_MODE) {
                     QString link = Option::fixPathToTargetOS(destdir + links[i], false);
                     int lslash = link.lastIndexOf(Option::dir_sep);
                     if(lslash != -1)

@@ -258,6 +258,11 @@ Option::parseCommandLine(int argc, char **argv, int skip)
                 Option::host_mode = HOST_WIN_MODE;
                 Option::target_mode = TARG_WIN_MODE;
                 Option::target_mode_overridden = true;
+            } else if(opt == "haiku") {
+                fprintf(stderr, "-haiku is deprecated.\n");
+                Option::host_mode = HOST_HAIKU_MODE;
+                Option::target_mode = TARG_HAIKU_MODE;
+                Option::target_mode_overridden = true;
             } else if(opt == "d") {
                 Option::debug_level++;
             } else if(opt == "version" || opt == "v" || opt == "-version") {
@@ -530,6 +535,9 @@ Option::init(int argc, char **argv)
 #if defined(Q_OS_MAC)
         Option::host_mode = Option::HOST_MACX_MODE;
         Option::target_mode = Option::TARG_MACX_MODE;
+#if defined(Q_OS_HAIKU)
+        Option::host_mode = Option::HOST_HAIKU_MODE;
+        Option::target_mode = Option::TARG_HAIKU_MODE;
 #elif defined(Q_OS_UNIX)
         Option::host_mode = Option::HOST_UNIX_MODE;
         Option::target_mode = Option::TARG_UNIX_MODE;
