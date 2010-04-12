@@ -535,7 +535,7 @@ Option::init(int argc, char **argv)
 #if defined(Q_OS_MAC)
         Option::host_mode = Option::HOST_MACX_MODE;
         Option::target_mode = Option::TARG_MACX_MODE;
-#if defined(Q_OS_HAIKU)
+#elif defined(Q_OS_HAIKU)
         Option::host_mode = Option::HOST_HAIKU_MODE;
         Option::target_mode = Option::TARG_HAIKU_MODE;
 #elif defined(Q_OS_UNIX)
