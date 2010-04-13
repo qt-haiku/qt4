@@ -570,7 +570,7 @@ void QThread::start(Priority priority)
     if (code == EPERM) {
         // caller does not have permission to set the scheduling
         // parameters/policy
-#ifndef Q_OS_SYMBIAN
+#if !defined(Q_OS_SYMBIAN) && !defined(Q_OS_HAIKU)
         pthread_attr_setinheritsched(&attr, PTHREAD_INHERIT_SCHED);
 #endif
         code =

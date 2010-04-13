@@ -67,7 +67,14 @@ enum {
     MedianSize = 7
 };
 
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_HAIKU)
+#include <os/kernel/OS.h>
+static qint64 getticks()
+{
+    return system_time();
+}
+
+#elif defined(Q_OS_MAC)
 
 static qint64 getticks()
 {

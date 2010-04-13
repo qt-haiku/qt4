@@ -52,7 +52,9 @@
 #include <sys/ipc.h>
 #include <fcntl.h>
 #include <errno.h>
+#if !defined(Q_OS_HAIKU)
 #include <sys/shm.h>
+#endif
 
 #include <sys/sem.h>
 
