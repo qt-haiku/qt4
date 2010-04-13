@@ -50,3 +50,8 @@ symbian {
         }
     }
 }
+
+haiku {
+		SOURCES += \
+				util/qsystemtrayicon_haiku.cpp
+}

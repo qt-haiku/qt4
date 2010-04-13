@@ -56,6 +56,9 @@
 #ifdef Q_WS_S60
 # include <private/qpixmap_s60_p.h>
 #endif
+#ifdef Q_WS_HAIKU
+# include <private/qpixmap_raster_p.h>
+#endif
 
 #include "private/qapplication_p.h"
 #include "private/qgraphicssystem_p.h"
@@ -84,6 +87,8 @@ QPixmapData* QSimplePixmapDataFactory::create(QPixmapData::PixelType type)
     return new QMacPixmapData(type);
 #elif defined(Q_WS_S60)
     return new QS60PixmapData(type);    
+#elif defined(Q_WS_HAIKU)
+    return new QRasterPixmapData(type);
 #else
 #error QSimplePixmapDataFactory::create() not implemented
 #endif

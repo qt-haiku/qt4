@@ -273,6 +273,10 @@ public:
     int timer_id;
 };
 
+#ifdef Q_WS_HAIKU
+Q_GUI_EXPORT const char *qt_fontFamilyFromStyleHint(const QFontDef &request);
+#endif
+
 QT_END_NAMESPACE
 
 #endif // QFONT_P_H

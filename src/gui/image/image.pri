@@ -118,3 +118,8 @@ SOURCES += \
 } else {
     DEFINES *= QT_NO_IMAGEFORMAT_PNG
 }
+
+haiku-*: {
+    HEADERS += image/qpixmap_haiku_p.h
+    SOURCES += image/qpixmap_haiku.cpp
+}

@@ -4,7 +4,7 @@ QT = core
 DEFINES   += QT_BUILD_GUI_LIB QT_NO_USING_NAMESPACE
 win32-msvc*|win32-icc:QMAKE_LFLAGS += /BASE:0x65000000
 
-!win32:!embedded:!mac:!symbian:CONFIG      += x11
+!win32:!embedded:!mac:!symbian:!haiku:CONFIG      += x11
 
 unix:QMAKE_PKGCONFIG_REQUIRES = QtCore
 
@@ -21,6 +21,7 @@ symbian {
     include(kernel/symbian.pri)
     include(s60framework/s60framework.pri)
 }
+haiku:include(kernel/haiku.pri)
 
 #modules
 include(animation/animation.pri)

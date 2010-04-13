@@ -162,7 +162,7 @@ unix:!mac:!symbian {
                 painting/qprinterinfo_unix.cpp
 }
 
-win32|x11|mac|embedded|symbian {
+win32|x11|mac|embedded|symbian|haiku {
         SOURCES += painting/qbackingstore.cpp
         HEADERS += painting/qbackingstore_p.h
 }
@@ -407,3 +407,8 @@ contains(QT_CONFIG, zlib) {
 #  win32:LIBS += libz.lib
 }
 
+haiku {
+	SOURCES += \
+#		painting/qpaintdevice_haiku.cpp  \
+		painting/qcolormap_haiku.cpp
+}

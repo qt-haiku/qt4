@@ -44,7 +44,7 @@
 #ifdef Q_WS_X11
 # include <private/qpixmap_x11_p.h>
 #endif
-#if defined(Q_WS_WIN)
+#if defined(Q_WS_WIN) || defined(Q_WS_HAIKU)
 # include <private/qpixmap_raster_p.h>
 #endif
 #ifdef Q_WS_MAC
@@ -72,7 +72,9 @@ QPixmapData *QGraphicsSystem::createDefaultPixmapData(QPixmapData::PixelType typ
 #elif defined(Q_WS_MAC)
     return new QMacPixmapData(type);
 #elif defined(Q_WS_S60)
-    return new QS60PixmapData(type);    
+    return new QS60PixmapData(type);
+#elif defined(Q_WS_HAIKU)
+    return new QRasterPixmapData(type);
 #elif !defined(Q_WS_QWS)
 #error QGraphicsSystem::createDefaultPixmapData() not implemented
 #endif

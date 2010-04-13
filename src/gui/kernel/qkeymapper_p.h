@@ -213,6 +213,9 @@ public:
     int mapS60ScanCodesToQt(TUint s60key);
     int mapQtToS60Key(int qtKey);
     int mapQtToS60ScanCodes(int qtKey);
+#elif defined(Q_WS_HAIKU)
+	uint32	translateKeyCode(int32 key);
+	uint32  ScanCodes[256];
 #endif
 };
 

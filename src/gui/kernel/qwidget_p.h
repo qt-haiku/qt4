@@ -806,6 +806,9 @@ public:
     void s60UpdateIsOpaque();
     void reparentChildren();
     void registerTouchWindow();
+#elif defined(Q_WS_HAIKU) // <--------------------------------------------------------- HAIKU
+	QtHaikuWindow *nativeWindow;
+	QtHaikuView *nativeView;
 #endif
 
 };
