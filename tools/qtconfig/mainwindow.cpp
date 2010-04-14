@@ -73,7 +73,9 @@
 #include <phonon/phononnamespace.h>
 #endif
 
+#ifndef Q_OS_HAIKU
 #include <QtGui/private/qt_x11_p.h>
+#endif
 
 QT_BEGIN_NAMESPACE
 
@@ -234,9 +236,11 @@ MainWindow::MainWindow()
     connect(buttonMainColor2, SIGNAL(colorChanged(QColor)),
                 this, SLOT(buildPalette()));
 
+#ifndef Q_OS_HAIKU
     if (X11->desktopEnvironment == DE_KDE)
         colorConfig->hide();
     else
+#endif
         labelKDENote->hide();
 
     QFontDatabase db;
