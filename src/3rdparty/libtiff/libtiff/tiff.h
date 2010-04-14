@@ -28,6 +28,9 @@
 #define	_TIFF_
 
 #include "tiffconf.h"
+#ifdef Q_OS_HAIKU
+#include <SupportDefs.h>
+#endif
 
 /*
  * Tag Image File Format (TIFF)
@@ -69,6 +72,7 @@ typedef	unsigned char uint8;
 typedef	short int16;
 #endif
 typedef	unsigned short uint16;	/* sizeof (uint16) must == 2 */
+#ifndef Q_OS_HAIKU
 #if SIZEOF_INT == 4
 #ifndef HAVE_INT32
 typedef	int int32;
@@ -79,6 +83,7 @@ typedef	unsigned int uint32;	/* sizeof (uint32) must == 4 */
 typedef	long int32;
 #endif
 typedef	unsigned long uint32;	/* sizeof (uint32) must == 4 */
+#endif
 #endif
 
 /* For TIFFReassignTagToIgnore */
