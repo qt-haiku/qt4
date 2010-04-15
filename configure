@@ -2172,6 +2172,20 @@ while [ "$#" -gt 0 ]; do
             UNKNOWN_OPT=yes
         fi
         ;;
+    ipv6)
+        if [ "$VAL" = "yes" ] || [ "$VAL" = "no" ]; then
+            CFG_IPV6="$VAL"
+        else
+            UNKNOWN_OPT=yes
+        fi
+        ;;
+    ipv6ifname)
+        if [ "$VAL" = "yes" ] || [ "$VAL" = "no" ]; then
+            CFG_IPV6IFNAME="$VAL"
+        else
+            UNKNOWN_OPT=yes
+        fi
+        ;;
     *)
         UNKNOWN_OPT=yes
         ;;
