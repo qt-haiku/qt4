@@ -54,6 +54,9 @@
 #ifndef QT_NO_STYLE_CLEANLOOKS
 #include "qcleanlooksstyle.h"
 #endif
+#ifndef QT_NO_STYLE_HAIKU
+#include "qhaikustyle.h"
+#endif
 #ifndef QT_NO_STYLE_GTK
 #include "qgtkstyle.h"
 #endif
@@ -172,6 +175,11 @@ QStyle *QStyleFactory::create(const QString& key)
         ret = new QCleanlooksStyle;
     else
 #endif
+#ifndef QT_NO_STYLE_HAIKU
+    if (style == QLatin1String("haiku"))
+        ret = new QHaikuStyle;
+    else
+#endif
 #ifndef QT_NO_STYLE_GTK
     if (style == QLatin1String("gtk") || style == QLatin1String("gtk+"))
         ret = new QGtkStyle;
@@ -256,6 +264,10 @@ QStringList QStyleFactory::keys()
 #ifndef QT_NO_STYLE_CLEANLOOKS
     if (!list.contains(QLatin1String("Cleanlooks")))
         list << QLatin1String("Cleanlooks");
+#endif
+#ifndef QT_NO_STYLE_HAIKU
+    if (!list.contains(QLatin1String("Haiku")))
+        list << QLatin1String("Haiku");
 #endif
 #ifndef QT_NO_STYLE_MAC
     QString mstyle = QLatin1String("Macintosh");
