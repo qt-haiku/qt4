@@ -1,4 +1,3 @@
 SOURCES = iconv.cpp
 CONFIG -= qt dylib app_bundle
-mac:LIBS += -liconv
-haiku:LIBS += -ltextencoding
+mac|haiku:LIBS += -liconv
