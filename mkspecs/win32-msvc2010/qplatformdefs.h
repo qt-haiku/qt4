@@ -4,7 +4,7 @@
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
-** This file is part of the plugins of the Qt Toolkit.
+** This file is part of the qmake spec of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** No Commercial Usage
@@ -39,57 +39,4 @@
 **
 ****************************************************************************/
 
-#include <private/qgraphicssystemplugin_p.h>
-#include <private/qgraphicssystem_gl_p.h>
-#include <qgl.h>
-
-QT_BEGIN_NAMESPACE
-
-class QGLGraphicsSystemPlugin : public QGraphicsSystemPlugin
-{
-public:
-    QStringList keys() const;
-    QGraphicsSystem *create(const QString&);
-};
-
-QStringList QGLGraphicsSystemPlugin::keys() const
-{
-    QStringList list;
-    list << QLatin1String("OpenGL") << QLatin1String("OpenGL1");
-#if !defined(QT_OPENGL_ES_1)
-    list << QLatin1String("OpenGL2");
-#endif
-#if defined(Q_WS_X11) && !defined(QT_NO_EGL)
-    list << QLatin1String("X11GL");
-#endif
-    return list;
-}
-
-QGraphicsSystem* QGLGraphicsSystemPlugin::create(const QString& system)
-{
-    if (system.toLower() == QLatin1String("opengl1")) {
-        QGL::setPreferredPaintEngine(QPaintEngine::OpenGL);
-        return new QGLGraphicsSystem(false);
-    }
-
-#if !defined(QT_OPENGL_ES_1)
-    if (system.toLower() == QLatin1String("opengl2")) {
-        QGL::setPreferredPaintEngine(QPaintEngine::OpenGL2);
-        return new QGLGraphicsSystem(false);
-    }
-#endif
-
-#if defined(Q_WS_X11) && !defined(QT_NO_EGL)
-    if (system.toLower() == QLatin1String("x11gl"))
-        return new QGLGraphicsSystem(true);
-#endif
-
-    if (system.toLower() == QLatin1String("opengl"))
-        return new QGLGraphicsSystem(false);
-
-    return 0;
-}
-
-Q_EXPORT_PLUGIN2(opengl, QGLGraphicsSystemPlugin)
-
-QT_END_NAMESPACE
+#include "../win32-msvc2005/qplatformdefs.h"
