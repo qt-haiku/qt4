@@ -160,8 +160,8 @@ void QtHaikuView::MouseUp(BPoint point)
 {
 	BPoint	point2;
 	uint32 	h_mod=modifiers();
-	uint32 	h_buttons = last_down_buttons;
-	uint32 	h_button = h_buttons;	//TODO: only one button in per time
+	uint32 	h_buttons = 0;
+	uint32 	h_button = last_down_buttons;
 	last_down_buttons = 0;
 
 	Qt::MouseButton qt_button = translateMouseButton(h_button);
@@ -267,7 +267,7 @@ void QtHaikuView::MouseMoved(BPoint point, uint32 transit, const BMessage *messa
 	if(!widget)
 		widget = fWidget;
 			
-	emit sendHaikuEvent(widget, new QMouseEvent(QEvent::MouseMove, QPoint(point.x,point.y), qt_button, qt_buttons, qt_mod));
+	emit sendHaikuEvent(widget, new QMouseEvent(QEvent::MouseMove, QPoint(point.x,point.y), Qt::NoButton, qt_buttons, qt_mod));
 //	qDebug()<<"MouseMove()"<<point.x<<" "<<point.y<<" "<<haiku_global_mouse_x<<" "<<haiku_global_mouse_y;	
 }
 
