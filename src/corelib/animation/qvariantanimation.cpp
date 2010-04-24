@@ -431,6 +431,7 @@ void QVariantAnimation::registerInterpolator(QVariantAnimation::Interpolator fun
 {
     // will override any existing interpolators
     QInterpolatorVector *interpolators = registeredInterpolators();
+    if (!interpolators) return;
 #ifndef QT_NO_THREAD
     QMutexLocker locker(QMutexPool::globalInstanceGet(interpolators));
 #endif
