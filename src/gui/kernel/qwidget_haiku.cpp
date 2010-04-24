@@ -585,8 +585,8 @@ void QWidgetPrivate::create_sys(WId window, bool initializeWindow, bool destroyO
         	srand(time(0));
         	int dx = (screen_frame.right - w)/4;
         	int dy = (screen_frame.bottom - h)/4;        	
-        	x = rand() % dx + (dx/2);
-        	y = rand() % dy + (dy/2);
+        	x = dx==0?0:rand() % dx + (dx/2);
+        	y = dy==0?0:rand() % dy + (dy/2);
         	data.crect.moveTo(x,y);
         }        			
   			
