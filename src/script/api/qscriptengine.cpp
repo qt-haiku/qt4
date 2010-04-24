@@ -756,7 +756,7 @@ JSC::JSValue JSC_HOST_CALL functionQsTranslate(JSC::ExecState *exec, JSC::JSObje
         else if (encStr == "UnicodeUTF8")
             encoding = QCoreApplication::UnicodeUTF8;
         else
-            return JSC::throwError(exec, JSC::GeneralError, QString::fromLatin1("qsTranslate(): invalid encoding '%s'").arg(encStr));
+            return JSC::throwError(exec, JSC::GeneralError, QString::fromLatin1("qsTranslate(): invalid encoding '%0'").arg(encStr));
     }
     int n = -1;
     if (args.size() > 4)
@@ -790,16 +790,17 @@ JSC::JSValue JSC_HOST_CALL functionQsTr(JSC::ExecState *exec, JSC::JSObject*, JS
     if ((args.size() > 1) && !args.at(1).isString())
         return JSC::throwError(exec, JSC::GeneralError, "qsTr(): second argument (comment) must be a string");
     if ((args.size() > 2) && !args.at(2).isNumber())
-        return JSC::throwError(exec, JSC::GeneralError, "qsTranslate(): third argument (n) must be a number");
+        return JSC::throwError(exec, JSC::GeneralError, "qsTr(): third argument (n) must be a number");
 #ifndef QT_NO_QOBJECT
+    QScriptEnginePrivate *engine = scriptEngineFromExec(exec);
     JSC::UString context;
     // The first non-empty source URL in the call stack determines the translation context.
     {
-        JSC::ExecState *frame = exec->removeHostCallFrameFlag();
+        JSC::ExecState *frame = exec->callerFrame()->removeHostCallFrameFlag();
         while (frame) {
             if (frame->codeBlock() && frame->codeBlock()->source()
                 && !frame->codeBlock()->source()->url().isEmpty()) {
-                context = QFileInfo(frame->codeBlock()->source()->url()).baseName();
+                context = engine->translationContextFromUrl(frame->codeBlock()->source()->url());
                 break;
             }
             frame = frame->callerFrame()->removeHostCallFrameFlag();
@@ -921,6 +922,8 @@ QScriptEnginePrivate::QScriptEnginePrivate()
     activeAgent = 0;
     agentLineNumber = -1;
     processEventsInterval = -1;
+    cachedTranslationUrl = JSC::UString();
+    cachedTranslationContext = JSC::UString();
     JSC::setCurrentIdentifierTable(oldTable);
 }
 
@@ -1511,7 +1514,7 @@ void QScriptEnginePrivate::detachAllRegisteredScriptStrings()
 
 #ifndef QT_NO_REGEXP
 
-extern QString qt_regexp_toCanonical(const QString &, QRegExp::PatternSyntax);
+Q_DECL_IMPORT extern QString qt_regexp_toCanonical(const QString &, QRegExp::PatternSyntax);
 
 JSC::JSValue QScriptEnginePrivate::newRegExp(JSC::ExecState *exec, const QRegExp &regexp)
 {
@@ -2006,7 +2009,7 @@ QScriptValue QScriptEngine::newFunction(QScriptEngine::FunctionSignature fun,
 
 #ifndef QT_NO_REGEXP
 
-extern QString qt_regexp_toCanonical(const QString &, QRegExp::PatternSyntax);
+Q_DECL_IMPORT extern QString qt_regexp_toCanonical(const QString &, QRegExp::PatternSyntax);
 
 /*!
   Creates a QtScript object of class RegExp with the given
@@ -3305,6 +3308,15 @@ bool QScriptEnginePrivate::hasDemarshalFunction(int type) const
 {
     QScriptTypeInfo *info = m_typeInfos.value(type);
     return info && (info->demarshal != 0);
+}
+
+JSC::UString QScriptEnginePrivate::translationContextFromUrl(const JSC::UString &url)
+{
+    if (url != cachedTranslationUrl) {
+        cachedTranslationContext = QFileInfo(url).baseName();
+        cachedTranslationUrl = url;
+    }
+    return cachedTranslationContext;
 }
 
 /*!

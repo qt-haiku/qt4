@@ -393,7 +393,6 @@ void QDialogPrivate::resetModalitySetByOpen()
     resetModalityTo = -1;
 }
 
-#if defined(Q_WS_WINCE) || defined(Q_WS_S60)
 #ifdef Q_WS_WINCE_WM
 void QDialogPrivate::_q_doneAction()
 {
@@ -408,12 +407,12 @@ void QDialogPrivate::_q_doneAction()
 bool QDialog::event(QEvent *e)
 {
     bool result = QWidget::event(e);
-#ifdef Q_WS_WINCE
+#if defined(Q_WS_WINCE)
     if (e->type() == QEvent::OkRequest) {
         accept();
         result = true;
-     }
-#else
+     } else
+#elif defined(Q_WS_S60)
     if ((e->type() == QEvent::StyleChange) || (e->type() == QEvent::Resize )) {
         if (!testAttribute(Qt::WA_Moved)) {
             Qt::WindowStates state = windowState();
@@ -422,11 +421,14 @@ bool QDialog::event(QEvent *e)
             if (state != windowState())
                 setWindowState(state);
         }
-    }
+    } else
 #endif
+    if (e->type() == QEvent::Move) {
+        setAttribute(Qt::WA_Moved, true); // as explicit as the user wants it to be
+    }
+
     return result;
 }
-#endif
 
 /*!
   Returns the modal dialog's result code, \c Accepted or \c Rejected.
@@ -905,26 +907,33 @@ bool QDialog::s60AdjustedPosition()
             } else {
                 cbaHeight = qt_TSize2QSize(bgContainer->Size()).height();
             }
-            p.setY(S60->screenHeightInPixels-height()-cbaHeight);
+            p.setY(S60->screenHeightInPixels - height() - cbaHeight);
             p.setX(0);
         } else {
             const int scrollbarWidth = style()->pixelMetric(QStyle::PM_ScrollBarExtent);
-            TRect cbaRect = TRect();
-            AknLayoutUtils::LayoutMetricsRect(AknLayoutUtils::EControlPane, cbaRect);
-            AknLayoutUtils::TAknCbaLocation cbaLocation = AknLayoutUtils::CbaLocation();
-            switch (cbaLocation) {
-            case AknLayoutUtils::EAknCbaLocationBottom:
-                p.setY(S60->screenHeightInPixels - height()-cbaRect.Height());
-                p.setX((S60->screenWidthInPixels - width())>>1);
-                break;
-            case AknLayoutUtils::EAknCbaLocationRight:
-                p.setY((S60->screenHeightInPixels - height())>>1);
-                p.setX(qMax(0,S60->screenWidthInPixels-width()-scrollbarWidth-cbaRect.Width()));
-                break;
-            case AknLayoutUtils::EAknCbaLocationLeft:
-                p.setY((S60->screenHeightInPixels - height())>>1);
-                p.setX(qMax(0,scrollbarWidth+cbaRect.Width()));
-                break;
+            TRect staConTopRect = TRect();
+            AknLayoutUtils::LayoutMetricsRect(AknLayoutUtils::EStaconTop, staConTopRect);
+            if (staConTopRect.IsEmpty()) {
+                TRect cbaRect = TRect();
+                AknLayoutUtils::LayoutMetricsRect(AknLayoutUtils::EControlPane, cbaRect);
+                AknLayoutUtils::TAknCbaLocation cbaLocation = AknLayoutUtils::CbaLocation();
+                switch (cbaLocation) {
+                case AknLayoutUtils::EAknCbaLocationBottom:
+                    p.setY(S60->screenHeightInPixels - height() - cbaRect.Height());
+                    p.setX((S60->screenWidthInPixels - width()) >> 1);
+                    break;
+                case AknLayoutUtils::EAknCbaLocationRight:
+                    p.setY((S60->screenHeightInPixels - height()) >> 1);
+                    p.setX(qMax(0,S60->screenWidthInPixels - width() - scrollbarWidth - cbaRect.Width()));
+                    break;
+                case AknLayoutUtils::EAknCbaLocationLeft:
+                    p.setY((S60->screenHeightInPixels - height()) >> 1);
+                    p.setX(qMax(0,scrollbarWidth + cbaRect.Width()));
+                    break;
+                }
+            } else {
+                p.setY((S60->screenHeightInPixels - height()) >> 1);
+                p.setX(qMax(0,S60->screenWidthInPixels - width()));
             }
         }
         move(p);
