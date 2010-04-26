@@ -3375,17 +3375,6 @@ if [ -z "$QT_INSTALL_DEMOS" ]; then #default
 fi
 QT_INSTALL_DEMOS=`"$relpath/config.tests/unix/makeabs" "$QT_INSTALL_DEMOS"`
 
-echo
-echo Install Prefix: $QT_INSTALL_PREFIX
-echo Docs: $QT_INSTALL_DOCS
-echo Data: $QT_INSTALL_DATA
-echo Settings: $QT_INSTALL_SETTINGS
-echo Plugins: $QT_INSTALL_PLUGINS
-echo Imports: $QT_INSTALL_IMPORTS
-echo Translations: $QT_INSTALL_TRANSLATIONS
-echo Demos: $QT_INSTALL_DEMOS
-echo Examples: $QT_INSTALL_EXAMPLES
-
 #-------------------------------------------------------------------------------
 # help - interactive parts of the script _after_ this section please
 #-------------------------------------------------------------------------------
