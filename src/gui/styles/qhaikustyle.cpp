@@ -492,47 +492,6 @@ static void qt_haiku_draw_gradient(QPainter *painter, const QRect &rect, const Q
         delete gradient;
 }
 
-static void qt_haiku_draw_buttongradient(QPainter *painter, const QRect &rect, const QColor &gradientStart,
-                                                const QColor &gradientMid, const QColor &gradientStop, Direction direction = TopDown,
-                                                QBrush bgBrush = QBrush())
-{
-        int x = rect.center().x();
-        int y = rect.center().y();
-        QLinearGradient *gradient;
-        bool horizontal = false;
-        switch(direction) {
-            case FromLeft:
-                horizontal = true;
-                gradient = new QLinearGradient(rect.left(), y, rect.right(), y);
-                break;
-            case FromRight:
-                horizontal = true;
-                gradient = new QLinearGradient(rect.right(), y, rect.left(), y);
-                break;
-            case BottomUp:
-                gradient = new QLinearGradient(x, rect.bottom(), x, rect.top());
-                break;
-            case TopDown:
-            default:
-                gradient = new QLinearGradient(x, rect.top(), x, rect.bottom());
-                break;
-        }
-        if (bgBrush.gradient())
-            gradient->setStops(bgBrush.gradient()->stops());
-        else {
-            int size = horizontal ? rect.width() : rect.height() ;
-            if (size < 1)
-                size = 1;
-            float edge = 4.0/(float)size;
-            gradient->setColorAt(0, gradientStart);
-            gradient->setColorAt(edge, gradientMid.lighter(104));
-            gradient->setColorAt(1.0 - edge, gradientMid.darker(100));
-            gradient->setColorAt(1.0, gradientStop);
-        }
-        painter->fillRect(rect, *gradient);
-        delete gradient;
-}
-
 static QString uniqueName(const QString &key, const QStyleOption *option, const QSize &size)
 {
     QString tmp;
@@ -930,29 +889,25 @@ void QHaikuStyle::drawPrimitive(PrimitiveElement elem,
     case PE_IndicatorCheckBox:
         painter->save();
         if (const QStyleOptionButton *checkbox = qstyleoption_cast<const QStyleOptionButton*>(option)) {
-            QRect checkRect = rect.adjusted(0, 0, -1, -1);;
-            
-            if (state & State_Sunken)
-            	painter->setBrush(mkQColor(ui_color(B_PANEL_BACKGROUND_COLOR)));
-            else
-                painter->setBrush(QColor(255,255,255));
+             
+			BRect bRect(0.0f, 0.0f, rect.width() - 1, rect.height() - 1);
+			TemporarySurface surface(bRect);
+			rgb_color base = ui_color(B_PANEL_BACKGROUND_COLOR);
+			uint32 flags = 0;
 
-			if(checkbox->state & State_HasFocus)
-				painter->setPen(QPen(mkQColor(ui_color(B_NAVIGATION_BASE_COLOR)), 0));
-			else
-	            painter->setPen(QPen(QColor(129,129,129), 0));
+			if (!(state & State_Enabled))
+				flags |= BControlLook::B_DISABLED;
+			if (checkbox->state & State_On)
+				flags |= BControlLook::B_ACTIVATED;
+			if (checkbox->state & State_HasFocus)
+				flags |= BControlLook::B_FOCUSED;
+			if (checkbox->state & State_Sunken)
+				flags |= BControlLook::B_CLICKED;
+			if (checkbox->state & State_NoChange)
+				flags |= BControlLook::B_DISABLED | BControlLook::B_ACTIVATED;
 
-            painter->drawRect(checkRect);
-            
-            if (checkbox->state & (State_On | State_Sunken  | State_NoChange)) {
-				painter->setRenderHint(QPainter::Antialiasing);	            	            
-				QRect markrect = checkRect.adjusted(4, 4, -2, -2);
-                QPen pen = QPen(QColor(27,82,140));
-                pen.setWidth(2);
-                painter->setPen(pen);
-				painter->drawLine(markrect.topLeft(),markrect.bottomRight());
-				painter->drawLine(markrect.topRight(),markrect.bottomLeft());
-        	}
+			be_control_look->DrawCheckBox(surface.view(), bRect, bRect, base, flags);
+			painter->drawImage(rect, surface.image());
         }
         painter->restore();
         break;
@@ -1044,7 +999,7 @@ void QHaikuStyle::drawPrimitive(PrimitiveElement elem,
             	            
 				qt_haiku_draw_button(painter, option->rect.adjusted(1,1,-1,-1), def, flat, pushed, focus, enabled);
 	        }
-	      	painter->restore();
+	     painter->restore();
         }        
         break;
 #ifndef QT_NO_TABBAR
