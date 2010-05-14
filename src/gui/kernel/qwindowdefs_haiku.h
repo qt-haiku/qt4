@@ -51,13 +51,16 @@ QT_BEGIN_NAMESPACE
 QT_MODULE(Gui)
 
 QT_END_NAMESPACE
-
+#ifndef BUILD_WEBKIT
 #include <interface/Point.h>
 #include <interface/Size.h>
 #include <interface/Rect.h>
 #include <interface/Gradient.h>
 #include <interface/Font.h>
 #include <interface/View.h>
+#else
+class BView;
+#endif
 typedef BView *WId;
 
 QT_BEGIN_NAMESPACE

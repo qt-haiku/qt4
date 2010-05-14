@@ -100,7 +100,7 @@ class QGraphicsEffect;
 #if defined(Q_WS_X11)
 class QX11Info;
 #endif
-#if defined(Q_WS_HAIKU)
+#if defined(Q_WS_HAIKU) && !defined(BUILD_WEBKIT)
 #include "qwidget_haiku.h"
 #endif
 

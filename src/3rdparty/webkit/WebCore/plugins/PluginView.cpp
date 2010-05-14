@@ -845,7 +845,7 @@ PluginView::PluginView(Frame* parentFrame, const IntSize& size, PluginPackage* p
     , m_contextRef(0)
     , m_fakeWindow(0)
 #endif
-#if defined(XP_UNIX) && ENABLE(NETSCAPE_PLUGIN_API)
+#if defined(XP_UNIX) && ENABLE(NETSCAPE_PLUGIN_API) && !defined(XP_HAIKU)
     , m_hasPendingGeometryChange(true)
     , m_drawable(0)
     , m_visual(0)
