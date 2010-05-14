@@ -83,6 +83,11 @@
 #   define XP_MACOSX
 #endif
 
+#if defined(__HAIKU__)
+#   define XP_HAIKU
+#	include <stdio.h>
+#endif
+
 #ifdef XP_MAC
     #include <Quickdraw.h>
     #include <Events.h>
@@ -101,7 +106,7 @@
 #endif
 #endif
 
-#ifdef XP_UNIX
+#if defined(XP_UNIX) && !defined(XP_HAIKU)
     #include <X11/Xlib.h>
     #include <X11/Xutil.h>
     #include <stdio.h>
@@ -270,9 +275,11 @@ typedef struct
 typedef struct
 {
     int32           type;
+#ifndef XP_HAIKU
     Display*        display;
     Visual*         visual;
     Colormap        colormap;
+#endif    
     unsigned int    depth;
 } NPSetWindowCallbackStruct;
 
@@ -593,7 +600,7 @@ typedef struct _NPEvent
     uintptr_t   wParam;
     uintptr_t   lParam;
 } NPEvent;
-#elif defined (XP_UNIX)
+#elif defined (XP_UNIX) && !defined(XP_HAIKU)
 typedef XEvent NPEvent;
 #else
 typedef void*            NPEvent;
@@ -614,7 +621,7 @@ typedef RgnHandle NPQDRegion;
 typedef CGPathRef NPCGRegion;
 #elif defined(XP_WIN)
 typedef HRGN NPRegion;
-#elif defined(XP_UNIX)
+#elif defined(XP_UNIX) && !defined(XP_HAIKU)
 typedef Region NPRegion;
 #elif defined(XP_SYMBIAN)
 typedef QRegion* NPRegion;

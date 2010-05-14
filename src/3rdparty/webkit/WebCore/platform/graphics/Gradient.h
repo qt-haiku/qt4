@@ -114,7 +114,7 @@ namespace WebCore {
         GradientSpreadMethod spreadMethod() { return m_spreadMethod; }
         void setGradientSpaceTransform(const AffineTransform& gradientSpaceTransformation);
         // Qt and CG transform the gradient at draw time
-        AffineTransform gradientSpaceTransform() { return m_gradientSpaceTransformation; }
+       // AffineTransform gradientSpaceTransform() { return m_gradientSpaceTransformation; }
 
         virtual void fill(GraphicsContext*, const FloatRect&);
         virtual void adjustParametersForTiledDrawing(IntSize& size, FloatRect& srcRect);
@@ -143,7 +143,7 @@ namespace WebCore {
         mutable bool m_stopsSorted;
         mutable int m_lastStop;
         GradientSpreadMethod m_spreadMethod;
-        AffineTransform m_gradientSpaceTransformation;
+        //AffineTransform m_gradientSpaceTransformation;
 
         PlatformGradient m_gradient;
     };
