@@ -292,7 +292,7 @@ Q_GUI_EXPORT _qt_filedialog_save_filename_hook qt_filedialog_save_filename_hook 
   This signal is emitted when the user selects a \a filter.
 */
 
-#if defined(Q_WS_WIN) || defined(Q_WS_MAC)
+#if defined(Q_WS_WIN) || defined(Q_WS_MAC) || defined(Q_WS_HAIKU)
 bool Q_GUI_EXPORT qt_use_native_dialogs = true; // for the benefit of testing tools, until we have a proper API
 #endif
 
@@ -1617,6 +1617,22 @@ extern QStringList qt_win_get_open_file_names(const QFileDialogArgs &args,
 extern QString qt_win_get_existing_directory(const QFileDialogArgs &args);
 #endif
 
+#if defined(Q_WS_HAIKU)
+extern QString qt_haiku_get_open_file_name(const QFileDialogArgs &args,
+                                         QString *initialDirectory,
+                                         QString *selectedFilter);
+
+extern QString qt_haiku_get_save_file_name(const QFileDialogArgs &args,
+                                         QString *initialDirectory,
+                                         QString *selectedFilter);
+
+extern QStringList qt_haiku_get_open_file_names(const QFileDialogArgs &args,
+                                              QString *initialDirectory,
+                                              QString *selectedFilter);
+
+extern QString qt_haiku_get_existing_directory(const QFileDialogArgs &args);
+#endif
+
 /*!
     This is a convenience static function that returns an existing file
     selected by the user. If the user presses Cancel, it returns a null string.
@@ -1684,6 +1700,12 @@ QString QFileDialog::getOpenFileName(QWidget *parent,
 #if defined(Q_WS_WIN)
     if (qt_use_native_dialogs && !(args.options & DontUseNativeDialog)) {
         return qt_win_get_open_file_name(args, &(args.directory), selectedFilter);
+    }
+#endif
+
+#if defined(Q_WS_HAIKU)
+    if (qt_use_native_dialogs && !(args.options & DontUseNativeDialog)) {
+        return qt_haiku_get_open_file_name(args, &(args.directory), selectedFilter);
     }
 #endif
 
@@ -1769,6 +1791,12 @@ QStringList QFileDialog::getOpenFileNames(QWidget *parent,
 #if defined(Q_WS_WIN)
     if (qt_use_native_dialogs && !(args.options & DontUseNativeDialog)) {
         return qt_win_get_open_file_names(args, &(args.directory), selectedFilter);
+    }
+#endif
+
+#if defined(Q_WS_HAIKU)
+    if (qt_use_native_dialogs && !(args.options & DontUseNativeDialog)) {
+        return qt_haiku_get_open_file_names(args, &(args.directory), selectedFilter);
     }
 #endif
 
@@ -1858,6 +1886,12 @@ QString QFileDialog::getSaveFileName(QWidget *parent,
     }
 #endif
 
+#if defined(Q_WS_HAIKU)
+    if (qt_use_native_dialogs && !(args.options & DontUseNativeDialog)) {
+        return qt_haiku_get_save_file_name(args, &(args.directory), selectedFilter);
+    }
+#endif
+
     // create a qt dialog
     QFileDialog dialog(args);
     dialog.setAcceptMode(AcceptSave);
@@ -1933,6 +1967,11 @@ QString QFileDialog::getExistingDirectory(QWidget *parent,
         ) {
         return qt_win_get_existing_directory(args);
     }
+#endif
+
+#if defined(Q_WS_HAIKU)
+    if (qt_use_native_dialogs && !(args.options & DontUseNativeDialog) && (options & ShowDirsOnly))
+    	return qt_haiku_get_existing_directory(args);
 #endif
 
     // create a qt dialog
