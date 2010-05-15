@@ -431,8 +431,9 @@ static QColor mkQColor(rgb_color rgb)
 	return QColor(rgb.red, rgb.green, rgb.blue);
 }
 
-static void qt_haiku_draw_button(QPainter *painter, const QRect &rect, bool def, bool flat, bool pushed, bool focus, bool enabled)
+static void qt_haiku_draw_button(QPainter *painter, const QRect &qrect, bool def, bool flat, bool pushed, bool focus, bool enabled)
 {
+	QRect rect = qrect;
 	if (be_control_look != NULL) {
 		// TODO: If this button is embedded within a different color background, it would be
 		// nice to tell this function so the frame can be smoothly blended into the background.
@@ -443,8 +444,10 @@ static void qt_haiku_draw_button(QPainter *painter, const QRect &rect, bool def,
 			flags |= BControlLook::B_ACTIVATED;
 		if (focus)
 			flags |= BControlLook::B_FOCUSED;
-		if (def)
+		if (def) {
 			flags |= BControlLook::B_DEFAULT_BUTTON;
+			rect = rect.adjusted(-2,-2,2,2);
+		}
 		if (!enabled)
 			flags |= BControlLook::B_DISABLED;
 
