@@ -889,7 +889,8 @@ void QHaikuStyle::drawPrimitive(PrimitiveElement elem,
     case PE_IndicatorCheckBox:
         painter->save();
         if (const QStyleOptionButton *checkbox = qstyleoption_cast<const QStyleOptionButton*>(option)) {
-             
+            
+            rect = rect.adjusted(-2, -2, 1, 1);
 			BRect bRect(0.0f, 0.0f, rect.width() - 1, rect.height() - 1);
 			TemporarySurface surface(bRect);
 			rgb_color base = ui_color(B_PANEL_BACKGROUND_COLOR);
