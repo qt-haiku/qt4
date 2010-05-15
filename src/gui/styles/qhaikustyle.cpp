@@ -1813,14 +1813,16 @@ void QHaikuStyle::drawControl(ControlElement element, const QStyleOption *option
                     text_flags |= Qt::TextHideMnemonic;
                 text_flags |= Qt::AlignLeft;
                 if (t >= 0) {
+                	QString sText = s.mid(t + 1);
+                	sText.replace("Ctrl+","Alt+");
                     QRect vShortcutRect = visualRect(opt->direction, menuitem->rect,
                                                      QRect(textRect.topRight(), QPoint(menuitem->rect.right(), textRect.bottom())));
                     if (dis && !act && styleHint(SH_EtchDisabledText, option, widget)) {
                         p->setPen(menuitem->palette.light().color());
-                        p->drawText(vShortcutRect.adjusted(1, 1, 1, 1), text_flags, s.mid(t + 1));
+                        p->drawText(vShortcutRect.adjusted(1, 1, 1, 1), text_flags, sText);
                         p->setPen(discol);
                     }
-                    p->drawText(vShortcutRect, text_flags, s.mid(t + 1));
+                    p->drawText(vShortcutRect, text_flags, sText);
                     s = s.left(t);
                 }
                 QFont font = menuitem->font;
