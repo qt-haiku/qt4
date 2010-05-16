@@ -1591,17 +1591,27 @@ void QHaikuStyle::drawControl(ControlElement element, const QStyleOption *option
         {
             QStyleOptionMenuItem item = *mbi;
             item.rect = mbi->rect.adjusted(0, 0, 0, 0);
-            QColor highlightOutline = highlight.darker(125);
-            QLinearGradient gradient(rect.topLeft(), QPoint(rect.bottomLeft().x(), rect.bottomLeft().y()));
-
-            if (option->palette.button().gradient()) {
-                gradient.setStops(option->palette.button().gradient()->stops());
-            } else {
-    	        gradient.setColorAt(0, QColor(235,235,235));
-	            gradient.setColorAt(1, QColor(198,198,198));
-            }
-            painter->fillRect(rect, gradient);          
-
+			if (be_control_look != NULL) {
+				QRect r = rect.adjusted(0,-1,0,0);
+				rgb_color base = ui_color(B_MENU_BACKGROUND_COLOR);;
+				uint32 flags = 0;            
+		        BRect bRect(0.0f, 0.0f, r.width() - 1, r.height() - 1);
+				TemporarySurface surface(bRect);
+				be_control_look->DrawMenuBarBackground(surface.view(), bRect, bRect, base, flags, 8);
+				painter->drawImage(r, surface.image());			    
+			} else {
+	            QColor highlightOutline = highlight.darker(125);
+	            QLinearGradient gradient(rect.topLeft(), QPoint(rect.bottomLeft().x(), rect.bottomLeft().y()));
+	
+	            if (option->palette.button().gradient()) {
+	                gradient.setStops(option->palette.button().gradient()->stops());
+	            } else {
+	    	        gradient.setColorAt(0, QColor(235,235,235));
+		            gradient.setColorAt(1, QColor(198,198,198));
+	            }
+	            painter->fillRect(rect, gradient);
+			}
+			
             QCommonStyle::drawControl(element, &item, painter, widget);
 
             bool act = mbi->state & State_Selected && mbi->state & State_Sunken;
@@ -1926,13 +1936,22 @@ void QHaikuStyle::drawControl(ControlElement element, const QStyleOption *option
     case CE_MenuBarEmptyArea:
         painter->save();
         {
-            QLinearGradient gradient(rect.topLeft(), QPoint(rect.bottomLeft().x(), rect.bottomLeft().y()));
-            gradient.setColorAt(0, QColor(235,235,235));
-            gradient.setColorAt(1, QColor(198,198,198));
-            painter->fillRect(rect, gradient);
-            
-            painter->setPen(QPen(QColor(152,152,152)));
-            painter->drawLine(rect.bottomLeft(), rect.bottomRight());
+			if (be_control_look != NULL) {
+				QRect r = rect.adjusted(0,0,0,-1);
+				rgb_color base = ui_color(B_MENU_BACKGROUND_COLOR);;
+				uint32 flags = 0;            
+		        BRect bRect(0.0f, 0.0f, r.width() - 1, r.height() - 1);
+				TemporarySurface surface(bRect);
+				be_control_look->DrawMenuBarBackground(surface.view(), bRect, bRect, base, flags);
+				painter->drawImage(r, surface.image());			    
+			} else {        	
+	            QLinearGradient gradient(rect.topLeft(), QPoint(rect.bottomLeft().x(), rect.bottomLeft().y()));
+	            gradient.setColorAt(0, QColor(235,235,235));
+	            gradient.setColorAt(1, QColor(198,198,198));
+	            painter->fillRect(rect, gradient);	            
+			}
+   	        painter->setPen(QPen(QColor(152,152,152)));
+            painter->drawLine(rect.bottomLeft(), rect.bottomRight());			
         }
         painter->restore();
         break;
