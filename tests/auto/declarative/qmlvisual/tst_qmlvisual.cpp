@@ -81,11 +81,11 @@ QString tst_qmlvisual::viewer()
     QString qmlruntime;
 
 #if defined(Q_WS_MAC)
-    qmlruntime = QDir(binaries).absoluteFilePath("qml.app/Contents/MacOS/qml");
-#elif defined(Q_WS_WIN)
-    qmlruntime = QDir(binaries).absoluteFilePath("qml.exe");
+    qmlruntime = QDir(binaries).absoluteFilePath("QMLViewer.app/Contents/MacOS/QMLViewer");
+#elif defined(Q_WS_WIN) || defined(Q_WS_S60)
+    qmlruntime = QDir(binaries).absoluteFilePath("qmlviewer.exe");
 #else
-    qmlruntime = QDir(binaries).absoluteFilePath("qml");
+    qmlruntime = QDir(binaries).absoluteFilePath("qmlviewer");
 #endif
 
     return qmlruntime;
@@ -105,6 +105,7 @@ void tst_qmlvisual::visual_data()
         files << QT_TEST_SOURCE_DIR "/qdeclarativeborderimage/animated.qml";
         files << QT_TEST_SOURCE_DIR "/qdeclarativeflipable/test-flipable.qml";
         files << QT_TEST_SOURCE_DIR "/qdeclarativepositioners/usingRepeater.qml";
+        files << QT_TEST_SOURCE_DIR "/animation/parentAnimation2/parentAnimation2.qml";
 
         //these are tests we think are stable and useful enough to be run by the CI system
         files << QT_TEST_SOURCE_DIR "/animation/bindinganimation/bindinganimation.qml";

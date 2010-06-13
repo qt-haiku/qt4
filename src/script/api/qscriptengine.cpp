@@ -294,9 +294,20 @@ QT_BEGIN_NAMESPACE
 
     This enum specifies the ownership when wrapping a C++ value, e.g. by using newQObject().
 
-    \value QtOwnership The standard Qt ownership rules apply, i.e. the associated object will never be explicitly deleted by the script engine. This is the default. (QObject ownership is explained in \l{Object Trees and Object Ownership}.)
-    \value ScriptOwnership The value is owned by the script environment. The associated data will be deleted when appropriate (i.e. after the garbage collector has discovered that there are no more live references to the value).
-    \value AutoOwnership If the associated object has a parent, the Qt ownership rules apply (QtOwnership); otherwise, the object is owned by the script environment (ScriptOwnership).
+    \value QtOwnership The standard Qt ownership rules apply, i.e. the
+    associated object will never be explicitly deleted by the script
+    engine. This is the default. (QObject ownership is explained in
+    \l{Object Trees & Ownership}.)
+
+    \value ScriptOwnership The value is owned by the script
+    environment. The associated data will be deleted when appropriate
+    (i.e. after the garbage collector has discovered that there are no
+    more live references to the value).
+
+    \value AutoOwnership If the associated object has a parent, the Qt
+    ownership rules apply (QtOwnership); otherwise, the object is
+    owned by the script environment (ScriptOwnership).
+
 */
 
 /*!
@@ -1514,7 +1525,7 @@ void QScriptEnginePrivate::detachAllRegisteredScriptStrings()
 
 #ifndef QT_NO_REGEXP
 
-Q_DECL_IMPORT extern QString qt_regexp_toCanonical(const QString &, QRegExp::PatternSyntax);
+Q_CORE_EXPORT QString qt_regexp_toCanonical(const QString &, QRegExp::PatternSyntax);
 
 JSC::JSValue QScriptEnginePrivate::newRegExp(JSC::ExecState *exec, const QRegExp &regexp)
 {
@@ -2008,8 +2019,6 @@ QScriptValue QScriptEngine::newFunction(QScriptEngine::FunctionSignature fun,
 }
 
 #ifndef QT_NO_REGEXP
-
-Q_DECL_IMPORT extern QString qt_regexp_toCanonical(const QString &, QRegExp::PatternSyntax);
 
 /*!
   Creates a QtScript object of class RegExp with the given

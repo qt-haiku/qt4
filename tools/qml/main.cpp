@@ -50,7 +50,6 @@
 #include <QDebug>
 #include <QMessageBox>
 #include "qdeclarativetester.h"
-#include "qdeclarativefolderlistmodel.h"
 
 QT_USE_NAMESPACE
 
@@ -86,7 +85,7 @@ QString warnings;
 void showWarnings()
 {
     if (!warnings.isEmpty()) {
-        QMessageBox::warning(0, QApplication::tr("Qt Declarative UI Runtime"), warnings);
+        QMessageBox::warning(0, QApplication::tr("Qt QML Viewer"), warnings);
     }
 }
 
@@ -111,7 +110,7 @@ void myMessageOutput(QtMsgType type, const char *msg)
 
 void usage()
 {
-    qWarning("Usage: qml [options] <filename>");
+    qWarning("Usage: qmlviewer [options] <filename>");
     qWarning(" ");
     qWarning(" options:");
     qWarning("  -v, -version ............................. display version");
@@ -119,9 +118,6 @@ void usage()
     qWarning("  -maximized................................ run maximized");
     qWarning("  -fullscreen............................... run fullscreen");
     qWarning("  -stayontop................................ keep viewer window on top");
-    qWarning("  -skin <qvfbskindir> ...................... run with a skin window frame");
-    qWarning("                                             \"list\" for a list of built-ins");
-    qWarning("  -resizeview .............................. resize the view, not the skin");
     qWarning("  -sizeviewtorootobject .................... the view resizes to the changes in the content");
     qWarning("  -sizerootobjecttoview .................... the content resizes to the changes in the view");
     qWarning("  -qmlbrowser .............................. use a QML-based file browser");
@@ -152,7 +148,7 @@ void usage()
 
 void scriptOptsUsage()
 {
-    qWarning("Usage: qml -scriptopts <option>[,<option>...] ...");
+    qWarning("Usage: qmlviewer -scriptopts <option>[,<option>...] ...");
     qWarning(" options:");
     qWarning("  record ................................... record a new script");
     qWarning("  play ..................................... playback an existing script");
@@ -184,7 +180,7 @@ int main(int argc, char ** argv)
     atexit(showWarnings);
 #endif
 
-#if defined (Q_WS_X11) || defined(Q_WS_MAC)
+#if defined (Q_WS_X11) || defined (Q_WS_MAC)
     //### default to using raster graphics backend for now
     bool gsSpecified = false;
     for (int i = 0; i < argc; ++i) {
@@ -200,16 +196,14 @@ int main(int argc, char ** argv)
 #endif
 
     QApplication app(argc, argv);
-    app.setApplicationName("QtQmlRuntime");
+    app.setApplicationName("QtQmlViewer");
     app.setOrganizationName("Nokia");
     app.setOrganizationDomain("nokia.com");
 
     QDeclarativeViewer::registerTypes();
     QDeclarativeTester::registerTypes();
-    QDeclarativeFolderListModel::registerTypes();
 
     bool frameless = false;
-    bool resizeview = false;
     QString fileName;
     double fps = 0;
     int autorecord_from = 0;
@@ -219,7 +213,6 @@ int main(int argc, char ** argv)
     QStringList recordargs;
     QStringList imports;
     QStringList plugins;
-    QString skin;
     QString script;
     QString scriptopts;
     bool runScript = false;
@@ -241,6 +234,10 @@ int main(int argc, char ** argv)
     useNativeFileBrowser = false;
 #endif
 
+#if defined(Q_WS_MAC)
+    useGL = true;
+#endif
+
     for (int i = 1; i < argc; ++i) {
         bool lastArg = (i == argc - 1);
         QString arg = argv[i];
@@ -252,11 +249,6 @@ int main(int argc, char ** argv)
             fullScreen = true;
         } else if (arg == "-stayontop") {
             stayOnTop = true;
-        } else if (arg == "-skin") {
-            if (lastArg) usage();
-            skin = QString(argv[++i]);
-        } else if (arg == "-resizeview") {
-            resizeview = true;
         } else if (arg == "-netcache") {
             if (lastArg) usage();
             cache = QString(argv[++i]).toInt();
@@ -285,7 +277,7 @@ int main(int argc, char ** argv)
             if (lastArg) usage();
             app.setStartDragDistance(QString(argv[++i]).toInt());
         } else if (arg == QLatin1String("-v") || arg == QLatin1String("-version")) {
-            qWarning("Qt Qml Runtime version %s", QT_VERSION_STR);
+            qWarning("Qt QML Viewer version %s", QT_VERSION_STR);
             exit(0);
         } else if (arg == "-translation") {
             if (lastArg) usage();
@@ -418,21 +410,10 @@ int main(int argc, char ** argv)
     viewer->setNetworkCacheSize(cache);
     viewer->setRecordFile(recordfile);
     viewer->setSizeToView(sizeToView);
-    if (resizeview)
-        viewer->setScaleView();
     if (fps>0)
         viewer->setRecordRate(fps);
     if (autorecord_to)
         viewer->setAutoRecord(autorecord_from,autorecord_to);
-    if (!skin.isEmpty()) {
-        if (skin == "list") {
-            foreach (QString s, viewer->builtinSkins())
-                qWarning() << qPrintable(s);
-            exit(0);
-        } else {
-            viewer->setSkin(skin);
-        }
-    }
     if (devkeys)
         viewer->setDeviceKeys(true);
     viewer->setRecordDither(dither);

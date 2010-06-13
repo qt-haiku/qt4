@@ -438,11 +438,18 @@ void tst_QDeclarativePathView::pathMoved()
 
     for(int i=0; i<model.count(); i++){
         QDeclarativeRectangle *curItem = findItem<QDeclarativeRectangle>(pathview, "wrapper", i);
-        QCOMPARE(curItem->pos() + offset, path->pointAt(0.25 + i*0.25));
+        QPointF itemPos(path->pointAt(0.25 + i*0.25));
+        QCOMPARE(curItem->pos() + offset, QPointF(qRound(itemPos.x()), qRound(itemPos.y())));
     }
 
     pathview->setOffset(0.0);
     QCOMPARE(firstItem->pos() + offset, start);
+
+    // Change delegate size
+    canvas->rootObject()->setProperty("delegateWidth", 30);
+    QCOMPARE(firstItem->width(), 30.0);
+    offset.setX(firstItem->width()/2);
+    QTRY_COMPARE(firstItem->pos() + offset, start);
 
     delete canvas;
 }
@@ -479,12 +486,35 @@ void tst_QDeclarativePathView::setCurrentIndex()
     QCOMPARE(canvas->rootObject()->property("currentB").toInt(), 0);
 
     pathview->setCurrentIndex(2);
-    QTest::qWait(1000);
 
     firstItem = findItem<QDeclarativeRectangle>(pathview, "wrapper", 2);
-    QCOMPARE(firstItem->pos() + offset, start);
+    QTRY_COMPARE(firstItem->pos() + offset, start);
     QCOMPARE(canvas->rootObject()->property("currentA").toInt(), 2);
     QCOMPARE(canvas->rootObject()->property("currentB").toInt(), 2);
+
+    pathview->decrementCurrentIndex();
+    QTRY_COMPARE(pathview->currentIndex(), 1);
+    firstItem = findItem<QDeclarativeRectangle>(pathview, "wrapper", 1);
+    QVERIFY(firstItem);
+    QTRY_COMPARE(firstItem->pos() + offset, start);
+
+    pathview->decrementCurrentIndex();
+    QTRY_COMPARE(pathview->currentIndex(), 0);
+    firstItem = findItem<QDeclarativeRectangle>(pathview, "wrapper", 0);
+    QVERIFY(firstItem);
+    QTRY_COMPARE(firstItem->pos() + offset, start);
+
+    pathview->decrementCurrentIndex();
+    QTRY_COMPARE(pathview->currentIndex(), 3);
+    firstItem = findItem<QDeclarativeRectangle>(pathview, "wrapper", 3);
+    QVERIFY(firstItem);
+    QTRY_COMPARE(firstItem->pos() + offset, start);
+
+    pathview->incrementCurrentIndex();
+    QTRY_COMPARE(pathview->currentIndex(), 0);
+    firstItem = findItem<QDeclarativeRectangle>(pathview, "wrapper", 0);
+    QVERIFY(firstItem);
+    QTRY_COMPARE(firstItem->pos() + offset, start);
 
     delete canvas;
 }
@@ -736,7 +766,7 @@ T *tst_QDeclarativePathView::findItem(QGraphicsObject *parent, const QString &ob
         //qDebug() << "try" << item;
         if (mo.cast(item) && (objectName.isEmpty() || item->objectName() == objectName)) {
             if (index != -1) {
-                QDeclarativeExpression e(qmlContext(item), "index", item);
+                QDeclarativeExpression e(qmlContext(item), item, "index");
                 if (e.evaluate().toInt() == index)
                     return static_cast<T*>(item);
             } else {

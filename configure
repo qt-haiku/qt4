@@ -612,7 +612,7 @@ mkdir -p "$outpath/config.tests"
 rm -f "$outpath/config.tests/.qmake.cache"
 cp "$QMAKE_VARS_FILE" "$outpath/config.tests/.qmake.cache"
 
-QMakeVar add styles "cde mac motif plastique cleanlooks windows s60"
+QMakeVar add styles "cde mac motif plastique cleanlooks windows"
 QMakeVar add decorations "default windows styled"
 QMakeVar add mouse-drivers "pc"
 if [ "$UNAME_SYSTEM" = "Linux" ] ; then
@@ -687,8 +687,6 @@ CFG_RELEASE_QMAKE=no
 CFG_PHONON=auto
 CFG_PHONON_BACKEND=yes
 CFG_MULTIMEDIA=auto
-CFG_MEDIASERVICES=auto
-CFG_MEDIA_BACKEND=auto
 CFG_AUDIO_BACKEND=auto
 CFG_SVG=auto
 CFG_DECLARATIVE=auto
@@ -943,7 +941,7 @@ while [ "$#" -gt 0 ]; do
         VAL=no
         ;;
     #Qt style yes options
-        -incremental|-qvfb|-profile|-shared|-static|-sm|-xinerama|-xshape|-xsync|-xinput|-egl|-reduce-exports|-pch|-separate-debug-info|-stl|-freetype|-xcursor|-xfixes|-xrandr|-xrender|-mitshm|-fontconfig|-xkb|-nis|-qdbus|-dbus|-dbus-linked|-glib|-gstreamer|-gtkstyle|-cups|-iconv|-largefile|-h|-help|-v|-verbose|-debug|-release|-fast|-accessibility|-confirm-license|-gnumake|-framework|-qt3support|-debug-and-release|-exceptions|-cocoa|-carbon|-universal|-prefix-install|-silent|-armfpa|-optimized-qmake|-dwarf2|-reduce-relocations|-sse|-openssl|-openssl-linked|-ptmalloc|-xmlpatterns|-phonon|-phonon-backend|-multimedia|-mediaservices|-media-backend|-audio-backend|-svg|-declarative|-webkit|-javascript-jit|-script|-scripttools|-rpath|-force-pkg-config|-s60|-usedeffiles)
+        -incremental|-qvfb|-profile|-shared|-static|-sm|-xinerama|-xshape|-xsync|-xinput|-egl|-reduce-exports|-pch|-separate-debug-info|-stl|-freetype|-xcursor|-xfixes|-xrandr|-xrender|-mitshm|-fontconfig|-xkb|-nis|-qdbus|-dbus|-dbus-linked|-glib|-gstreamer|-gtkstyle|-cups|-iconv|-largefile|-h|-help|-v|-verbose|-debug|-release|-fast|-accessibility|-confirm-license|-gnumake|-framework|-qt3support|-debug-and-release|-exceptions|-cocoa|-carbon|-universal|-prefix-install|-silent|-armfpa|-optimized-qmake|-dwarf2|-reduce-relocations|-sse|-openssl|-openssl-linked|-ptmalloc|-xmlpatterns|-phonon|-phonon-backend|-multimedia|-audio-backend|-svg|-declarative|-webkit|-javascript-jit|-script|-scripttools|-rpath|-force-pkg-config|-s60|-usedeffiles)
         VAR=`echo $1 | sed "s,^-\(.*\),\1,"`
         VAL=yes
         ;;
@@ -2170,20 +2168,6 @@ while [ "$#" -gt 0 ]; do
             UNKNOWN_OPT=yes
         fi
         ;;
-    mediaservices)
-        if [ "$VAL" = "yes" ] || [ "$VAL" = "no" ]; then
-            CFG_MEDIASERVICES="$VAL"
-        else
-            UNKNOWN_OPT=yes
-        fi
-        ;;
-    media-backend)
-        if [ "$VAL" = "yes" ] || [ "$VAL" = "no" ]; then
-            CFG_MEDIA_BACKEND="$VAL"
-        else
-            UNKNOWN_OPT=yes
-        fi
-        ;;
     audio-backend)
         if [ "$VAL" = "yes" ] || [ "$VAL" = "no" ]; then
             CFG_AUDIO_BACKEND="$VAL"
@@ -2236,9 +2220,11 @@ minimal|small|medium|large|full)
     ;;
 *)
     # not known to be sufficient for anything
-    if [ '!' -f "$relpath/src/corelib/global/qconfig-${CFG_QCONFIG}.h" ]; then
+    if [ '!' -f "$relpath/src/corelib/global/qconfig-${CFG_QCONFIG}.h" ] && [ '!' -f `"$relpath/config.tests/unix/makeabs" "${CFG_QCONFIG}"` ]; then
         echo >&2 "Error: configuration file not found:"
         echo >&2 "  $relpath/src/corelib/global/qconfig-${CFG_QCONFIG}.h"
+        echo >&2 "  or"
+        echo >&2 "  `"$relpath/config.tests/unix/makeabs" "${CFG_QCONFIG}"`"
         OPT_HELP=yes
     fi
 esac
@@ -2793,6 +2779,17 @@ fi
 
 if [ -z "${CFG_HOST_ARCH}" ]; then
     case "$UNAME_SYSTEM:$UNAME_RELEASE:$UNAME_MACHINE" in
+    GNU:*:*)
+        CFG_HOST_ARCH=`echo ${UNAME_MACHINE} | sed -e 's,[-/].*$,,'`
+        case "$CFG_HOST_ARCH" in
+            i?86)
+                CFG_HOST_ARCH=i386
+                ;;
+        esac
+        if [ "$OPT_VERBOSE" = "yes" ]; then
+            echo "    GNU/Hurd ($CFG_HOST_ARCH)"
+        fi
+        ;;
     IRIX*:*:*)
         CFG_HOST_ARCH=`uname -p`
         if [ "$OPT_VERBOSE" = "yes" ]; then
@@ -3231,17 +3228,25 @@ fi
 
 #prefix
 if [ -z "$QT_INSTALL_PREFIX" ]; then
-    if [ "$CFG_DEV" = "yes" ]; then
-	QT_INSTALL_PREFIX="$outpath" # In Development, we use sandboxed builds by default
-    elif [ "$PLATFORM_QWS" = "yes" ]; then
-        QT_INSTALL_PREFIX="/usr/local/Trolltech/QtEmbedded-${QT_VERSION}"
-        if [ "$PLATFORM" != "$XPLATFORM" ]; then
-            QT_INSTALL_PREFIX="${QT_INSTALL_PREFIX}-${CFG_ARCH}"
+    if [ -d "$EPOCROOT" ]; then
+        case "$XPLATFORM" in *symbian*)
+            QT_INSTALL_PREFIX="$EPOCROOT/epoc32/"
+            QT_INSTALL_LIBS="$EPOCROOT/epoc32/release/armv5/lib/"
+            ;;
+        esac
+    fi
+
+    if [ -z "$QT_INSTALL_PREFIX" ]; then # still empty
+        if [ "$CFG_DEV" = "yes" ]; then
+            QT_INSTALL_PREFIX="$outpath" # In Development, we use sandboxed builds by default
+        elif [ "$PLATFORM_QWS" = "yes" ]; then
+            QT_INSTALL_PREFIX="/usr/local/Trolltech/QtEmbedded-${QT_VERSION}"
+            if [ "$PLATFORM" != "$XPLATFORM" ]; then
+                    QT_INSTALL_PREFIX="${QT_INSTALL_PREFIX}-${CFG_ARCH}"
+            fi
+        else
+            QT_INSTALL_PREFIX="/usr/local/Trolltech/Qt-${QT_VERSION}" # the default install prefix is /usr/local/Trolltech/Qt-$QT_VERSION
         fi
-    elif [ "$PLATFORM_HAIKU" = "yes" ]; then
-        QT_INSTALL_PREFIX="/boot/common"
-    else
-        QT_INSTALL_PREFIX="/usr/local/Trolltech/Qt-${QT_VERSION}" # the default install prefix is /usr/local/Trolltech/Qt-$QT_VERSION
     fi
 fi
 QT_INSTALL_PREFIX=`"$relpath/config.tests/unix/makeabs" "$QT_INSTALL_PREFIX"`
@@ -3456,8 +3461,7 @@ Usage:  $relconf [-h] [-prefix <dir>] [-prefix-install] [-bindir <dir>] [-libdir
         [-no-separate-debug-info] [-no-mmx] [-no-3dnow] [-no-sse] [-no-sse2]
         [-qtnamespace <namespace>] [-qtlibinfix <infix>] [-separate-debug-info] [-armfpa]
         [-no-optimized-qmake] [-optimized-qmake] [-no-xmlpatterns] [-xmlpatterns]
-        [-no-multimedia] [-multimedia] [-no-mediaservices] [-mediaservices]
-        [-no-phonon] [-phonon] [-no-phonon-backend] [-phonon-backend]
+        [-no-multimedia] [-multimedia] [-no-phonon] [-phonon] [-no-phonon-backend] [-phonon-backend]
         [-no-media-backend] [-media-backend] [-no-audio-backend] [-audio-backend] 
         [-no-openssl] [-openssl] [-openssl-linked]
         [-no-gtkstyle] [-gtkstyle] [-no-svg] [-svg] [-no-webkit] [-webkit] [-no-javascript-jit] [-javascript-jit]
@@ -3601,12 +3605,6 @@ fi
 
     -no-audio-backend .. Do not build the platform audio backend into QtMultimedia.
  +  -audio-backend ..... Build the platform audio backend into QtMultimedia if available.
-
-    -no-mediaservices... Do not build the QtMediaServices module.
- +  -mediaservices...... Build the QtMediaServices module.
-
-    -no-media-backend... Do not build platform mediaservices plugin.
- +  -media-backend..... Build the platform mediaservices plugin.
 
     -no-phonon ......... Do not build the Phonon module.
  +  -phonon ............ Build the Phonon module.
@@ -4748,6 +4746,9 @@ if [ "$CFG_ZLIB" = "auto" ]; then
 fi
 
 case "$XPLATFORM" in *symbian*)
+    QMakeVar set styles "windows s60"   #overwrite previous default
+    CFG_LIBFREETYPE=no
+
     if test -z "$EPOCROOT"; then
         echo "Please export EPOCROOT. It should point to the sdk install dir"
         exit 1
@@ -4877,7 +4878,14 @@ fi
 
 # detect accessibility
 if [ "$CFG_ACCESSIBILITY" = "auto" ]; then
-    CFG_ACCESSIBILITY=yes
+    case "$XPLATFORM" in
+    symbian*)
+        # accessibility is currently unsupported
+        CFG_ACCESSIBILITY=no
+    ;;
+    *)
+        CFG_ACCESSIBILITY=yes
+    esac
 fi
 
 # auto-detect SQL-modules support
@@ -5265,21 +5273,8 @@ if [ "$PLATFORM_X11" = "yes" -o "$PLATFORM_QWS" = "yes" -o "$PLATFORM_HAIKU" = "
         fi
     fi
 
-    if [ "$CFG_GUI" = "no" ]; then
-        if [ "$CFG_MEDIA_BACKEND" = "auto" ]; then
-            CFG_MEDIA_BACKEND=no
-        fi
-        if [ "$CFG_MEDIA_BACKEND" != "no" ]; then
-            echo "Medias backend enabled, but GUI disabled."
-            echo " You might need to either enable the GUI or disable the media backend"
-            exit 1
-        fi
-    elif [ "$CFG_MEDIA_BACKEND" = "auto" ]; then
-        CFG_MEDIA_BACKEND=yes
-    fi
-
     # Auto-detect GStreamer support (needed for both Phonon & QtMultimedia)
-    if [ "$CFG_PHONON" != "no" -o "$CFG_MEDIASERVICES" != "no" ]; then
+    if [ "$CFG_PHONON" != "no" ]; then
         if [ "$CFG_GLIB" = "yes" -a "$CFG_GSTREAMER" != "no" ]; then
             if [ -n "$PKG_CONFIG" ]; then
                 QT_CFLAGS_GSTREAMER=`$PKG_CONFIG --cflags gstreamer-0.10 gstreamer-plugins-base-0.10 2>/dev/null`
@@ -6973,15 +6968,6 @@ else
     QT_CONFIG="$QT_CONFIG multimedia"
 fi
 
-if [ "$CFG_MEDIASERVICES" = "no" ]; then
-    QCONFIG_FLAGS="$QCONFIG_FLAGS QT_NO_MEDIASERVICES"
-else
-    QT_CONFIG="$QT_CONFIG mediaservices"
-    if [ "$CFG_MEDIA_BACKEND" != "no" ]; then
-        QT_CONFIG="$QT_CONFIG media-backend"
-    fi
-fi
-
 if [ "$CFG_AUDIO_BACKEND" = "yes" ]; then
     QT_CONFIG="$QT_CONFIG audio-backend"
 fi
@@ -7302,7 +7288,11 @@ full)
 *)
     tmpconfig="$outpath/src/corelib/global/qconfig.h.new"
     echo "#ifndef QT_BOOTSTRAPPED" >"$tmpconfig"
-    cat "$relpath/src/corelib/global/qconfig-$CFG_QCONFIG.h" >>"$tmpconfig"
+    if [ -f "$relpath/src/corelib/global/qconfig-$CFG_QCONFIG.h" ]; then
+        cat "$relpath/src/corelib/global/qconfig-$CFG_QCONFIG.h" >>"$tmpconfig"
+    elif [ -f `"$relpath/config.tests/unix/makeabs" "${CFG_QCONFIG}"` ]; then
+        cat `"$relpath/config.tests/unix/makeabs" "${CFG_QCONFIG}"` >>"$tmpconfig"
+    fi
     echo "#endif" >>"$tmpconfig"
     ;;
 esac
@@ -7566,7 +7556,7 @@ fi
 [ "$CFG_ALSA" = "no" ]           && QCONFIG_FLAGS="$QCONFIG_FLAGS QT_NO_ALSA"
 [ "$CFG_PULSEAUDIO" = "no" ]          && QCONFIG_FLAGS="$QCONFIG_FLAGS QT_NO_PULSEAUDIO"
 [ "$CFG_COREWLAN" = "no" ]       && QCONFIG_FLAGS="$QCONFIG_FLAGS QT_NO_COREWLAN"
-[ "$CFG_ICD" = "no" ] && QCONFIG_FLAGS="$QCONFIG_FLAGS QT_NO_ICD"
+[ "$CFG_ICD" != "yes" ] && QCONFIG_FLAGS="$QCONFIG_FLAGS QT_NO_ICD"
 
 # sort QCONFIG_FLAGS for neatness if we can
 [ '!' -z "$AWK" ] && QCONFIG_FLAGS=`echo $QCONFIG_FLAGS | $AWK '{ gsub(" ", "\n"); print }' | sort | uniq`
@@ -7582,6 +7572,10 @@ then
 fi
 
 if [ -n "$QCONFIG_FLAGS" ]; then
+cat >>"$outpath/src/corelib/global/qconfig.h.new" << EOF
+#ifndef QT_BOOTSTRAPPED
+
+EOF
     for cfg in $QCONFIG_FLAGS; do
         cfgd=`echo $cfg | sed 's/=.*$//'` # trim pushed 'Foo=Bar' defines
         cfg=`echo $cfg | sed 's/=/ /'`    # turn first '=' into a space
@@ -7614,6 +7608,10 @@ cat >>"$outpath/src/corelib/global/qconfig.h.new" << EOF
 EOF
         fi
     done
+cat >>"$outpath/src/corelib/global/qconfig.h.new" << EOF
+#endif // QT_BOOTSTRAPPED
+
+EOF
 fi
 
 if [ "$CFG_REDUCE_EXPORTS" = "yes" ]; then
@@ -7939,7 +7937,6 @@ echo "QtScriptTools module ... $CFG_SCRIPTTOOLS"
 echo "QtXmlPatterns module ... $CFG_XMLPATTERNS"
 echo "Phonon module .......... $CFG_PHONON"
 echo "Multimedia module ...... $CFG_MULTIMEDIA"
-echo "Mediaservices module ... $CFG_MEDIASERVICES"
 echo "SVG module ............. $CFG_SVG"
 echo "WebKit module .......... $CFG_WEBKIT"
 if [ "$CFG_WEBKIT" = "yes" ]; then 
@@ -8099,7 +8096,7 @@ if [ "$CFG_OPENSSL" = "linked" ] && [ "$OPENSSL_LIBS" = "" ]; then
     echo "NOTE: When linking against OpenSSL, you can override the default"
     echo "library names through OPENSSL_LIBS."
     echo "For example:"
-    echo "    ./configure -openssl-linked OPENSSL_LIBS='-L/opt/ssl/lib -lssl -lcrypto'"
+    echo "    OPENSSL_LIBS='-L/opt/ssl/lib -lssl -lcrypto' ./configure -openssl-linked"
     echo
 fi
 if [ "$PLATFORM_MAC" = "yes" ] && [ "$CFG_FRAMEWORK" = "yes" ] && [ "$CFG_DEBUG" = "yes" ] && [ "$CFG_DEBUG_RELEASE" = "no" ]; then

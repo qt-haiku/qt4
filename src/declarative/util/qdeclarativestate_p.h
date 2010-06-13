@@ -84,7 +84,7 @@ public:
     void deleteFromBinding();
 };
 
-class QDeclarativeActionEvent
+class Q_AUTOTEST_EXPORT QDeclarativeActionEvent
 {
 public:
     virtual ~QDeclarativeActionEvent();
@@ -96,6 +96,7 @@ public:
     virtual bool isReversable();
     virtual void reverse(Reason reason = ActualChange);
     virtual void saveOriginals() {}
+    virtual bool needsCopy() { return false; }
     virtual void copyOriginals(QDeclarativeActionEvent *) {}
 
     virtual bool isRewindable() { return isReversable(); }

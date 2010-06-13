@@ -53,6 +53,7 @@
 #include "private/qdeclarativebinding_p_p.h"
 #include "private/qdeclarativeglobal_p.h"
 #include "private/qdeclarativescriptparser_p.h"
+#include "private/qdeclarativedebugtrace_p.h"
 
 #include <QStack>
 #include <QStringList>
@@ -246,7 +247,7 @@ QDeclarativeComponent::~QDeclarativeComponent()
     \o Component.Ready - the component has been loaded, and can be used to create instances.
     \o Component.Loading - the component is currently being loaded
     \o Component.Error - an error occurred while loading the component.
-               Calling errorsString() will provide a human-readable description of any errors.
+               Calling errorString() will provide a human-readable description of any errors.
     \endlist
  */
 
@@ -492,7 +493,7 @@ QList<QDeclarativeError> QDeclarativeComponent::errors() const
 }
 
 /*!
-    \qmlmethod string Component::errorsString()
+    \qmlmethod string Component::errorString()
 
     Returns a human-readable description of any errors.
 
@@ -504,9 +505,9 @@ QList<QDeclarativeError> QDeclarativeComponent::errors() const
 
 /*!
     \internal
-    errorsString is only meant as a way to get the errors in script
+    errorString is only meant as a way to get the errors in script
 */
-QString QDeclarativeComponent::errorsString() const
+QString QDeclarativeComponent::errorString() const
 {
     Q_D(const QDeclarativeComponent);
     QString ret;
@@ -549,15 +550,19 @@ QDeclarativeComponent::QDeclarativeComponent(QDeclarativeComponentPrivate &dd, Q
     Returns an object instance from this component, or null if object creation fails.
 
     The object will be created in the same context as the one in which the component
-    was created.
+    was created. This function will always return null when called on components
+    which were not created in QML.
 
     Note that if the returned object is to be displayed, its \c parent must be set to
-    an existing item in a scene, or else the object will not be visible.
+    an existing item in a scene, or else the object will not be visible. The parent
+    argument is required to help you avoid this, you must explicitly pass in null if
+    you wish to create an object without setting a parent.
 */
 
 /*!
     \internal
-    A version of create which returns a scriptObject, for use in script
+    A version of create which returns a scriptObject, for use in script.
+    This function will only work on components created in QML.
 
     Sets graphics object parent because forgetting to do this is a frequent
     and serious problem.
@@ -576,10 +581,12 @@ QScriptValue QDeclarativeComponent::createObject(QObject* parent)
     bool needParent = (gobj != 0);
     if(parent){
         ret->setParent(parent);
-        QGraphicsObject* gparent = qobject_cast<QGraphicsObject*>(parent);
-        if(gparent){
-            gobj->setParentItem(gparent);
-            needParent = false;
+        if (gobj) {
+            QGraphicsObject* gparent = qobject_cast<QGraphicsObject*>(parent);
+            if(gparent){
+                gobj->setParentItem(gparent);
+                needParent = false;
+            }
         }
     }
     if(needParent)
@@ -686,6 +693,11 @@ QDeclarativeComponentPrivate::beginCreate(QDeclarativeContextData *context, cons
     }
 
     QDeclarativeEnginePrivate *ep = QDeclarativeEnginePrivate::get(engine);
+
+    bool isRoot = !ep->inBeginCreate;
+    if (isRoot) 
+        QDeclarativeDebugTrace::startRange(QDeclarativeDebugTrace::Creating);
+    QDeclarativeDebugTrace::rangeData(QDeclarativeDebugTrace::Creating, cc->url);
 
     QDeclarativeContextData *ctxt = new QDeclarativeContextData;
     ctxt->isInternal = true;
@@ -833,6 +845,7 @@ void QDeclarativeComponentPrivate::complete(QDeclarativeEnginePrivate *enginePri
                 enginePriv->erroredBindings->removeError();
             }
         }
+
     }
 }
 
@@ -854,6 +867,8 @@ void QDeclarativeComponentPrivate::completeCreate()
     if (state.completePending) {
         QDeclarativeEnginePrivate *ep = QDeclarativeEnginePrivate::get(engine);
         complete(ep, &state);
+
+        QDeclarativeDebugTrace::endRange(QDeclarativeDebugTrace::Creating);
     }
 }
 

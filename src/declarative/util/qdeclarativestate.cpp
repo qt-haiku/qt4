@@ -390,12 +390,13 @@ void QDeclarativeState::apply(QDeclarativeStateGroup *group, QDeclarativeTransit
                     if (action.event->override(event)) {
                         found = true;
 
-                        if (action.event != d->revertList.at(jj).event) {
+                        if (action.event != d->revertList.at(jj).event && action.event->needsCopy()) {
                             action.event->copyOriginals(d->revertList.at(jj).event);
 
                             QDeclarativeSimpleAction r(action);
                             additionalReverts << r;
                             d->revertList.removeAt(jj);
+                            --jj;
                         } else if (action.event->isRewindable())    //###why needed?
                             action.event->saveCurrentValues();
 
@@ -485,6 +486,7 @@ void QDeclarativeState::apply(QDeclarativeStateGroup *group, QDeclarativeTransit
     // All the local reverts now become part of the ongoing revertList
     d->revertList << additionalReverts;
 
+#ifndef QT_NO_DEBUG_STREAM
     // Output for debugging
     if (stateChangeDebug()) {
         foreach(const QDeclarativeAction &action, applyList) {
@@ -496,6 +498,7 @@ void QDeclarativeState::apply(QDeclarativeStateGroup *group, QDeclarativeTransit
                            << "To:" << action.toValue;
         }
     }
+#endif
 
     d->transitionManager.transition(applyList, trans);
 }

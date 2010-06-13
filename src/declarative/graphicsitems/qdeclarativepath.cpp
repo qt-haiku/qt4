@@ -377,7 +377,9 @@ void QDeclarativePath::createPointCache() const
 {
     Q_D(const QDeclarativePath);
     qreal pathLength = d->_path.length();
-    const int points = int(pathLength*2);
+    // more points means less jitter between items as they move along the
+    // path, but takes longer to generate
+    const int points = int(pathLength*5);
     const int lastElement = d->_path.elementCount() - 1;
     d->_pointCache.resize(points+1);
 
@@ -626,7 +628,7 @@ void QDeclarativePathLine::addToPath(QPainterPath &path)
     \qml
     Path {
         startX: 0; startY: 0
-        PathQuad x: 200; y: 0; controlX: 100; controlY: 150 }
+        PathQuad { x: 200; y: 0; controlX: 100; controlY: 150 }
     }
     \endqml
     \endtable
@@ -711,8 +713,9 @@ void QDeclarativePathQuad::addToPath(QPainterPath &path)
     Path {
         startX: 20; startY: 0
         PathCubic {
-            x: 180; y: 0; control1X: -10; control1Y: 90
-                          control2X: 210; control2Y: 90
+            x: 180; y: 0
+            control1X: -10; control1Y: 90
+            control2X: 210; control2Y: 90
         }
     }
     \endqml
@@ -865,6 +868,9 @@ qreal QDeclarativePathPercent::value() const
 
 void QDeclarativePathPercent::setValue(qreal value)
 {
-    _value = value;
+    if (_value != value) {
+        _value = value;
+        emit changed();
+    }
 }
 QT_END_NAMESPACE

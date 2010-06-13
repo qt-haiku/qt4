@@ -49,21 +49,12 @@
 #include <QtDeclarative/qdeclarativeextensioninterface.h>
 #include <private/qdeclarativeglobal_p.h>
 #include <private/qdeclarativetypenamecache_p.h>
+#include <private/qdeclarativeengine_p.h>
 
 QT_BEGIN_NAMESPACE
 
 DEFINE_BOOL_CONFIG_OPTION(qmlImportTrace, QML_IMPORT_TRACE)
 DEFINE_BOOL_CONFIG_OPTION(qmlCheckTypes, QML_CHECK_TYPES)
-
-static QString toLocalFileOrQrc(const QUrl& url)
-{
-    if (url.scheme().compare(QLatin1String("qrc"), Qt::CaseInsensitive) == 0) {
-        if (url.authority().isEmpty())
-            return QLatin1Char(':') + url.path();
-        return QString();
-    }
-    return url.toLocalFile();
-}
 
 static bool greaterThan(const QString &s1, const QString &s2)
 {
@@ -262,7 +253,7 @@ bool QDeclarativeImportedNamespace::find_helper(int i, const QByteArray& type, i
 
     if (!typeWasDeclaredInQmldir  && !isLibrary.at(i)) {
         // XXX search non-files too! (eg. zip files, see QT-524)
-        QFileInfo f(toLocalFileOrQrc(url));
+        QFileInfo f(QDeclarativeEnginePrivate::urlToLocalFileOrQrc(url));
         if (f.exists()) {
             if (base && *base == url) { // no recursion
                 if (typeRecursionDetected)
@@ -415,15 +406,15 @@ bool QDeclarativeImportsPrivate::add(const QDeclarativeDirComponents &qmldircomp
 
         if (importType == QDeclarativeScriptParser::Import::File && qmldircomponents.isEmpty()) {
             QUrl importUrl = base.resolved(QUrl(uri + QLatin1String("/qmldir")));
-            QString localFileOrQrc = toLocalFileOrQrc(importUrl);
+            QString localFileOrQrc = QDeclarativeEnginePrivate::urlToLocalFileOrQrc(importUrl);
             if (!localFileOrQrc.isEmpty()) {
-                QString dir = toLocalFileOrQrc(base.resolved(QUrl(uri)));
+                QString dir = QDeclarativeEnginePrivate::urlToLocalFileOrQrc(base.resolved(QUrl(uri)));
                 if (dir.isEmpty() || !QDir().exists(dir)) {
                     if (errorString)
                         *errorString = QDeclarativeImportDatabase::tr("\"%1\": no such directory").arg(uri_arg);
                     return false; // local import dirs must exist
                 }
-                uri = resolvedUri(toLocalFileOrQrc(base.resolved(QUrl(uri))), database);
+                uri = resolvedUri(QDeclarativeEnginePrivate::urlToLocalFileOrQrc(base.resolved(QUrl(uri))), database);
                 if (uri.endsWith(QLatin1Char('/')))
                     uri.chop(1);
                 if (QFile::exists(localFileOrQrc)) {
@@ -433,7 +424,7 @@ bool QDeclarativeImportsPrivate::add(const QDeclarativeDirComponents &qmldircomp
             } else {
                 if (prefix.isEmpty()) {
                     // directory must at least exist for valid import
-                    QString localFileOrQrc = toLocalFileOrQrc(base.resolved(QUrl(uri)));
+                    QString localFileOrQrc = QDeclarativeEnginePrivate::urlToLocalFileOrQrc(base.resolved(QUrl(uri)));
                     if (localFileOrQrc.isEmpty() || !QDir().exists(localFileOrQrc)) {
                         if (errorString) {
                             if (localFileOrQrc.isEmpty())
@@ -576,9 +567,9 @@ QDeclarativeImportDatabase::QDeclarativeImportDatabase(QDeclarativeEngine *e)
 {
     filePluginPath << QLatin1String(".");
 
-    QString builtinPath = QLibraryInfo::location(QLibraryInfo::ImportsPath);
-    if (!builtinPath.isEmpty())
-        addImportPath(builtinPath);
+    // Search order is applicationDirPath(), $QML_IMPORT_PATH, QLibraryInfo::ImportsPath
+
+    addImportPath(QLibraryInfo::location(QLibraryInfo::ImportsPath));
 
     // env import paths
     QByteArray envImportPath = qgetenv("QML_IMPORT_PATH");
@@ -592,6 +583,8 @@ QDeclarativeImportDatabase::QDeclarativeImportDatabase(QDeclarativeEngine *e)
         for (int ii = paths.count() - 1; ii >= 0; --ii)
             addImportPath(paths.at(ii));
     }
+
+    addImportPath(QCoreApplication::applicationDirPath());
 }
 
 QDeclarativeImportDatabase::~QDeclarativeImportDatabase()
@@ -676,11 +669,11 @@ bool QDeclarativeImportDatabase::resolveType(const QDeclarativeImports& imports,
 
   If either return pointer is 0, the corresponding search is not done.
 */
-void QDeclarativeImportDatabase::resolveTypeInNamespace(QDeclarativeImportedNamespace* ns, const QByteArray& type, 
+bool QDeclarativeImportDatabase::resolveTypeInNamespace(QDeclarativeImportedNamespace* ns, const QByteArray& type, 
                                                         QDeclarativeType** type_return, QUrl* url_return, 
                                                         int *vmaj, int *vmin) const
 {
-    ns->find(type,vmaj,vmin,type_return,url_return);
+    return ns->find(type,vmaj,vmin,type_return,url_return);
 }
 
 /*!
@@ -830,7 +823,7 @@ void QDeclarativeImportDatabase::addPluginPath(const QString& path)
         qDebug() << "QDeclarativeImportDatabase::addPluginPath" << path;
 
     QUrl url = QUrl(path);
-    if (url.isRelative() || url.scheme() == QString::fromLocal8Bit("file")) {
+    if (url.isRelative() || url.scheme() == QLatin1String("file")) {
         QDir dir = QDir(path);
         filePluginPath.prepend(dir.canonicalPath());
     } else {
@@ -843,17 +836,21 @@ void QDeclarativeImportDatabase::addImportPath(const QString& path)
     if (qmlImportTrace())
         qDebug() << "QDeclarativeImportDatabase::addImportPath" << path;
 
+    if (path.isEmpty())
+        return;
+
     QUrl url = QUrl(path);
     QString cPath;
 
-    if (url.isRelative() || url.scheme() == QString::fromLocal8Bit("file")) {
+    if (url.isRelative() || url.scheme() == QLatin1String("file")) {
         QDir dir = QDir(path);
         cPath = dir.canonicalPath();
     } else {
         cPath = path;
     }
 
-    if (!fileImportPath.contains(cPath))
+    if (!cPath.isEmpty()
+        && !fileImportPath.contains(cPath))
         fileImportPath.prepend(cPath);
 }
 

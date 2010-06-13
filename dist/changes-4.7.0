@@ -33,7 +33,6 @@ New features
  - QNetworkSession, QNetworkConfiguration, QNetworkConfigurationManager
     * New bearer management classes added.
 
-
 Third party components
 ----------------------
 
@@ -51,10 +50,27 @@ Third party components
 QtCore
 ------
 
+ - QString
+    * Added QString(const QChar *) constructor.
+      NOTE: This is source-incompatible for the bogus QString(0) case.
+    * Removed internal but exported qt_winQString2MB() and qt_winMB2QString()
+    * Added setRawData() function (also revived the one in QByteArray)
+    * Various performance improvements
+ - QList
+    * Added reserve() function
+    * Various performance improvements
+ - QMetaType
+    * Significantly improved performance of the type() function
+    * [QTBUG-8235] Support QEasingCurve as a built in metatype.
+ - QState
+    * [QTBUG-7741] Added a function to get the out-going transitions
  - QXmlStreamReader
     * [QTBUG-9196] fixed crash when parsing
  - QTimer
     * singleShot with 0 timeout will now avoid allocating objects
+ - QAbstractAnimation
+    * [QTBUG-10654] Avoids animation with loopCount == 0 to change state
+      to running and stopped.
 
 QtGui
 -----
@@ -63,10 +79,16 @@ QtGui
     * Fixed a bug that would cause keyboard searches not to behave
       properly when used within 400 milliseconds of midnight.
 
+ - QComboBox
+    * [QTBUG-8796] Made ForegroundRole work for all styles.
+
  - QPrinter
     * Obsoleted the slightly confusing setNumCopies() and numCopies()
       functions, and replaced them with setCopyCount(), copyCount() and
       supportsMultipleCopies().
+
+ - QPrintDialog/QPrinter
+    * Added support for printing the current page.
 
  - QCommonStyle
     * Fixed a bug that led to missing text pixels in QTabBar when using
@@ -76,12 +98,36 @@ QtGui
     * Fixed rendering bugs when scrolling graphics items with drop
       shadows.
 
+ - QGraphicsItem
+    * [QTBUG-8112] itemChange() is now called when transformation
+      properties change (setRotation, setScale, setTransformOriginPoint).
+    * [QTBUG-9024] Improved performance when calling update() on items that
+      are clipped by an ancestor (QGraphicsItem::ItemClipsChildrenToShape).
+    * [QTBUG-7703], [QTBUG-8378] Fixed scrolling issues
+
+ - QGraphicsTextItem
+    * [QTBUG-7333] Fixed keyboard shortcuts not being triggered when the
+      the item has focus and something else has the same shortcut sequence.
+    * [QTBUG-10574] Fixed crash when flag "QGraphicsItem::ItemIgnoresTransformations"
+      is set.
+
+ - QGraphicsView
+    * [QTBUG-7438] Fixed viewport cursor getting reset when releasing
+      the mouse.
+    * [QTBUG-10338] Fixed drawing artifacts due to rounding errors.
+
  - QImage
-    * [QTBUG-9640] Prevented unneccessary copy in
-      QImage::setAlphaChannel().
-    * Added QImage::bitPlaneCount(). (QTBUG-7982)
+    * [QTBUG-9640] Prevented unneccessary copy in QImage::setAlphaChannel().
+    * [QTBUG-7982] Added QImage::bitPlaneCount().
+
+ - QPicture
+    * [QTBUG-4974] Printing QPictures containing text to a high resolution
+      QPrinter would in many cases cause incorrect character spacing.
 
  - QPainter
+    * Added QPainter::drawPixmapFragments(), which makes it possible to draw
+      pixmaps, or sub-rectangles of pixmaps, at various positions with
+      different scale, opacity and rotation.
     * [QTBUG-10018] Fixed image drawing inconsistencies when drawing
       1x1 source rects with rotating / shear / perspective transforms.
     * Optimized various blending and rendering operations for ARM
@@ -97,8 +143,19 @@ QtGui
       operators (intersect, subtract, unite) to prevent numerical
       stability issues.
 
+ - QPixmap
+    * [QTBUG-4149] Fixed QPixmap::grabWidget() on widgets that have not yet
+      been shown.
+    
+ - QPlastiqueStyle
+    * [QTBUG-6516] Respect AlternateBase role for list views.
+
  - QRegion
     * [QTBUG-7699] Fixed crash caused by large x-coordinates.
+
+ - QSplitter
+    * [QTBUG-9335] Improve support for 1-pixel splitters by using a 
+      larger drag area.
 
  - QTransform
     * [QTBUG-8557] Fixed bug in QTransform::type() potentially occuring
@@ -125,6 +182,21 @@ QtNetwork
  - SSL
   * [QTBUG-2515] Do not make OpenSSL prompt for a password
   * [QTBUG-6504, QTBUG-8924, QTBUG-5645] Fix memleak
+
+QtScript
+--------
+ - Updated src/3rdparty/javascriptcore to a more recent version
+ - Significantly improved performance of the Qt/C++<-->JavaScript bridge
+ - QScriptValueIterator: Significantly improved performance
+ - [QTBUG-3637] Added a wrap option for excluding slots from a QObject binding
+ - [QTBUG-6238] Added a function for reporting additional memory cost
+ - [QTBUG-6908] Significantly improved performance of qsTr()
+
+QtSvg
+-----
+ - QSvgRenderer
+  * [QTBUG-8264] Fixed rounded rectangles when 'rx' or 'ry' is zero.
+  * [QTBUG-10022] Fixed assert failure when loading an invalid SVG.
 
 QtXmlPatterns
 -------------
@@ -159,26 +231,32 @@ Qt Plugins
 
 Qt for Linux/X11
 ----------------
-
+ - QGtkStyle
+    * Fixed rtl issues with sliders (QTBUG-8986)
+    * Fixed missing pressed appearance on scroll bar handles. (QTBUG-10396)  
 
 Qt for Windows
 --------------
+ - Popup windows now implicitly activate when shown. (QTBUG-7386)
 
  - QLocalSocket
     * Pipe handle leak fixed, when closing a QLocalSocket that still has
       unwritten data. (QTBUG-7815)
     * Fixed closing state for local sockets with unwritten data. (QTBUG-9681)
-    * Detection of Windows mobile 6.5 fixed. (QTBUG-8418)
     * Improved performance of writing to QLocalSocket.
 
 
 Qt for Mac OS X
 ---------------
-
+ - QMacStyle
+    * Removed frame around statusbar items. (QTBUG-3574)
+    * More native appearance of item view headers and frames. (QTBUG-10047)    
 
 Qt for Embedded Linux
 ---------------------
 
+  * Add support for WA_TranslucentBackground (QTBUG-5739)
+  * Add support for QFont::NoAntialias (QTBUG-5936)
 
 Qt for Windows CE
 -----------------
@@ -192,6 +270,7 @@ Qt for Windows CE
     * Huge performance penalty for QTabWidget fixed for
       Windows mobile 6.5. (QTBUG-8419)
     * QTabBar scroll button size has been fixed. (QTBUG-8757)
+    * Detection of Windows mobile 6.5 fixed. (QTBUG-8418)
 
 
 
@@ -213,15 +292,19 @@ Qt for Windows CE
 
 
 - Designer
-
+ - [QTBUG-9351] Fixed a bug that caused modified headerview-properties
+   of item views to be duplicated in the UI-file.
+ - [QTBUG-8347] Fixed a layout problem caused by embedded images in the rich
+   text of a QLabel.
+ - [QTBUG-8041], [QTBUG-8213] Fixed a crash related to undo while moving
+   widgets by arrow keys.
+ - [QTBUG-7822] Added support for the 'windowOpacity'-property.
+ - [QTBUG-7764] Fixed the emission of the propertyChanged()-signal of
+   QDesignerPropertyEditorInterface.
+ - [QTBUG-5492] Made widgetbox-filter match on class names, too.
 
 - Linguist
-  - Linguist GUI
-
-  - lupdate
-
-  - lrelease
-
+  * The GNU gettext PO format support has been improved
 
 - rcc
 
@@ -231,11 +314,35 @@ Qt for Windows CE
 
 - uic
 
-
 - uic3
 
+ - [QTBUG-9207] Fixed export of image files of type XPM, added
+   compatibility option -limit-xpm-linelength.
 
 - qmake
+  * Removed remainder of tmake compatibility
+  * Removed remainder of mac9 mode
+  * Removed MSVC6 generator
+  * Removed makespecs for MSVC.NET and MSVC2002
+  * Deprecated -win32/-unix/-macx options, following various cleanups
+    relating to platform support. Cross-building makespecs should now
+    specify a TARGET_PLATFORM.
+  * Started to warn about use of various constructs:
+    - non-lowercased replace $$function() calls
+    - deprecated variables
+    - unescaped backslashes.
+      NOTE: You should use UNIX path separators where possible. qmake
+      will warn about unnecessary Windows path separators in the future.
+  * Removed expansion of qmake- & environment variables in some unexpected
+    cases (double expansions, command line options, etc.)
+  * Removed splitting at semicolons of literal values which were assigned
+    directly to INCLUDEPATH and DEPENDPATH
+  * Removed UNIX-specific exporting of all qmake variables to the environment
+    of subprocesses invoked via system(). You should put specific assignments
+    into the invoked shell command instead.
+  * Started to short-cut evaluation inside if() tests, consistently with
+    evaluation outside if().
+  * Added possibility to request project recursion from within a PRO file
 
 
 - configure
@@ -256,3 +363,17 @@ Qt for Windows CE
 *                   Important Behavior Changes                             *
 ****************************************************************************
 
+QtScript: Changes due to updating src/3rdparty/javascriptcore:
+ - It is no longer possible to delete an undeletable property from C++
+   using QScriptValue::setProperty().
+ - The QScriptEngineAgent::positionChange() callback will always report
+   a column number of 1.
+ - QScriptValueIterator will include the "length" property when iterating
+   over Array objects.
+
+QtCore:
+  - QChar no longer carries the Q_PACKED tag on ARM. This flag was
+    used to allow proper alignment of QChar on 2 bytes on older ARM
+    ABIs, but it also allowed for unaligned access. Qt never generates
+    or uses unaligned access and the new EABI aligns as expected, so
+    the flag was removed.

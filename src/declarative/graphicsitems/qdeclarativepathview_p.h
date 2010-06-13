@@ -132,6 +132,10 @@ public:
 
     static QDeclarativePathViewAttached *qmlAttachedProperties(QObject *);
 
+public Q_SLOTS:
+    void incrementCurrentIndex();
+    void decrementCurrentIndex();
+
 Q_SIGNALS:
     void currentIndexChanged();
     void offsetChanged();
@@ -157,6 +161,7 @@ protected:
     void mouseReleaseEvent(QGraphicsSceneMouseEvent *);
     bool sendMouseEvent(QGraphicsSceneMouseEvent *event);
     bool sceneEventFilter(QGraphicsItem *, QEvent *);
+    bool event(QEvent *event);
     void componentComplete();
 
 private Q_SLOTS:

@@ -97,9 +97,11 @@ QT_BEGIN_NAMESPACE
 
     The Translate object provides independent control over position in addition to the Item's x and y properties.
 
-    The following example moves the Y axis of the Rectangles while still allowing the Row element
+    The following example moves the Y axis of the \l Rectangle elements while still allowing the \l Row element
     to lay the items out as if they had not been transformed:
     \qml
+    import Qt 4.7
+
     Row {
         Rectangle {
             width: 100; height: 100
@@ -113,6 +115,8 @@ QT_BEGIN_NAMESPACE
         }
     }
     \endqml
+
+    \image translate.png
 */
 
 /*!
@@ -375,7 +379,7 @@ void QDeclarativeContents::childAdded(QDeclarativeItem *item)
 }
 
 QDeclarativeItemKeyFilter::QDeclarativeItemKeyFilter(QDeclarativeItem *item)
-: m_next(0)
+: m_processPost(false), m_next(0)
 {
     QDeclarativeItemPrivate *p =
         item?static_cast<QDeclarativeItemPrivate *>(QGraphicsItemPrivate::get(item)):0;
@@ -389,19 +393,19 @@ QDeclarativeItemKeyFilter::~QDeclarativeItemKeyFilter()
 {
 }
 
-void QDeclarativeItemKeyFilter::keyPressed(QKeyEvent *event)
+void QDeclarativeItemKeyFilter::keyPressed(QKeyEvent *event, bool post)
 {
-    if (m_next) m_next->keyPressed(event);
+    if (m_next) m_next->keyPressed(event, post);
 }
 
-void QDeclarativeItemKeyFilter::keyReleased(QKeyEvent *event)
+void QDeclarativeItemKeyFilter::keyReleased(QKeyEvent *event, bool post)
 {
-    if (m_next) m_next->keyReleased(event);
+    if (m_next) m_next->keyReleased(event, post);
 }
 
-void QDeclarativeItemKeyFilter::inputMethodEvent(QInputMethodEvent *event)
+void QDeclarativeItemKeyFilter::inputMethodEvent(QInputMethodEvent *event, bool post)
 {
-    if (m_next) m_next->inputMethodEvent(event);
+    if (m_next) m_next->inputMethodEvent(event, post);
 }
 
 QVariant QDeclarativeItemKeyFilter::inputMethodQuery(Qt::InputMethodQuery query) const
@@ -463,9 +467,11 @@ void QDeclarativeItemKeyFilter::componentComplete()
     }
     \endcode
 
-    KeyNavigation receives key events after the item it is attached to.
+    By default KeyNavigation receives key events after the item it is attached to.
     If the item accepts an arrow key event, the KeyNavigation
-    attached property will not receive an event for that key.
+    attached property will not receive an event for that key.  Setting the
+    \l priority property to KeyNavigation.BeforeItem allows handling
+    of the key events before normal item processing.
 
     If an item has been set for a direction and the KeyNavigation
     attached property receives the corresponding
@@ -490,6 +496,7 @@ QDeclarativeKeyNavigationAttached::QDeclarativeKeyNavigationAttached(QObject *pa
 : QObject(*(new QDeclarativeKeyNavigationAttachedPrivate), parent),
   QDeclarativeItemKeyFilter(qobject_cast<QDeclarativeItem*>(parent))
 {
+    m_processPost = true;
 }
 
 QDeclarativeKeyNavigationAttached *
@@ -576,11 +583,44 @@ void QDeclarativeKeyNavigationAttached::setBacktab(QDeclarativeItem *i)
     emit changed();
 }
 
-void QDeclarativeKeyNavigationAttached::keyPressed(QKeyEvent *event)
+/*!
+    \qmlproperty enumeration KeyNavigation::priority
+
+    This property determines whether the keys are processed before
+    or after the attached item's own key handling.
+
+    \list
+    \o KeyNavigation.BeforeItem - process the key events before normal
+    item key processing.  If the event is accepted it will not
+    be passed on to the item.
+    \o KeyNavigation.AfterItem (default) - process the key events after normal item key
+    handling.  If the item accepts the key event it will not be
+    handled by the KeyNavigation attached property handler.
+    \endlist
+*/
+QDeclarativeKeyNavigationAttached::Priority QDeclarativeKeyNavigationAttached::priority() const
+{
+    return m_processPost ? AfterItem : BeforeItem;
+}
+
+void QDeclarativeKeyNavigationAttached::setPriority(Priority order)
+{
+    bool processPost = order == AfterItem;
+    if (processPost != m_processPost) {
+        m_processPost = processPost;
+        emit priorityChanged();
+    }
+}
+
+void QDeclarativeKeyNavigationAttached::keyPressed(QKeyEvent *event, bool post)
 {
     Q_D(QDeclarativeKeyNavigationAttached);
-
     event->ignore();
+
+    if (post != m_processPost) {
+        QDeclarativeItemKeyFilter::keyPressed(event, post);
+        return;
+    }
 
     switch(event->key()) {
     case Qt::Key_Left:
@@ -623,14 +663,18 @@ void QDeclarativeKeyNavigationAttached::keyPressed(QKeyEvent *event)
         break;
     }
 
-    if (!event->isAccepted()) QDeclarativeItemKeyFilter::keyPressed(event);
+    if (!event->isAccepted()) QDeclarativeItemKeyFilter::keyPressed(event, post);
 }
 
-void QDeclarativeKeyNavigationAttached::keyReleased(QKeyEvent *event)
+void QDeclarativeKeyNavigationAttached::keyReleased(QKeyEvent *event, bool post)
 {
     Q_D(QDeclarativeKeyNavigationAttached);
-
     event->ignore();
+
+    if (post != m_processPost) {
+        QDeclarativeItemKeyFilter::keyReleased(event, post);
+        return;
+    }
 
     switch(event->key()) {
     case Qt::Key_Left:
@@ -667,7 +711,7 @@ void QDeclarativeKeyNavigationAttached::keyReleased(QKeyEvent *event)
         break;
     }
 
-    if (!event->isAccepted()) QDeclarativeItemKeyFilter::keyReleased(event);
+    if (!event->isAccepted()) QDeclarativeItemKeyFilter::keyReleased(event, post);
 }
 
 /*!
@@ -709,6 +753,28 @@ void QDeclarativeKeyNavigationAttached::keyReleased(QKeyEvent *event)
 
     See \l {Qt::Key}{Qt.Key} for the list of keyboard codes.
 
+    If priority is Keys.BeforeItem (default) the order of key event processing is:
+
+    \list 1
+    \o Items specified in \c forwardTo
+    \o specific key handlers, e.g. onReturnPressed
+    \o onKeyPress, onKeyRelease handlers
+    \o Item specific key handling, e.g. TextInput key handling
+    \o parent item
+    \endlist
+
+    If priority is Keys.AfterItem the order of key event processing is:
+    \list 1
+    \o Item specific key handling, e.g. TextInput key handling
+    \o Items specified in \c forwardTo
+    \o specific key handlers, e.g. onReturnPressed
+    \o onKeyPress, onKeyRelease handlers
+    \o parent item
+    \endlist
+
+    If the event is accepted during any of the above steps, key
+    propagation stops.
+
     \sa KeyEvent, {KeyNavigation}{KeyNavigation attached property}
 */
 
@@ -717,6 +783,22 @@ void QDeclarativeKeyNavigationAttached::keyReleased(QKeyEvent *event)
 
     This flags enables key handling if true (default); otherwise
     no key handlers will be called.
+*/
+
+/*!
+    \qmlproperty enumeration Keys::priority
+
+    This property determines whether the keys are processed before
+    or after the attached item's own key handling.
+
+    \list
+    \o Keys.BeforeItem (default) - process the key events before normal
+    item key processing.  If the event is accepted it will not
+    be passed on to the item.
+    \o Keys.AfterItem - process the key events after normal item key
+    handling.  If the item accepts the key event it will not be
+    handled by the Keys attached property handler.
+    \endlist
 */
 
 /*!
@@ -1039,11 +1121,26 @@ QDeclarativeKeysAttached::QDeclarativeKeysAttached(QObject *parent)
   QDeclarativeItemKeyFilter(qobject_cast<QDeclarativeItem*>(parent))
 {
     Q_D(QDeclarativeKeysAttached);
+    m_processPost = false;
     d->item = qobject_cast<QDeclarativeItem*>(parent);
 }
 
 QDeclarativeKeysAttached::~QDeclarativeKeysAttached()
 {
+}
+
+QDeclarativeKeysAttached::Priority QDeclarativeKeysAttached::priority() const
+{
+    return m_processPost ? AfterItem : BeforeItem;
+}
+
+void QDeclarativeKeysAttached::setPriority(Priority order)
+{
+    bool processPost = order == AfterItem;
+    if (processPost != m_processPost) {
+        m_processPost = processPost;
+        emit priorityChanged();
+    }
 }
 
 void QDeclarativeKeysAttached::componentComplete()
@@ -1060,11 +1157,12 @@ void QDeclarativeKeysAttached::componentComplete()
     }
 }
 
-void QDeclarativeKeysAttached::keyPressed(QKeyEvent *event)
+void QDeclarativeKeysAttached::keyPressed(QKeyEvent *event, bool post)
 {
     Q_D(QDeclarativeKeysAttached);
-    if (!d->enabled || d->inPress) {
+    if (post != m_processPost || !d->enabled || d->inPress) {
         event->ignore();
+        QDeclarativeItemKeyFilter::keyPressed(event, post);
         return;
     }
 
@@ -1099,14 +1197,15 @@ void QDeclarativeKeysAttached::keyPressed(QKeyEvent *event)
         emit pressed(&ke);
     event->setAccepted(ke.isAccepted());
 
-    if (!event->isAccepted()) QDeclarativeItemKeyFilter::keyPressed(event);
+    if (!event->isAccepted()) QDeclarativeItemKeyFilter::keyPressed(event, post);
 }
 
-void QDeclarativeKeysAttached::keyReleased(QKeyEvent *event)
+void QDeclarativeKeysAttached::keyReleased(QKeyEvent *event, bool post)
 {
     Q_D(QDeclarativeKeysAttached);
-    if (!d->enabled || d->inRelease) {
+    if (post != m_processPost || !d->enabled || d->inRelease) {
         event->ignore();
+        QDeclarativeItemKeyFilter::keyReleased(event, post);
         return;
     }
 
@@ -1129,13 +1228,13 @@ void QDeclarativeKeysAttached::keyReleased(QKeyEvent *event)
     emit released(&ke);
     event->setAccepted(ke.isAccepted());
 
-    if (!event->isAccepted()) QDeclarativeItemKeyFilter::keyReleased(event);
+    if (!event->isAccepted()) QDeclarativeItemKeyFilter::keyReleased(event, post);
 }
 
-void QDeclarativeKeysAttached::inputMethodEvent(QInputMethodEvent *event)
+void QDeclarativeKeysAttached::inputMethodEvent(QInputMethodEvent *event, bool post)
 {
     Q_D(QDeclarativeKeysAttached);
-    if (d->item && !d->inIM && d->item->scene()) {
+    if (post == m_processPost && d->item && !d->inIM && d->item->scene()) {
         d->inIM = true;
         for (int ii = 0; ii < d->targets.count(); ++ii) {
             QGraphicsItem *i = d->finalFocusProxy(d->targets.at(ii));
@@ -1150,7 +1249,7 @@ void QDeclarativeKeysAttached::inputMethodEvent(QInputMethodEvent *event)
         }
         d->inIM = false;
     }
-    if (!event->isAccepted()) QDeclarativeItemKeyFilter::inputMethodEvent(event);
+    if (!event->isAccepted()) QDeclarativeItemKeyFilter::inputMethodEvent(event, post);
 }
 
 class QDeclarativeItemAccessor : public QGraphicsItem
@@ -1194,7 +1293,10 @@ QDeclarativeKeysAttached *QDeclarativeKeysAttached::qmlAttachedProperties(QObjec
     width and height, \l {anchor-layout}{anchoring} and key handling.
 
     You can subclass QDeclarativeItem to provide your own custom visual item that inherits
-    these features.
+    these features. Note that, because it does not draw anything, QDeclarativeItem sets the
+    QGraphicsItem::ItemHasNoContents flag. If you subclass QDeclarativeItem to create a visual
+    item, you will need to unset this flag.
+
 */
 
 /*!
@@ -1819,8 +1921,11 @@ void QDeclarativeItemPrivate::removeItemChangeListener(QDeclarativeItemChangeLis
 void QDeclarativeItem::keyPressEvent(QKeyEvent *event)
 {
     Q_D(QDeclarativeItem);
+    keyPressPreHandler(event);
+    if (event->isAccepted())
+        return;
     if (d->keyHandler)
-        d->keyHandler->keyPressed(event);
+        d->keyHandler->keyPressed(event, true);
     else
         event->ignore();
 }
@@ -1829,8 +1934,11 @@ void QDeclarativeItem::keyPressEvent(QKeyEvent *event)
 void QDeclarativeItem::keyReleaseEvent(QKeyEvent *event)
 {
     Q_D(QDeclarativeItem);
+    keyReleasePreHandler(event);
+    if (event->isAccepted())
+        return;
     if (d->keyHandler)
-        d->keyHandler->keyReleased(event);
+        d->keyHandler->keyReleased(event, true);
     else
         event->ignore();
 }
@@ -1839,8 +1947,11 @@ void QDeclarativeItem::keyReleaseEvent(QKeyEvent *event)
 void QDeclarativeItem::inputMethodEvent(QInputMethodEvent *event)
 {
     Q_D(QDeclarativeItem);
+    inputMethodPreHandler(event);
+    if (event->isAccepted())
+        return;
     if (d->keyHandler)
-        d->keyHandler->inputMethodEvent(event);
+        d->keyHandler->inputMethodEvent(event, true);
     else
         event->ignore();
 }
@@ -1858,6 +1969,37 @@ QVariant QDeclarativeItem::inputMethodQuery(Qt::InputMethodQuery query) const
 
     return v;
 }
+
+void QDeclarativeItem::keyPressPreHandler(QKeyEvent *event)
+{
+    Q_D(QDeclarativeItem);
+    if (d->keyHandler && !d->doneEventPreHandler)
+        d->keyHandler->keyPressed(event, false);
+    else
+        event->ignore();
+    d->doneEventPreHandler = true;
+}
+
+void QDeclarativeItem::keyReleasePreHandler(QKeyEvent *event)
+{
+    Q_D(QDeclarativeItem);
+    if (d->keyHandler && !d->doneEventPreHandler)
+        d->keyHandler->keyReleased(event, false);
+    else
+        event->ignore();
+    d->doneEventPreHandler = true;
+}
+
+void QDeclarativeItem::inputMethodPreHandler(QInputMethodEvent *event)
+{
+    Q_D(QDeclarativeItem);
+    if (d->keyHandler && !d->doneEventPreHandler)
+        d->keyHandler->inputMethodEvent(event, false);
+    else
+        event->ignore();
+    d->doneEventPreHandler = true;
+}
+
 
 /*!
     \internal
@@ -2543,7 +2685,13 @@ bool QDeclarativeItem::sceneEvent(QEvent *event)
     }
 }
 
-/*! \internal */
+/*!
+    \reimp
+
+    Note that unlike QGraphicsItems, QDeclarativeItem::itemChange() is \e not called
+    during initial widget polishing. Items wishing to optimize start-up construction
+    should instead consider using componentComplete().
+*/
 QVariant QDeclarativeItem::itemChange(GraphicsItemChange change,
                                        const QVariant &value)
 {
@@ -2973,9 +3121,21 @@ void QDeclarativeItem::paint(QPainter *, const QStyleOptionGraphicsItem *, QWidg
 */
 bool QDeclarativeItem::event(QEvent *ev)
 {
+    Q_D(QDeclarativeItem);
+    switch (ev->type()) {
+    case QEvent::KeyPress:
+    case QEvent::KeyRelease:
+    case QEvent::InputMethod:
+        d->doneEventPreHandler = false;
+        break;
+    default:
+        break;
+    }
+
     return QGraphicsObject::event(ev);
 }
 
+#ifndef QT_NO_DEBUG_STREAM
 QDebug operator<<(QDebug debug, QDeclarativeItem *item)
 {
     if (!item) {
@@ -2989,42 +3149,58 @@ QDebug operator<<(QDebug debug, QDeclarativeItem *item)
           << ", z =" << item->zValue() << ')';
     return debug;
 }
+#endif
 
-int QDeclarativeItemPrivate::consistentTime = -1;
-void QDeclarativeItemPrivate::setConsistentTime(int t)
+qint64 QDeclarativeItemPrivate::consistentTime = -1;
+void QDeclarativeItemPrivate::setConsistentTime(qint64 t)
 {
     consistentTime = t;
 }
 
-QTime QDeclarativeItemPrivate::currentTime()
+class QElapsedTimerConsistentTimeHack
 {
-    if (consistentTime == -1)
-        return QTime::currentTime();
+public:
+    void start() {
+        t1 = QDeclarativeItemPrivate::consistentTime;
+        t2 = 0;
+    }
+    qint64 elapsed() {
+        return QDeclarativeItemPrivate::consistentTime - t1;
+    }
+    qint64 restart() {
+        qint64 val = QDeclarativeItemPrivate::consistentTime - t1;
+        t1 = QDeclarativeItemPrivate::consistentTime;
+        t2 = 0;
+        return val;
+    }
+
+private:
+    qint64 t1;
+    qint64 t2;
+};
+
+void QDeclarativeItemPrivate::start(QElapsedTimer &t)
+{
+    if (QDeclarativeItemPrivate::consistentTime == -1)
+        t.start();
     else
-        return QTime(0, 0).addMSecs(consistentTime);
+        ((QElapsedTimerConsistentTimeHack*)&t)->start();
 }
 
-void QDeclarativeItemPrivate::start(QTime &t)
+qint64 QDeclarativeItemPrivate::elapsed(QElapsedTimer &t)
 {
-    t = currentTime();
+    if (QDeclarativeItemPrivate::consistentTime == -1)
+        return t.elapsed();
+    else
+        return ((QElapsedTimerConsistentTimeHack*)&t)->elapsed();
 }
 
-int QDeclarativeItemPrivate::elapsed(QTime &t)
+qint64 QDeclarativeItemPrivate::restart(QElapsedTimer &t)
 {
-    int n = t.msecsTo(currentTime());
-    if (n < 0)                                // passed midnight
-        n += 86400 * 1000;
-    return n;
-}
-
-int QDeclarativeItemPrivate::restart(QTime &t)
-{
-    QTime time = currentTime();
-    int n = t.msecsTo(time);
-    if (n < 0)                                // passed midnight
-        n += 86400*1000;
-    t = time;
-    return n;
+    if (QDeclarativeItemPrivate::consistentTime == -1)
+        return t.restart();
+    else
+        return ((QElapsedTimerConsistentTimeHack*)&t)->restart();
 }
 
 QT_END_NAMESPACE

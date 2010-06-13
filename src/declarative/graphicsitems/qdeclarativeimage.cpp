@@ -57,10 +57,9 @@ QT_BEGIN_NAMESPACE
     An Image element displays a specified \l source image:
 
     \table
-    \o
-    \image declarative-qtlogo.png
-    \o
-    \qml
+    \row
+    \o \image declarative-qtlogo.png
+    \o \qml
         import Qt 4.7
 
         Image { source: "qtlogo.png" }
@@ -276,18 +275,26 @@ qreal QDeclarativeImage::paintedHeight() const
     \o Image.Error - an error occurred while loading the image
     \endlist
 
-    Note that a change in the status property does not cause anything to happen
-    (although it reflects what has happened with the image internally). If you wish
-    to react to the change in status you need to do it yourself, for example in one
-    of the following ways:
-    \list
-    \o Create a state, so that a state change occurs, e.g.
-    \qml State { name: 'loaded'; when: image.status = Image.Ready } \endqml
-    \o Do something inside the onStatusChanged signal handler, e.g.
-    \qml Image { id: image; onStatusChanged: if (image.status == Image.Ready) console.log('Loaded') } \endqml
-    \o Bind to the status variable somewhere, e.g.
-    \qml Text { text: if (image.status != Image.Ready) { 'Not Loaded' } else { 'Loaded' } } \endqml
-    \endlist
+    Use this status to provide an update or respond to the status change in some way.
+    For example, you could:
+
+    \e {Trigger a state change:}
+    \qml 
+        State { name: 'loaded'; when: image.status = Image.Ready }
+    \endqml
+
+    \e {Implement an \c onStatusChanged signal handler:}
+    \qml 
+        Image {
+            id: image
+            onStatusChanged: if (image.status == Image.Ready) console.log('Loaded')
+        }
+    \endqml
+
+    \e {Bind to the status value:}
+    \qml
+        Text { text: image.status != Image.Ready ? 'Not Loaded' : 'Loaded' }
+    \endqml
 
     \sa progress
 */

@@ -91,6 +91,7 @@ class QDeclarativeEngine;
 class QDeclarativeContextPrivate;
 class QDeclarativeExpression;
 class QDeclarativeContextScriptClass;
+class QDeclarativeImportDatabase;
 class QDeclarativeObjectScriptClass;
 class QDeclarativeTypeNameScriptClass;
 class QDeclarativeValueTypeScriptClass;
@@ -282,7 +283,7 @@ public:
     static QScriptValue createComponent(QScriptContext*, QScriptEngine*);
     static QScriptValue createQmlObject(QScriptContext*, QScriptEngine*);
     static QScriptValue isQtObject(QScriptContext*, QScriptEngine*);
-    static QScriptValue vector(QScriptContext*, QScriptEngine*);
+    static QScriptValue vector3d(QScriptContext*, QScriptEngine*);
     static QScriptValue rgba(QScriptContext*, QScriptEngine*);
     static QScriptValue hsla(QScriptContext*, QScriptEngine*);
     static QScriptValue point(QScriptContext*, QScriptEngine*);
@@ -301,10 +302,11 @@ public:
     static QScriptValue consoleLog(QScriptContext*, QScriptEngine*);
     static QScriptValue quit(QScriptContext*, QScriptEngine*);
 
+#ifndef QT_NO_TEXTDATE
     static QScriptValue formatDate(QScriptContext*, QScriptEngine*);
     static QScriptValue formatTime(QScriptContext*, QScriptEngine*);
     static QScriptValue formatDateTime(QScriptContext*, QScriptEngine*);
-
+#endif
     static QScriptEngine *getScriptEngine(QDeclarativeEngine *e) { return &e->d_func()->scriptEngine; }
     static QDeclarativeEngine *getEngine(QScriptEngine *e) { return static_cast<QDeclarativeScriptEngine*>(e)->p->q_func(); }
     static QDeclarativeEnginePrivate *get(QDeclarativeEngine *e) { return e->d_func(); }
@@ -313,6 +315,8 @@ public:
     static QDeclarativeEnginePrivate *get(QScriptEngine *e) { return static_cast<QDeclarativeScriptEngine*>(e)->p; }
     static QDeclarativeEngine *get(QDeclarativeEnginePrivate *p) { return p->q_func(); }
     QDeclarativeContextData *getContext(QScriptContext *);
+
+    static QString urlToLocalFileOrQrc(const QUrl& url);
 
     static void defineModule();
 };

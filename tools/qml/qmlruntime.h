@@ -105,7 +105,6 @@ public:
     void setUseNativeFileBrowser(bool);
     void updateSizeHints();
     void setSizeToView(bool sizeToView);
-    QStringList builtinSkins() const;
 
     QMenuBar *menuBar() const;
 
@@ -123,11 +122,9 @@ public slots:
     void toggleRecording();
     void toggleRecordingWithSelection();
     void ffmpegFinished(int code);
-    void setSkin(const QString& skinDirectory);
     void showProxySettings ();
     void proxySettingsChanged ();
-    void setScaleView();
-    void toggleOrientation();
+    void rotateOrientation();
     void statusChanged();
     void setSlowMode(bool);
     void launch(const QString &);
@@ -143,11 +140,8 @@ private slots:
     void recordFrame();
     void chooseRecordingOptions();
     void pickRecordingFile();
-    void setScaleSkin();
-    void setPortrait();
-    void setLandscape();
-    void startNetwork();
     void toggleFullScreen();
+    void changeOrientation(QAction*);
     void orientationChanged();
 
     void showWarnings(bool show);
@@ -159,8 +153,6 @@ private:
     int menuBarHeight() const;
 
     LoggerWidget *loggerWindow;
-    PreviewDeviceSkin *skin;
-    QSize skinscreensize;
     QDeclarativeView *canvas;
     QSize initialSize;
     QString currentFileOrUrl;
@@ -190,9 +182,7 @@ private:
     bool ffmpegAvailable;
     bool convertAvailable;
 
-    QAction *portraitOrientation;
-    QAction *landscapeOrientation;
-
+    QActionGroup *orientation;
     QAction *showWarningsWindow;
 
     QString m_script;

@@ -49,6 +49,7 @@
 #include <qlistmodelinterface_p.h>
 #include <QGraphicsSceneEvent>
 
+#include <qmath.h>
 #include <math.h>
 
 QT_BEGIN_NAMESPACE
@@ -109,6 +110,8 @@ QDeclarativeItem *QDeclarativePathViewPrivate::getItem(int modelIndex)
             att->setOnPath(true);
         }
         item->setParentItem(q);
+        QDeclarativeItemPrivate *itemPrivate = static_cast<QDeclarativeItemPrivate*>(QGraphicsItemPrivate::get(item));
+        itemPrivate->addItemChangeListener(this, QDeclarativeItemPrivate::Geometry);
     }
     requestedIndex = -1;
     return item;
@@ -120,6 +123,8 @@ void QDeclarativePathViewPrivate::releaseItem(QDeclarativeItem *item)
         return;
     if (QDeclarativePathViewAttached *att = attached(item))
         att->setOnPath(false);
+    QDeclarativeItemPrivate *itemPrivate = static_cast<QDeclarativeItemPrivate*>(QGraphicsItemPrivate::get(item));
+    itemPrivate->removeItemChangeListener(this, QDeclarativeItemPrivate::Geometry);
     model->release(item);
 }
 
@@ -279,8 +284,8 @@ void QDeclarativePathViewPrivate::updateItem(QDeclarativeItem *item, qreal perce
             att->setValue(attr.toUtf8(), path->attributeAt(attr, percent));
     }
     QPointF pf = path->pointAt(percent);
-    item->setX(pf.x() - item->width()*item->scale()/2);
-    item->setY(pf.y() - item->height()*item->scale()/2);
+    item->setX(qRound(pf.x() - item->width()*item->scale()/2));
+    item->setY(qRound(pf.y() - item->height()*item->scale()/2));
 }
 
 void QDeclarativePathViewPrivate::regenerate()
@@ -305,10 +310,20 @@ void QDeclarativePathViewPrivate::regenerate()
     \brief The PathView element lays out model-provided items on a path.
     \inherits Item
 
-    The model is typically provided by a QAbstractListModel "C++ model object", but can also be created directly in QML.
+    A PathView displays data from models created from built-in QML elements like ListModel
+    and XmlListModel, or custom model classes defined in C++ that inherit from
+    QAbstractListModel.
 
+    A ListView has a \l model, which defines the data to be displayed, and
+    a \l delegate, which defines how the data should be displayed.  
     The \l delegate is instantiated for each item on the \l path.
     The items may be flicked to move them along the path.
+
+    For example, if there is a simple list model defined in a file \c ContactModel.qml like this:
+
+    \snippet doc/src/snippets/declarative/pathview/ContactModel.qml 0
+
+    This data can be represented as a PathView, like this:
 
     \snippet doc/src/snippets/declarative/pathview/pathview.qml 0
 
@@ -523,6 +538,33 @@ void QDeclarativePathView::setCurrentIndex(int idx)
             d->updateHighlight();
         }
         emit currentIndexChanged();
+    }
+}
+
+/*!
+    \qmlmethod PathView::incrementCurrentIndex()
+
+    Increments the current index.
+*/
+void QDeclarativePathView::incrementCurrentIndex()
+{
+    setCurrentIndex(currentIndex()+1);
+}
+
+
+/*!
+    \qmlmethod PathView::decrementCurrentIndex()
+
+    Decrements the current index.
+*/
+void QDeclarativePathView::decrementCurrentIndex()
+{
+    Q_D(QDeclarativePathView);
+    if (d->model && d->model->count()) {
+        int idx = currentIndex()-1;
+        if (idx < 0)
+            idx = d->model->count() - 1;
+        setCurrentIndex(idx);
     }
 }
 
@@ -853,6 +895,7 @@ void QDeclarativePathView::setPathItemCount(int i)
     if (i < 1)
         i = 1;
     d->pathItems = i;
+    d->updateMappedRange();
     if (d->isValid() && isComponentComplete()) {
         d->regenerate();
     }
@@ -916,7 +959,7 @@ void QDeclarativePathView::mousePressEvent(QGraphicsSceneMouseEvent *event)
 void QDeclarativePathView::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 {
     Q_D(QDeclarativePathView);
-    if (!d->interactive || d->lastPosTime.isNull())
+    if (!d->interactive || !d->lastPosTime.isValid())
         return;
 
     if (!d->stealMouse) {
@@ -950,7 +993,7 @@ void QDeclarativePathView::mouseReleaseEvent(QGraphicsSceneMouseEvent *)
     Q_D(QDeclarativePathView);
     d->stealMouse = false;
     setKeepMouseGrab(false);
-    if (!d->interactive || d->lastPosTime.isNull())
+    if (!d->interactive || !d->lastPosTime.isValid())
         return;
 
     qreal elapsed = qreal(d->lastElapsed + QDeclarativeItemPrivate::elapsed(d->lastPosTime)) / 1000.;
@@ -985,7 +1028,7 @@ void QDeclarativePathView::mouseReleaseEvent(QGraphicsSceneMouseEvent *)
         d->fixOffset();
     }
 
-    d->lastPosTime = QTime();
+    d->lastPosTime.invalidate();
     ungrabMouse();
 }
 
@@ -1027,8 +1070,8 @@ bool QDeclarativePathView::sendMouseEvent(QGraphicsSceneMouseEvent *event)
             grabMouse();
 
         return d->stealMouse;
-    } else if (!d->lastPosTime.isNull()) {
-        d->lastPosTime = QTime();
+    } else if (d->lastPosTime.isValid()) {
+        d->lastPosTime.invalidate();
     }
     return false;
 }
@@ -1056,6 +1099,16 @@ bool QDeclarativePathView::sceneEventFilter(QGraphicsItem *i, QEvent *e)
     return QDeclarativeItem::sceneEventFilter(i, e);
 }
 
+bool QDeclarativePathView::event(QEvent *event)
+{
+    if (event->type() == QEvent::User) {
+        refill();
+        return true;
+    }
+
+    return QDeclarativeItem::event(event);
+}
+
 void QDeclarativePathView::componentComplete()
 {
     Q_D(QDeclarativePathView);
@@ -1075,6 +1128,7 @@ void QDeclarativePathView::refill()
     if (!d->isValid() || !isComponentComplete())
         return;
 
+    d->layoutScheduled = false;
     bool currentVisible = false;
 
     // first move existing items and remove items off path
@@ -1312,6 +1366,7 @@ int QDeclarativePathViewPrivate::calcCurrentIndex()
         if (offset < 0)
             offset += model->count();
         current = qRound(qAbs(qmlMod(model->count() - offset, model->count())));
+        current = current % model->count();
     }
 
     return current;

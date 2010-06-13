@@ -700,11 +700,11 @@
 #define HAVE_SYS_TIME_H 1
 #define HAVE_SYS_TIMEB_H 1
 
-#if !defined(BUILDING_ON_TIGER) && !defined(BUILDING_ON_LEOPARD)
+#if !defined(TARGETING_TIGER) && !defined(TARGETING_LEOPARD)
 
 #define HAVE_DISPATCH_H 1
 
-#if !PLATFORM(IPHONE) && !PLATFORM(QT)
+#if !PLATFORM(IPHONE)
 #define HAVE_MADV_FREE_REUSE 1
 #define HAVE_MADV_FREE 1
 #define HAVE_PTHREAD_SETNAME_NP 1
@@ -937,8 +937,6 @@ on MinGW. See https://bugs.webkit.org/show_bug.cgi?id=29268 */
     #define ENABLE_JIT 1
 #elif CPU(ARM_TRADITIONAL) && OS(LINUX)
     #define ENABLE_JIT 1
-#elif CPU(ARM_TRADITIONAL) && OS(SYMBIAN) && COMPILER(RVCT)
-    #define ENABLE_JIT 1
 #endif
 #endif /* PLATFORM(QT) */
 
@@ -1008,7 +1006,6 @@ on MinGW. See https://bugs.webkit.org/show_bug.cgi?id=29268 */
     || (CPU(X86) && OS(LINUX) && GCC_VERSION >= 40100) \
     || (CPU(X86_64) && OS(LINUX) && GCC_VERSION >= 40100) \
     || (CPU(ARM_TRADITIONAL) && OS(LINUX)) \
-    || (CPU(ARM_TRADITIONAL) && OS(SYMBIAN) && COMPILER(RVCT)) \
     || (CPU(MIPS) && OS(LINUX)) \
     || (CPU(X86) && OS(DARWIN)) \
     || (CPU(X86_64) && OS(DARWIN))

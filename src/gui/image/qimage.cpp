@@ -272,6 +272,8 @@ bool QImageData::checkForAlphaPixels() const
 
     switch (format) {
 
+    case QImage::Format_Mono:
+    case QImage::Format_MonoLSB:
     case QImage::Format_Indexed8:
         has_alpha_pixels = has_alpha_clut;
         break;
@@ -4812,7 +4814,7 @@ bool QImageData::doImageIO(const QImage *image, QImageWriter *writer, int qualit
     or as a BMP image if the stream's version is 1. Note that writing
     the stream to a file will not produce a valid image file.
 
-    \sa QImage::save(), {Format of the QDataStream Operators}
+    \sa QImage::save(), {Serializing Qt Data Types}
 */
 
 QDataStream &operator<<(QDataStream &s, const QImage &image)
@@ -4838,7 +4840,7 @@ QDataStream &operator<<(QDataStream &s, const QImage &image)
     Reads an image from the given \a stream and stores it in the given
     \a image.
 
-    \sa QImage::load(), {Format of the QDataStream Operators}
+    \sa QImage::load(), {Serializing Qt Data Types}
 */
 
 QDataStream &operator>>(QDataStream &s, QImage &image)

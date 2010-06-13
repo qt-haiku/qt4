@@ -51,6 +51,7 @@
 #include <private/qdeclarativeengine_p.h>
 #include <private/qdeclarativeglobalscriptclass_p.h>
 #include "testtypes.h"
+#include "testhttpserver.h"
 
 /*
 This test covers evaluation of ECMAScript expressions and bindings from within
@@ -148,6 +149,9 @@ private slots:
     void functionAssignment();
     void eval();
     void function();
+    void qtbug_10696();
+
+    void include();
 
     void callQtInvokables();
 private:
@@ -560,7 +564,7 @@ void tst_qdeclarativeecmascript::deferredPropertiesErrors()
     QVERIFY(object->objectProperty() == 0);
     QVERIFY(object->objectProperty2() == 0);
 
-    QString warning = component.url().toString() + ":6: Unable to assign [undefined] to QObject*";
+    QString warning = component.url().toString() + ":6: Unable to assign [undefined] to QObject* objectProperty";
     QTest::ignoreMessage(QtWarningMsg, qPrintable(warning));
 
     qmlExecuteDeferred(object);
@@ -638,8 +642,8 @@ void tst_qdeclarativeecmascript::enums()
     {
     QDeclarativeComponent component(&engine, TEST_FILE("enums.2.qml"));
 
-    QString warning1 = component.url().toString() + ":5: Unable to assign [undefined] to int";
-    QString warning2 = component.url().toString() + ":6: Unable to assign [undefined] to int";
+    QString warning1 = component.url().toString() + ":5: Unable to assign [undefined] to int a";
+    QString warning2 = component.url().toString() + ":6: Unable to assign [undefined] to int b";
     QTest::ignoreMessage(QtWarningMsg, qPrintable(warning1));
     QTest::ignoreMessage(QtWarningMsg, qPrintable(warning2));
 
@@ -750,7 +754,7 @@ void tst_qdeclarativeecmascript::nonExistantAttachedObject()
 {
     QDeclarativeComponent component(&engine, TEST_FILE("nonExistantAttachedObject.qml"));
 
-    QString warning = component.url().toString() + ":4: Unable to assign [undefined] to QString";
+    QString warning = component.url().toString() + ":4: Unable to assign [undefined] to QString stringProperty";
     QTest::ignoreMessage(QtWarningMsg, qPrintable(warning));
 
     QObject *object = component.create();
@@ -997,7 +1001,7 @@ void tst_qdeclarativeecmascript::scriptErrors()
     QString warning3 = url.left(url.length() - 3) + "js:4: Error: Invalid write to global property \"a\"";
     QString warning4 = url + ":10: TypeError: Result of expression 'a' [undefined] is not an object.";
     QString warning5 = url + ":8: TypeError: Result of expression 'a' [undefined] is not an object.";
-    QString warning6 = url + ":7: Unable to assign [undefined] to int";
+    QString warning6 = url + ":7: Unable to assign [undefined] to int x";
     QString warning7 = url + ":12: Error: Cannot assign to read-only property \"trueProperty\"";
     QString warning8 = url + ":13: Error: Cannot assign to non-existent property \"fakeProperty\"";
 
@@ -2079,14 +2083,15 @@ void tst_qdeclarativeecmascript::compiled()
     QCOMPARE(object->property("test15").toBool(), false);
     QCOMPARE(object->property("test16").toBool(), true);
 
-    QCOMPARE(object->property("test17").toInt(), 4);
+    QCOMPARE(object->property("test17").toInt(), 5);
     QCOMPARE(object->property("test18").toReal(), qreal(176));
-    QEXPECT_FAIL("", "QTBUG-9538", Continue);
-    QCOMPARE(object->property("test19").toInt(), 6);
+    QCOMPARE(object->property("test19").toInt(), 7);
     QCOMPARE(object->property("test20").toReal(), qreal(6.7));
     QCOMPARE(object->property("test21").toString(), QLatin1String("6.7"));
     QCOMPARE(object->property("test22").toString(), QLatin1String("!"));
     QCOMPARE(object->property("test23").toBool(), true);
+    QCOMPARE(qvariant_cast<QColor>(object->property("test24")), QColor(0x11,0x22,0x33));
+    QCOMPARE(qvariant_cast<QColor>(object->property("test25")), QColor(0x11,0x22,0x33,0xAA));
 
     delete object;
 }
@@ -2099,20 +2104,21 @@ void tst_qdeclarativeecmascript::numberAssignment()
     QObject *object = component.create();
     QVERIFY(object != 0);
 
-    QVERIFY(object->property("test1") == QVariant((qreal)6.7));
-    QVERIFY(object->property("test2") == QVariant((qreal)6.7));
-    QVERIFY(object->property("test3") == QVariant((qreal)6));
-    QVERIFY(object->property("test4") == QVariant((qreal)6));
+    QCOMPARE(object->property("test1"), QVariant((qreal)6.7));
+    QCOMPARE(object->property("test2"), QVariant((qreal)6.7));
+    QCOMPARE(object->property("test2"), QVariant((qreal)6.7));
+    QCOMPARE(object->property("test3"), QVariant((qreal)6));
+    QCOMPARE(object->property("test4"), QVariant((qreal)6));
 
-    QVERIFY(object->property("test5") == QVariant((int)7));
-    QVERIFY(object->property("test6") == QVariant((int)7));
-    QVERIFY(object->property("test7") == QVariant((int)6));
-    QVERIFY(object->property("test8") == QVariant((int)6));
+    QCOMPARE(object->property("test5"), QVariant((int)7));
+    QCOMPARE(object->property("test6"), QVariant((int)7));
+    QCOMPARE(object->property("test7"), QVariant((int)6));
+    QCOMPARE(object->property("test8"), QVariant((int)6));
 
-    QVERIFY(object->property("test9") == QVariant((unsigned int)7));
-    QVERIFY(object->property("test10") == QVariant((unsigned int)7));
-    QVERIFY(object->property("test11") == QVariant((unsigned int)6));
-    QVERIFY(object->property("test12") == QVariant((unsigned int)6));
+    QCOMPARE(object->property("test9"), QVariant((unsigned int)7));
+    QCOMPARE(object->property("test10"), QVariant((unsigned int)7));
+    QCOMPARE(object->property("test11"), QVariant((unsigned int)6));
+    QCOMPARE(object->property("test12"), QVariant((unsigned int)6));
 
     delete object;
 }
@@ -2358,6 +2364,132 @@ void tst_qdeclarativeecmascript::function()
     QCOMPARE(o->property("test2").toBool(), true);
     QCOMPARE(o->property("test3").toBool(), true);
 
+    delete o;
+}
+
+#define TRY_WAIT(expr) \
+    do { \
+        for (int ii = 0; ii < 6; ++ii) { \
+            if ((expr)) break; \
+            QTest::qWait(50); \
+        } \
+        QVERIFY((expr)); \
+    } while (false) 
+
+// Test the "Qt.include" method
+void tst_qdeclarativeecmascript::include()
+{
+    // Non-library relative include
+    {
+    QDeclarativeComponent component(&engine, TEST_FILE("include.qml"));
+    QObject *o = component.create();
+    QVERIFY(o != 0);
+
+    QCOMPARE(o->property("test0").toInt(), 99);
+    QCOMPARE(o->property("test1").toBool(), true);
+    QCOMPARE(o->property("test2").toBool(), true);
+    QCOMPARE(o->property("test2_1").toBool(), true);
+    QCOMPARE(o->property("test3").toBool(), true);
+    QCOMPARE(o->property("test3_1").toBool(), true);
+
+    delete o;
+    }
+
+    // Library relative include
+    {
+    QDeclarativeComponent component(&engine, TEST_FILE("include_shared.qml"));
+    QObject *o = component.create();
+    QVERIFY(o != 0);
+
+    QCOMPARE(o->property("test0").toInt(), 99);
+    QCOMPARE(o->property("test1").toBool(), true);
+    QCOMPARE(o->property("test2").toBool(), true);
+    QCOMPARE(o->property("test2_1").toBool(), true);
+    QCOMPARE(o->property("test3").toBool(), true);
+    QCOMPARE(o->property("test3_1").toBool(), true);
+
+    delete o;
+    }
+
+    // Callback
+    {
+    QDeclarativeComponent component(&engine, TEST_FILE("include_callback.qml"));
+    QObject *o = component.create();
+    QVERIFY(o != 0);
+
+    QCOMPARE(o->property("test1").toBool(), true);
+    QCOMPARE(o->property("test2").toBool(), true);
+    QCOMPARE(o->property("test3").toBool(), true);
+    QCOMPARE(o->property("test4").toBool(), true);
+    QCOMPARE(o->property("test5").toBool(), true);
+    QCOMPARE(o->property("test6").toBool(), true);
+
+    delete o;
+    }
+
+    // Including file with ".pragma library"
+    {
+    QDeclarativeComponent component(&engine, TEST_FILE("include_pragma.qml"));
+    QObject *o = component.create();
+    QVERIFY(o != 0);
+    QCOMPARE(o->property("test1").toInt(), 100);
+
+    delete o;
+    }
+
+    // Remote - success
+    {
+    TestHTTPServer server(8111);
+    QVERIFY(server.isValid());
+    server.serveDirectory(SRCDIR "/data");
+
+    QDeclarativeComponent component(&engine, TEST_FILE("include_remote.qml"));
+    QObject *o = component.create();
+    QVERIFY(o != 0);
+
+    TRY_WAIT(o->property("done").toBool() == true);
+    TRY_WAIT(o->property("done2").toBool() == true);
+
+    QCOMPARE(o->property("test1").toBool(), true);
+    QCOMPARE(o->property("test2").toBool(), true);
+    QCOMPARE(o->property("test3").toBool(), true);
+    QCOMPARE(o->property("test4").toBool(), true);
+    QCOMPARE(o->property("test5").toBool(), true);
+
+    QCOMPARE(o->property("test6").toBool(), true);
+    QCOMPARE(o->property("test7").toBool(), true);
+    QCOMPARE(o->property("test8").toBool(), true);
+    QCOMPARE(o->property("test9").toBool(), true);
+    QCOMPARE(o->property("test10").toBool(), true);
+
+    delete o;
+    }
+
+    // Remote - error
+    {
+    TestHTTPServer server(8111);
+    QVERIFY(server.isValid());
+    server.serveDirectory(SRCDIR "/data");
+
+    QDeclarativeComponent component(&engine, TEST_FILE("include_remote_missing.qml"));
+    QObject *o = component.create();
+    QVERIFY(o != 0);
+
+    TRY_WAIT(o->property("done").toBool() == true);
+
+    QCOMPARE(o->property("test1").toBool(), true);
+    QCOMPARE(o->property("test2").toBool(), true);
+    QCOMPARE(o->property("test3").toBool(), true);
+
+    delete o;
+    }
+}
+
+void tst_qdeclarativeecmascript::qtbug_10696()
+{
+    QDeclarativeComponent component(&engine, TEST_FILE("qtbug_10696.qml"));
+    QObject *o = component.create();
+    QVERIFY(o != 0);
     delete o;
 }
 

@@ -178,6 +178,10 @@ protected:
     virtual void keyReleaseEvent(QKeyEvent *event);
     virtual void inputMethodEvent(QInputMethodEvent *);
     virtual QVariant inputMethodQuery(Qt::InputMethodQuery query) const;
+    void keyPressPreHandler(QKeyEvent *);
+    void keyReleasePreHandler(QKeyEvent *);
+    void inputMethodPreHandler(QInputMethodEvent *);
+
     virtual void geometryChanged(const QRectF &newGeometry,
                                  const QRectF &oldGeometry);
 
@@ -205,7 +209,9 @@ T qobject_cast(QGraphicsItem *item)
     return qobject_cast<T>(o);
 }
 
+#ifndef QT_NO_DEBUG_STREAM
 QDebug Q_DECLARATIVE_EXPORT operator<<(QDebug debug, QDeclarativeItem *item);
+#endif
 
 QT_END_NAMESPACE
 

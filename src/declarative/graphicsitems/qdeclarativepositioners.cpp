@@ -204,7 +204,11 @@ void QDeclarativeBasePositioner::prePositioning()
     if (!isComponentComplete())
         return;
 
+    if (d->doingPositioning)
+        return;
+
     d->queuedPositioning = false;
+    d->doingPositioning = true;
     //Need to order children by creation order modified by stacking order
     QList<QGraphicsItem *> children = d->QGraphicsItemPrivate::children;
     qSort(children.begin(), children.end(), d->insertionOrder);
@@ -242,6 +246,7 @@ void QDeclarativeBasePositioner::prePositioning()
     doPositioning(&contentSize);
     if(d->addTransition || d->moveTransition)
         finishApplyTransitions();
+    d->doingPositioning = false;
     //Set implicit size to the size of its children
     setImplicitHeight(contentSize.height());
     setImplicitWidth(contentSize.width());
@@ -297,7 +302,7 @@ void QDeclarativeBasePositioner::finishApplyTransitions()
 /*!
   \qmlclass Column QDeclarativeColumn
     \since 4.7
-  \brief The Column item lines up its children vertically.
+  \brief The Column item arranges its children vertically.
   \inherits Item
 
   The Column item positions its child items so that they are vertically
@@ -339,8 +344,10 @@ Column {
 
   Note that the positioner assumes that the x and y positions of its children
   will not change. If you manually change the x or y properties in script, bind
-  the x or y properties, or use anchors on a child of a positioner, then the
-  positioner may exhibit strange behaviour.
+  the x or y properties, use anchors on a child of a positioner, or have the
+  height of a child depend on the position of a child, then the
+  positioner may exhibit strange behaviour. If you need to perform any of these
+  actions, consider positioning the items without the use of a Column.
 
 */
 /*!
@@ -390,7 +397,7 @@ Column {
   spacing is the amount in pixels left empty between each adjacent
   item, and defaults to 0.
 
-  The below example places a Grid containing a red, a blue and a
+  The below example places a \l Grid containing a red, a blue and a
   green rectangle on a gray background. The area the grid positioner
   occupies is colored white. The top positioner has the default of no spacing,
   and the bottom positioner has its spacing set to 2.
@@ -437,7 +444,7 @@ void QDeclarativeColumn::doPositioning(QSizeF *contentSize)
 
 void QDeclarativeColumn::reportConflictingAnchors()
 {
-    bool childsWithConflictingAnchors(false);
+    QDeclarativeBasePositionerPrivate *d = static_cast<QDeclarativeBasePositionerPrivate*>(QDeclarativeBasePositionerPrivate::get(this));
     for (int ii = 0; ii < positionedItems.count(); ++ii) {
         const PositionedItem &child = positionedItems.at(ii);
         if (child.item) {
@@ -446,32 +453,31 @@ void QDeclarativeColumn::reportConflictingAnchors()
                 QDeclarativeAnchors::Anchors usedAnchors = anchors->usedAnchors();
                 if (usedAnchors & QDeclarativeAnchors::TopAnchor ||
                     usedAnchors & QDeclarativeAnchors::BottomAnchor ||
-                    usedAnchors & QDeclarativeAnchors::VCenterAnchor) {
-                    childsWithConflictingAnchors = true;
+                    usedAnchors & QDeclarativeAnchors::VCenterAnchor ||
+                    anchors->fill() || anchors->centerIn()) {
+                    d->anchorConflict = true;
                     break;
                 }
             }
         }
     }
-    if (childsWithConflictingAnchors) {
-        qmlInfo(this) << "Cannot specify top, bottom or verticalCenter anchors for items inside Column";
+    if (d->anchorConflict) {
+        qmlInfo(this) << "Cannot specify top, bottom, verticalCenter, fill or centerIn anchors for items inside Column";
     }
 }
 
 /*!
   \qmlclass Row QDeclarativeRow
   \since 4.7
-  \brief The Row item lines up its children horizontally.
+  \brief The Row item arranges its children horizontally.
   \inherits Item
 
   The Row item positions its child items so that they are
-  horizontally aligned and not overlapping. Spacing can be added between the
-  items, and a margin around all items can also be added. It also provides for
-  transitions to be set when items are added, moved, or removed in the
-  positioner. Adding and removing apply both to items which are deleted or have
-  their position in the document changed so as to no longer be children of the
-  positioner, as well as to items which have their opacity set to or from zero
-  so as to appear or disappear.
+  horizontally aligned and not overlapping. 
+
+  Use \l spacing to set the spacing between items in a Row, and use the
+  \l add and \l move properties to set the transitions that should be applied
+  when items are added to, removed from, or re-positioned within the Row.
 
   The below example lays out differently shaped rectangles using a Row.
   \qml
@@ -486,9 +492,10 @@ Row {
 
   Note that the positioner assumes that the x and y positions of its children
   will not change. If you manually change the x or y properties in script, bind
-  the x or y properties, or use anchors on a child of a positioner, then the
-  positioner may exhibit strange behaviour.
-
+  the x or y properties, use anchors on a child of a positioner, or have the
+  width of a child depend on the position of a child, then the
+  positioner may exhibit strange behaviour. If you need to perform any of these
+  actions, consider positioning the items without the use of a Row.
 */
 /*!
     \qmlproperty Transition Row::add
@@ -496,12 +503,10 @@ Row {
     The transition will only be applied to the added item(s).
     Positioner transitions will only affect the position (x,y) of items.
 
-    Added can mean that either the object has been created or
-    reparented, and thus is now a child or the positioner, or that the
+    An object is considered to be added to the positioner if it has been
+    created or reparented and thus is now a child or the positioner, or if the
     object has had its opacity increased from zero, and thus is now
     visible.
-
-
 */
 /*!
     \qmlproperty Transition Row::move
@@ -532,7 +537,7 @@ Row {
   spacing is the amount in pixels left empty between each adjacent
   item, and defaults to 0.
 
-  The below example places a Grid containing a red, a blue and a
+  The below example places a \l Grid containing a red, a blue and a
   green rectangle on a gray background. The area the grid positioner
   occupies is colored white. The top positioner has the default of no spacing,
   and the bottom positioner has its spacing set to 2.
@@ -574,7 +579,7 @@ void QDeclarativeRow::doPositioning(QSizeF *contentSize)
 
 void QDeclarativeRow::reportConflictingAnchors()
 {
-    bool childsWithConflictingAnchors(false);
+    QDeclarativeBasePositionerPrivate *d = static_cast<QDeclarativeBasePositionerPrivate*>(QDeclarativeBasePositionerPrivate::get(this));
     for (int ii = 0; ii < positionedItems.count(); ++ii) {
         const PositionedItem &child = positionedItems.at(ii);
         if (child.item) {
@@ -583,16 +588,16 @@ void QDeclarativeRow::reportConflictingAnchors()
                 QDeclarativeAnchors::Anchors usedAnchors = anchors->usedAnchors();
                 if (usedAnchors & QDeclarativeAnchors::LeftAnchor ||
                     usedAnchors & QDeclarativeAnchors::RightAnchor ||
-                    usedAnchors & QDeclarativeAnchors::HCenterAnchor) {
-                    childsWithConflictingAnchors = true;
+                    usedAnchors & QDeclarativeAnchors::HCenterAnchor ||
+                    anchors->fill() || anchors->centerIn()) {
+                    d->anchorConflict = true;
                     break;
                 }
             }
         }
     }
-    if (childsWithConflictingAnchors) {
-        qmlInfo(this) << "Cannot specify left, right or horizontalCenter anchors for items inside Row";
-    }
+    if (d->anchorConflict)
+        qmlInfo(this) << "Cannot specify left, right, horizontalCenter, fill or centerIn anchors for items inside Row";
 }
 
 /*!
@@ -602,18 +607,20 @@ void QDeclarativeRow::reportConflictingAnchors()
   \inherits Item
 
   The Grid item positions its child items so that they are
-  aligned in a grid and are not overlapping. Spacing can be added
-  between the items. It also provides for transitions to be set when items are
+  aligned in a grid and are not overlapping. 
+  
+  Spacing can be added
+  between child items. It also provides for transitions to be set when items are
   added, moved, or removed in the positioner. Adding and removing apply
   both to items which are deleted or have their position in the
   document changed so as to no longer be children of the positioner, as
   well as to items which have their opacity set to or from zero so
   as to appear or disappear.
 
-  The Grid defaults to using four columns, and as many rows as
-  are necessary to fit all the child items. The number of rows
-  and/or the number of columns can be constrained by setting the rows
-  or columns properties. The grid positioner calculates a grid with
+  A Grid defaults to four columns, and as many rows as
+  are necessary to fit all child items. The number of rows
+  and/or the number of columns can be constrained by setting the \l rows
+  or \l columns properties. The grid positioner calculates a grid with
   rectangular cells of sufficient size to hold all items, and then
   places the items in the cells, going across then down, and
   positioning each item at the (0,0) corner of the cell. The below
@@ -638,8 +645,10 @@ Grid {
 
   Note that the positioner assumes that the x and y positions of its children
   will not change. If you manually change the x or y properties in script, bind
-  the x or y properties, or use anchors on a child of a positioner, then the
-  positioner may exhibit strange behaviour.
+  the x or y properties, use anchors on a child of a positioner, or have the
+  width or height of a child depend on the position of a child, then the
+  positioner may exhibit strange behaviour. If you need to perform any of these
+  actions, consider positioning the items without the use of a Grid.
 */
 /*!
     \qmlproperty Transition Grid::add
@@ -649,12 +658,10 @@ Grid {
     as that is all the positioners affect. To animate other property change
     you will have to do so based on how you have changed those properties.
 
-    Added can mean that either the object has been created or
-    reparented, and thus is now a child or the positioner, or that the
+    An object is considered to be added to the positioner if it has been
+    created or reparented and thus is now a child or the positioner, or if the
     object has had its opacity increased from zero, and thus is now
     visible.
-
-
 */
 /*!
     \qmlproperty Transition Grid::move
@@ -705,18 +712,16 @@ QDeclarativeGrid::QDeclarativeGrid(QDeclarativeItem *parent) :
     \qmlproperty int Grid::columns
     This property holds the number of columns in the grid.
 
-    When the columns property is set the Grid will always have
-    that many columns. Note that if you do not have enough items to
-    fill this many columns some columns will be of zero width.
+    If the grid does not have enough items to fill the specified
+    number of columns, some columns will be of zero width.
 */
 
 /*!
     \qmlproperty int Grid::rows
     This property holds the number of rows in the grid.
 
-    When the rows property is set the Grid will always have that
-    many rows. Note that if you do not have enough items to fill this
-    many rows some rows will be of zero width.
+    If the grid does not have enough items to fill the specified
+    number of rows, some rows will be of zero width.
 */
 
 void QDeclarativeGrid::setColumns(const int columns)
@@ -741,12 +746,14 @@ void QDeclarativeGrid::setRows(const int rows)
     \qmlproperty enumeration Grid::flow
     This property holds the flow of the layout.
 
-    Possible values are \c Grid.LeftToRight (default) and \c Grid.TopToBottom.
+    Possible values are:
 
-    If \a flow is \c Grid.LeftToRight, the items are positioned next to
-    to each other from left to right, then wrapped to the next line.
-    If \a flow is \c Grid.TopToBottom, the items are positioned next to each
-    other from top to bottom, then wrapped to the next column.
+    \list
+    \o Grid.LeftToRight (default) - Items are positioned next to
+       to each other from left to right, then wrapped to the next line.
+    \o Grid.TopToBottom - Items are positioned next to each
+       other from top to bottom, then wrapped to the next column.
+    \endlist
 */
 QDeclarativeGrid::Flow QDeclarativeGrid::flow() const
 {
@@ -866,28 +873,36 @@ void QDeclarativeGrid::doPositioning(QSizeF *contentSize)
 
 void QDeclarativeGrid::reportConflictingAnchors()
 {
-    bool childsWithConflictingAnchors(false);
+    QDeclarativeBasePositionerPrivate *d = static_cast<QDeclarativeBasePositionerPrivate*>(QDeclarativeBasePositionerPrivate::get(this));
     for (int ii = 0; ii < positionedItems.count(); ++ii) {
         const PositionedItem &child = positionedItems.at(ii);
         if (child.item) {
             QDeclarativeAnchors *anchors = QDeclarativeItemPrivate::get(child.item)->_anchors;
-            if (anchors && anchors->usedAnchors()) {
-                childsWithConflictingAnchors = true;
+            if (anchors && (anchors->usedAnchors() || anchors->fill() || anchors->centerIn())) {
+                d->anchorConflict = true;
                 break;
             }
         }
     }
-    if (childsWithConflictingAnchors) {
+    if (d->anchorConflict)
         qmlInfo(this) << "Cannot specify anchors for items inside Grid";
-    }
 }
 
 /*!
   \qmlclass Flow QDeclarativeFlow
   \since 4.7
-  \brief The Flow item lines up its children side by side, wrapping as necessary.
+  \brief The Flow item arranges its children side by side, wrapping as necessary.
   \inherits Item
 
+  The Flow item positions its child items so that they are side by side and are
+  not overlapping.
+
+  Note that the positioner assumes that the x and y positions of its children
+  will not change. If you manually change the x or y properties in script, bind
+  the x or y properties, use anchors on a child of a positioner, or have the
+  width or height of a child depend on the position of a child, then the
+  positioner may exhibit strange behaviour.  If you need to perform any of these
+  actions, consider positioning the items without the use of a Flow.
 
 */
 /*!
@@ -896,9 +911,10 @@ void QDeclarativeGrid::reportConflictingAnchors()
     The transition will only be applied to the added item(s).
     Positioner transitions will only affect the position (x,y) of items.
 
-    Added can mean that either the object has been created or reparented, and thus is now a child or the positioner, or that the object has had its opacity increased from zero, and thus is now visible.
-
-
+    An object is considered to be added to the positioner if it has been
+    created or reparented and thus is now a child or the positioner, or if the
+    object has had its opacity increased from zero, and thus is now
+    visible.
 */
 /*!
     \qmlproperty Transition Flow::move
@@ -952,14 +968,16 @@ QDeclarativeFlow::QDeclarativeFlow(QDeclarativeItem *parent)
     \qmlproperty enumeration Flow::flow
     This property holds the flow of the layout.
 
-    Possible values are \c Flow.LeftToRight (default) and \c Flow.TopToBottom.
+    Possible values are:
 
-    If \a flow is \c Flow.LeftToRight, the items are positioned next to
+    \list
+    \o Flow.LeftToRight (default) - Items are positioned next to
     to each other from left to right until the width of the Flow
     is exceeded, then wrapped to the next line.
-    If \a flow is \c Flow.TopToBottom, the items are positioned next to each
+    \o Flow.TopToBottom - Items are positioned next to each
     other from top to bottom until the height of the Flow is exceeded,
     then wrapped to the next column.
+    \endlist
 */
 QDeclarativeFlow::Flow QDeclarativeFlow::flow() const
 {
@@ -1026,20 +1044,19 @@ void QDeclarativeFlow::doPositioning(QSizeF *contentSize)
 
 void QDeclarativeFlow::reportConflictingAnchors()
 {
-    bool childsWithConflictingAnchors(false);
+    Q_D(QDeclarativeFlow);
     for (int ii = 0; ii < positionedItems.count(); ++ii) {
         const PositionedItem &child = positionedItems.at(ii);
         if (child.item) {
             QDeclarativeAnchors *anchors = QDeclarativeItemPrivate::get(child.item)->_anchors;
-            if (anchors && anchors->usedAnchors()) {
-                childsWithConflictingAnchors = true;
+            if (anchors && (anchors->usedAnchors() || anchors->fill() || anchors->centerIn())) {
+                d->anchorConflict = true;
                 break;
             }
         }
     }
-    if (childsWithConflictingAnchors) {
+    if (d->anchorConflict)
         qmlInfo(this) << "Cannot specify anchors for items inside Flow";
-    }
 }
 
 QT_END_NAMESPACE

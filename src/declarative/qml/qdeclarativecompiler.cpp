@@ -180,7 +180,7 @@ bool QDeclarativeCompiler::isSignalPropertyName(const QByteArray &name)
 bool QDeclarativeCompiler::testLiteralAssignment(const QMetaProperty &prop,
                                         QDeclarativeParser::Value *v)
 {
-    QString string = v->value.asScript();
+    QString string = v->value.asString();
 
     if (!prop.isWritable())
         COMPILE_EXCEPTION(v, tr("Invalid property assignment: \"%1\" is a read-only property").arg(QString::fromUtf8(prop.name())));
@@ -207,31 +207,31 @@ bool QDeclarativeCompiler::testLiteralAssignment(const QMetaProperty &prop,
             break;
         case QVariant::UInt:
             {
-            bool ok;
-            string.toUInt(&ok);
-            if (!v->value.isNumber() || !ok) COMPILE_EXCEPTION(v, tr("Invalid property assignment: unsigned int expected"));
+            bool ok = v->value.isNumber();
+            if (ok) {
+                double n = v->value.asNumber();
+                if (double(uint(n)) != n)
+                    ok = false;
+            }
+            if (!ok) COMPILE_EXCEPTION(v, tr("Invalid property assignment: unsigned int expected"));
             }
             break;
         case QVariant::Int:
             {
-            bool ok;
-            string.toInt(&ok);
-            if (!v->value.isNumber() || !ok) COMPILE_EXCEPTION(v, tr("Invalid property assignment: int expected"));
+            bool ok = v->value.isNumber();
+            if (ok) {
+                double n = v->value.asNumber();
+                if (double(int(n)) != n)
+                    ok = false;
+            }
+            if (!ok) COMPILE_EXCEPTION(v, tr("Invalid property assignment: int expected"));
             }
             break;
         case QMetaType::Float:
-            {
-            bool ok;
-            string.toFloat(&ok);
-            if (!v->value.isNumber() || !ok) COMPILE_EXCEPTION(v, tr("Invalid property assignment: float expected"));
-            }
+            if (!v->value.isNumber()) COMPILE_EXCEPTION(v, tr("Invalid property assignment: float expected"));
             break;
         case QVariant::Double:
-            {
-            bool ok;
-            string.toDouble(&ok);
-            if (!v->value.isNumber() || !ok) COMPILE_EXCEPTION(v, tr("Invalid property assignment: double expected"));
-            }
+            if (!v->value.isNumber()) COMPILE_EXCEPTION(v, tr("Invalid property assignment: double expected"));
             break;
         case QVariant::Color:
             {
@@ -240,6 +240,7 @@ bool QDeclarativeCompiler::testLiteralAssignment(const QMetaProperty &prop,
             if (!ok) COMPILE_EXCEPTION(v, tr("Invalid property assignment: color expected"));
             }
             break;
+#ifndef QT_NO_TEXTDATE
         case QVariant::Date:
             {
             bool ok;
@@ -261,6 +262,7 @@ bool QDeclarativeCompiler::testLiteralAssignment(const QMetaProperty &prop,
             if (!ok) COMPILE_EXCEPTION(v, tr("Invalid property assignment: datetime expected"));
             }
             break;
+#endif // QT_NO_TEXTDATE
         case QVariant::Point:
         case QVariant::PointF:
             {
@@ -319,7 +321,7 @@ bool QDeclarativeCompiler::testLiteralAssignment(const QMetaProperty &prop,
 void QDeclarativeCompiler::genLiteralAssignment(const QMetaProperty &prop,
                                        QDeclarativeParser::Value *v)
 {
-    QString string = v->value.asScript();
+    QString string = v->value.asString();
 
     QDeclarativeInstruction instr;
     instr.line = v->location.start.line;
@@ -382,28 +384,28 @@ void QDeclarativeCompiler::genLiteralAssignment(const QMetaProperty &prop,
             {
             instr.type = QDeclarativeInstruction::StoreInteger;
             instr.storeInteger.propertyIndex = prop.propertyIndex();
-            instr.storeInteger.value = string.toUInt();
+            instr.storeInteger.value = uint(v->value.asNumber());
             }
             break;
         case QVariant::Int:
             {
             instr.type = QDeclarativeInstruction::StoreInteger;
             instr.storeInteger.propertyIndex = prop.propertyIndex();
-            instr.storeInteger.value = string.toInt();
+            instr.storeInteger.value = int(v->value.asNumber());
             }
             break;
         case QMetaType::Float:
             {
             instr.type = QDeclarativeInstruction::StoreFloat;
             instr.storeFloat.propertyIndex = prop.propertyIndex();
-            instr.storeFloat.value = string.toFloat();
+            instr.storeFloat.value = float(v->value.asNumber());
             }
             break;
         case QVariant::Double:
             {
             instr.type = QDeclarativeInstruction::StoreDouble;
             instr.storeDouble.propertyIndex = prop.propertyIndex();
-            instr.storeDouble.value = string.toDouble();
+            instr.storeDouble.value = v->value.asNumber();
             }
             break;
         case QVariant::Color:
@@ -414,6 +416,7 @@ void QDeclarativeCompiler::genLiteralAssignment(const QMetaProperty &prop,
             instr.storeColor.value = c.rgba();
             }
             break;
+#ifndef QT_NO_TEXTDATE
         case QVariant::Date:
             {
             QDate d = QDeclarativeStringConverters::dateFromString(string);
@@ -447,6 +450,7 @@ void QDeclarativeCompiler::genLiteralAssignment(const QMetaProperty &prop,
             instr.storeDateTime.valueIndex = index;
             }
             break;
+#endif // QT_NO_TEXTDATE
         case QVariant::Point:
         case QVariant::PointF:
             {
@@ -1089,6 +1093,23 @@ void QDeclarativeCompiler::genObjectBody(QDeclarativeParser::Object *obj)
         fetch.line = prop->location.start.line;
         output->bytecode << fetch;
 
+        if (!prop->value->metadata.isEmpty()) {
+            QDeclarativeInstruction meta;
+            meta.type = QDeclarativeInstruction::StoreMetaObject;
+            meta.line = 0;
+            meta.storeMeta.data = output->indexForByteArray(prop->value->metadata);
+            meta.storeMeta.aliasData = output->indexForByteArray(prop->value->synthdata);
+            meta.storeMeta.propertyCache = output->propertyCaches.count();
+            // ### Surely the creation of this property cache could be more efficient
+            QDeclarativePropertyCache *propertyCache =
+                enginePrivate->cache(prop->value->metaObject()->superClass())->copy();
+            propertyCache->append(engine, prop->value->metaObject(), QDeclarativePropertyCache::Data::NoFlags,
+                                  QDeclarativePropertyCache::Data::IsVMEFunction);
+
+            output->propertyCaches << propertyCache;
+            output->bytecode << meta;
+        }
+
         genObjectBody(prop->value);
 
         QDeclarativeInstruction pop;
@@ -1187,7 +1208,7 @@ bool QDeclarativeCompiler::buildComponent(QDeclarativeParser::Object *obj,
     if (idProp) {
        if (idProp->value || idProp->values.count() > 1 || idProp->values.at(0)->object) 
            COMPILE_EXCEPTION(idProp, tr("Invalid component id specification"));
-       COMPILE_CHECK(checkValidId(idProp->values.first(), idProp->values.first()->primitive()));
+       COMPILE_CHECK(checkValidId(idProp->values.first(), idProp->values.first()->primitive()))
 
         QString idVal = idProp->values.first()->primitive();
 
@@ -1315,6 +1336,9 @@ bool QDeclarativeCompiler::buildSignal(QDeclarativeParser::Property *prop, QDecl
             prop->values.at(0)->type = Value::SignalObject;
         } else {
             prop->values.at(0)->type = Value::SignalExpression;
+
+            if (!prop->values.at(0)->value.isScript())
+                COMPILE_EXCEPTION(prop, tr("Cannot assign a value to a signal (expecting a script to be run)"));
 
             QString script = prop->values.at(0)->value.asScript().trimmed();
             if (script.isEmpty())
@@ -1893,7 +1917,7 @@ bool QDeclarativeCompiler::buildScriptStringProperty(QDeclarativeParser::Propert
     if (prop->values.count() > 1) 
         COMPILE_EXCEPTION(prop->values.at(1), tr( "Cannot assign multiple values to a script property"));
 
-    if (prop->values.at(0)->object || !prop->values.at(0)->value.isScript())
+    if (prop->values.at(0)->object)
         COMPILE_EXCEPTION(prop->values.at(0), tr( "Invalid property assignment: script expected"));
 
     obj->addScriptStringProperty(prop, ctxt.stack);
