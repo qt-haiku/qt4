@@ -625,6 +625,9 @@ QString QFSFileEngine::homePath()
     QString home = rootPath();
 #else
     QString home = QFile::decodeName(qgetenv("HOME"));
+#ifdef Q_OS_HAIKU
+	home += QLatin1String("/config/settings/Qt");
+#endif    
     if (home.isNull())
         home = rootPath();
 #endif
