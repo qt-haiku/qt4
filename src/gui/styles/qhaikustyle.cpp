@@ -1612,8 +1612,6 @@ void QHaikuStyle::drawControl(ControlElement element, const QStyleOption *option
 	            painter->fillRect(rect, gradient);
 			}
 			
-            QCommonStyle::drawControl(element, &item, painter, widget);
-
             bool act = mbi->state & State_Selected && mbi->state & State_Sunken;
             bool dis = !(mbi->state & State_Enabled);
 
@@ -1629,15 +1627,11 @@ void QHaikuStyle::drawControl(ControlElement element, const QStyleOption *option
                 painter->drawLine(QPoint(r.right(), r.top()), QPoint(r.right(), r.bottom()));
                 painter->drawLine(QPoint(r.left(), r.bottom()), QPoint(r.right(), r.bottom()));
                 painter->drawLine(QPoint(r.left(), r.top()), QPoint(r.right(), r.top()));
-
-                //draw text
-                QPalette::ColorRole textRole = QPalette::Text;//dis ? QPalette::Text : QPalette::HighlightedText;
-                uint alignment = Qt::AlignCenter | Qt::TextShowMnemonic | Qt::TextDontClip | Qt::TextSingleLine;
-                if (!styleHint(SH_UnderlineShortcut, mbi, widget))
-                    alignment |= Qt::TextHideMnemonic;
-                drawItemText(painter, item.rect, alignment, mbi->palette, mbi->state & State_Enabled, mbi->text, textRole);
             }
 
+            QPalette::ColorRole textRole = QPalette::Text;
+            uint alignment = Qt::AlignCenter  | Qt::TextHideMnemonic | Qt::TextDontClip | Qt::TextSingleLine;
+            drawItemText(painter, item.rect, alignment, mbi->palette, mbi->state & State_Enabled, mbi->text, textRole);            
         }
         painter->restore();
         break;

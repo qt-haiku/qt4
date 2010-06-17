@@ -617,10 +617,20 @@ int QApplication::cursorFlashTime()
 	return QApplicationPrivate::cursor_flash_time;
 }
 
-QWidget *QApplication::topLevelAt(const QPoint &)
+QWidget *QApplication::topLevelAt(const QPoint &point)
 {
-	qDebug("Unimplemented: QApplication::topLevelAt\n");
-	return 0;
+    QWidget *found = 0;
+    int lowestZ = INT_MAX;
+    QWidgetList list = QApplication::topLevelWidgets();
+    for (int i = 0; i < list.count(); ++i) {
+        QWidget *widget = list.at(i);
+        if (widget->isVisible() && !(widget->windowType() == Qt::Desktop)) {
+            if (widget->geometry().adjusted(0,0,1,1).contains(point)) {
+                    found = widget;			//TODO: check for z-order needed
+            }
+        }
+    }
+    return found;
 }
 
 void QApplication::beep()
