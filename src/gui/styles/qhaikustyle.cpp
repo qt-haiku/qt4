@@ -415,7 +415,8 @@ public:
 
 	QImage& image()
 	{
-		mView.Sync();
+		if(mView.Window())
+			mView.Sync();
 		return mImage;
 	}
 
@@ -1183,52 +1184,64 @@ void QHaikuStyle::drawControl(ControlElement element, const QStyleOption *option
     case CE_Splitter:
         painter->save();
         {
-            // hover appearance
-            QBrush fillColor = option->palette.background().color();
-            if (option->state & State_MouseOver && option->state & State_Enabled)
-                fillColor = fillColor.color().lighter(106);
-
-            painter->fillRect(option->rect, fillColor);
-
-            QColor grooveColor = mergedColors(dark.lighter(110), option->palette.button().color(),40);
-            QColor gripShadow = grooveColor.darker(110);
-            QPalette palette = option->palette;
-            bool vertical = !(option->state & State_Horizontal);
-            QRect scrollBarSlider = option->rect;
-            int gripMargin = 4;
-            //draw grips
-            if (vertical) {
-                for( int i = -20; i< 20 ; i += 2) {
-                    painter->setPen(QPen(gripShadow, 1));
-                    painter->drawLine(
-                        QPoint(scrollBarSlider.center().x() + i ,
-                               scrollBarSlider.top() + gripMargin),
-                        QPoint(scrollBarSlider.center().x() + i,
-                               scrollBarSlider.bottom() - gripMargin));
-                    painter->setPen(QPen(palette.light(), 1));
-                    painter->drawLine(
-                        QPoint(scrollBarSlider.center().x() + i + 1,
-                               scrollBarSlider.top() + gripMargin  ),
-                        QPoint(scrollBarSlider.center().x() + i + 1,
-                               scrollBarSlider.bottom() - gripMargin));
-                }
-            } else {
-                for (int i = -20; i < 20 ; i += 2) {
-                    painter->setPen(QPen(gripShadow, 1));
-                    painter->drawLine(
-                        QPoint(scrollBarSlider.left() + gripMargin ,
-                               scrollBarSlider.center().y()+ i),
-                        QPoint(scrollBarSlider.right() - gripMargin,
-                               scrollBarSlider.center().y()+ i));
-                    painter->setPen(QPen(palette.light(), 1));
-                    painter->drawLine(
-                        QPoint(scrollBarSlider.left() + gripMargin,
-                               scrollBarSlider.center().y() + 1 + i),
-                        QPoint(scrollBarSlider.right() - gripMargin,
-                               scrollBarSlider.center().y() + 1 + i));
-
-                }
-            }
+        	orientation orient = (option->state & State_Horizontal)?B_HORIZONTAL:B_VERTICAL;
+        	
+			if (be_control_look != NULL) {
+				QRect r = option->rect;
+				rgb_color base = ui_color(B_PANEL_BACKGROUND_COLOR);;
+				uint32 flags = 0;            
+		        BRect bRect(0.0f, 0.0f, r.width() - 1, r.height() - 1);
+				TemporarySurface surface(bRect);
+				be_control_look->DrawSplitter(surface.view(), bRect, bRect, base, orient, flags);
+				painter->drawImage(r, surface.image());			    
+			} else {			        	
+	            // hover appearance
+	            QBrush fillColor = option->palette.background().color();
+	            if (option->state & State_MouseOver && option->state & State_Enabled)
+	                fillColor = fillColor.color().lighter(106);
+	
+	            painter->fillRect(option->rect, fillColor);
+	
+	            QColor grooveColor = mergedColors(dark.lighter(110), option->palette.button().color(),40);
+	            QColor gripShadow = grooveColor.darker(110);
+	            QPalette palette = option->palette;
+	            bool vertical = !(option->state & State_Horizontal);
+	            QRect scrollBarSlider = option->rect;
+	            int gripMargin = 4;
+	            //draw grips
+	            if (vertical) {
+	                for( int i = -20; i< 20 ; i += 2) {
+	                    painter->setPen(QPen(gripShadow, 1));
+	                    painter->drawLine(
+	                        QPoint(scrollBarSlider.center().x() + i ,
+	                               scrollBarSlider.top() + gripMargin),
+	                        QPoint(scrollBarSlider.center().x() + i,
+	                               scrollBarSlider.bottom() - gripMargin));
+	                    painter->setPen(QPen(palette.light(), 1));
+	                    painter->drawLine(
+	                        QPoint(scrollBarSlider.center().x() + i + 1,
+	                               scrollBarSlider.top() + gripMargin  ),
+	                        QPoint(scrollBarSlider.center().x() + i + 1,
+	                               scrollBarSlider.bottom() - gripMargin));
+	                }
+	            } else {
+	                for (int i = -20; i < 20 ; i += 2) {
+	                    painter->setPen(QPen(gripShadow, 1));
+	                    painter->drawLine(
+	                        QPoint(scrollBarSlider.left() + gripMargin ,
+	                               scrollBarSlider.center().y()+ i),
+	                        QPoint(scrollBarSlider.right() - gripMargin,
+	                               scrollBarSlider.center().y()+ i));
+	                    painter->setPen(QPen(palette.light(), 1));
+	                    painter->drawLine(
+	                        QPoint(scrollBarSlider.left() + gripMargin,
+	                               scrollBarSlider.center().y() + 1 + i),
+	                        QPoint(scrollBarSlider.right() - gripMargin,
+	                               scrollBarSlider.center().y() + 1 + i));
+	
+	                }
+	            }
+			}
         }
         painter->restore();
         break;
