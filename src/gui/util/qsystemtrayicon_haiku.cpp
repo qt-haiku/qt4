@@ -48,3 +48,8 @@ bool QSystemTrayIconPrivate::isSystemTrayAvailable_sys()
 	fprintf(stderr, "Unimplemented:  QSystemTrayIconPrivate::isSystemTrayAvailable_sys\n");
 	return false;
 }
+
+bool QSystemTrayIconPrivate::supportsMessages_sys()
+{
+    return false;
+}
