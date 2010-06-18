@@ -3166,6 +3166,7 @@ void QHaikuStyle::drawComplexControl(ComplexControl control, const QStyleOptionC
 #endif // QT_NO_GROUPBOX
 #ifndef QT_NO_SLIDER
     case CC_Slider:
+    	painter->save();
         if (const QStyleOptionSlider *slider = qstyleoption_cast<const QStyleOptionSlider *>(option)) {
             QRect groove = subControlRect(CC_Slider, option, SC_SliderGroove, widget);
             QRect handle = subControlRect(CC_Slider, option, SC_SliderHandle, widget);
@@ -3174,6 +3175,50 @@ void QHaikuStyle::drawComplexControl(ComplexControl control, const QStyleOptionC
             bool horizontal = slider->orientation == Qt::Horizontal;
             bool ticksAbove = slider->tickPosition & QSlider::TicksAbove;
             bool ticksBelow = slider->tickPosition & QSlider::TicksBelow;
+
+			orientation orient = slider->orientation == Qt::Horizontal?B_HORIZONTAL:B_VERTICAL;
+
+			if (be_control_look != NULL) {
+				QRect r = groove;
+				rgb_color base = ui_color(B_PANEL_BACKGROUND_COLOR);
+				rgb_color fill_color = ui_color(B_PANEL_BACKGROUND_COLOR);
+				uint32 flags = 0;            
+
+		        BRect bRect(0.0f, 0.0f, option->rect.width() - 1,  option->rect.height() - 1);
+				TemporarySurface surface(bRect);				
+				
+				surface.view()->SetHighColor(base);
+				surface.view()->SetLowColor(base);
+				surface.view()->FillRect(bRect);
+				
+				if ((option->subControls & SC_SliderGroove) && groove.isValid()) {
+					r = groove;
+					bRect = BRect(r.x(), r.y(), r.x()+r.width(), r.y()+r.height());
+					be_control_look->DrawSliderBar(surface.view(), bRect, bRect, base, fill_color, flags, orient);
+					painter->drawImage(r, surface.image());		
+				}
+								
+				if (option->subControls & SC_SliderHandle ) {
+					if(orient==B_HORIZONTAL)
+						r = handle.adjusted(5,1,-5,0);
+					else
+						r = handle.adjusted(1,5,0,-5);
+					bRect = BRect(r.x(), r.y(), r.x()+r.width(), r.y()+r.height());						
+					be_control_look->DrawSliderThumb(surface.view(), bRect, bRect, base, flags, orient);						
+				}					    
+/*				
+				if (option->subControls & SC_SliderTickmarks) {
+					int num = 6;
+					r = ticks;
+					bRect = BRect(r.x(), r.y(), r.x()+r.width(), r.y()+r.height());						
+					be_control_look->DrawSliderHashMarks(surface.view(), bRect, bRect, base, num, B_HASH_MARKS_BOTH, flags, orient);						
+				}
+				*/
+				painter->drawImage(slider->rect, surface.image());		
+			}            
+            
+            painter->restore();
+/*
             QColor activeHighlight = option->palette.color(QPalette::Normal, QPalette::Highlight);
             QPixmap cache;
 
@@ -3417,7 +3462,7 @@ void QHaikuStyle::drawComplexControl(ComplexControl control, const QStyleOptionC
                 }
             }
             painter->setBrush(oldBrush);
-            painter->setPen(oldPen);
+            painter->setPen(oldPen);*/
         }
         break;
 #endif // QT_NO_SLIDER
