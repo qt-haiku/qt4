@@ -1245,45 +1245,11 @@ void QHaikuStyle::drawControl(ControlElement element, const QStyleOption *option
         }
         painter->restore();
         break;
-#ifndef QT_NO_SIZEGRIP
     case CE_SizeGrip:
         painter->save();
-        {
-            int x, y, w, h;
-            option->rect.getRect(&x, &y, &w, &h);
-            int sw = qMin(h, w);
-            if (h > w)
-                painter->translate(0, h - w);
-            else
-                painter->translate(w - h, 0);
-
-            int sx = x;
-            int sy = y;
-            int s = 4;
-            if (option->direction == Qt::RightToLeft) {
-                sx = x + sw;
-                for (int i = 0; i < 3; ++i) {
-                    painter->setPen(QPen(option->palette.light().color(), 1));
-                    painter->drawLine(x, sy - 1 , sx + 1, sw);
-                    painter->setPen(QPen(dark.lighter(120), 1));
-                    painter->drawLine(x, sy, sx, sw);
-                    sx -= s;
-                    sy += s;
-                }
-            } else {
-                for (int i = 0; i < 3; ++i) {
-                    painter->setPen(QPen(option->palette.light().color(), 1));
-                    painter->drawLine(sx - 1, sw, sw, sy - 1);
-                    painter->setPen(QPen(dark.lighter(120), 1));
-                    painter->drawLine(sx, sw, sw, sy);
-                    sx += s;
-                    sy += s;
-                }
-            }
-        }
+       	painter->fillRect(option->rect, option->palette.background().color());
         painter->restore();
-        break;
-#endif // QT_NO_SIZEGRIP
+        break;        
 #ifndef QT_NO_TOOLBAR
     case CE_ToolBar:
         painter->save();
@@ -3651,9 +3617,6 @@ QSize QHaikuStyle::sizeFromContents(ContentsType type, const QStyleOption *optio
 #endif // QT_NO_COMBOBOX
         }
         break;
-    case CT_SizeGrip:
-	    newSize += QSize(4, 4);
-	break;
     case CT_MdiControls:
         if (const QStyleOptionComplex *styleOpt = qstyleoption_cast<const QStyleOptionComplex *>(option)) {
             int width = 0;
