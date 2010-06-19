@@ -1194,53 +1194,6 @@ void QHaikuStyle::drawControl(ControlElement element, const QStyleOption *option
 				TemporarySurface surface(bRect);
 				be_control_look->DrawSplitter(surface.view(), bRect, bRect, base, orient, flags);
 				painter->drawImage(r, surface.image());			    
-			} else {			        	
-	            // hover appearance
-	            QBrush fillColor = option->palette.background().color();
-	            if (option->state & State_MouseOver && option->state & State_Enabled)
-	                fillColor = fillColor.color().lighter(106);
-	
-	            painter->fillRect(option->rect, fillColor);
-	
-	            QColor grooveColor = mergedColors(dark.lighter(110), option->palette.button().color(),40);
-	            QColor gripShadow = grooveColor.darker(110);
-	            QPalette palette = option->palette;
-	            bool vertical = !(option->state & State_Horizontal);
-	            QRect scrollBarSlider = option->rect;
-	            int gripMargin = 4;
-	            //draw grips
-	            if (vertical) {
-	                for( int i = -20; i< 20 ; i += 2) {
-	                    painter->setPen(QPen(gripShadow, 1));
-	                    painter->drawLine(
-	                        QPoint(scrollBarSlider.center().x() + i ,
-	                               scrollBarSlider.top() + gripMargin),
-	                        QPoint(scrollBarSlider.center().x() + i,
-	                               scrollBarSlider.bottom() - gripMargin));
-	                    painter->setPen(QPen(palette.light(), 1));
-	                    painter->drawLine(
-	                        QPoint(scrollBarSlider.center().x() + i + 1,
-	                               scrollBarSlider.top() + gripMargin  ),
-	                        QPoint(scrollBarSlider.center().x() + i + 1,
-	                               scrollBarSlider.bottom() - gripMargin));
-	                }
-	            } else {
-	                for (int i = -20; i < 20 ; i += 2) {
-	                    painter->setPen(QPen(gripShadow, 1));
-	                    painter->drawLine(
-	                        QPoint(scrollBarSlider.left() + gripMargin ,
-	                               scrollBarSlider.center().y()+ i),
-	                        QPoint(scrollBarSlider.right() - gripMargin,
-	                               scrollBarSlider.center().y()+ i));
-	                    painter->setPen(QPen(palette.light(), 1));
-	                    painter->drawLine(
-	                        QPoint(scrollBarSlider.left() + gripMargin,
-	                               scrollBarSlider.center().y() + 1 + i),
-	                        QPoint(scrollBarSlider.right() - gripMargin,
-	                               scrollBarSlider.center().y() + 1 + i));
-	
-	                }
-	            }
 			}
         }
         painter->restore();
@@ -1578,17 +1531,6 @@ void QHaikuStyle::drawControl(ControlElement element, const QStyleOption *option
 				TemporarySurface surface(bRect);
 				be_control_look->DrawMenuBarBackground(surface.view(), bRect, bRect, base, flags, 8);
 				painter->drawImage(r, surface.image());			    
-			} else {
-	            QColor highlightOutline = highlight.darker(125);
-	            QLinearGradient gradient(rect.topLeft(), QPoint(rect.bottomLeft().x(), rect.bottomLeft().y()));
-	
-	            if (option->palette.button().gradient()) {
-	                gradient.setStops(option->palette.button().gradient()->stops());
-	            } else {
-	    	        gradient.setColorAt(0, QColor(235,235,235));
-		            gradient.setColorAt(1, QColor(198,198,198));
-	            }
-	            painter->fillRect(rect, gradient);
 			}
 			
             bool act = mbi->state & State_Selected && mbi->state & State_Sunken;
@@ -1917,12 +1859,8 @@ void QHaikuStyle::drawControl(ControlElement element, const QStyleOption *option
 				TemporarySurface surface(bRect);
 				be_control_look->DrawMenuBarBackground(surface.view(), bRect, bRect, base, flags);
 				painter->drawImage(r, surface.image());			    
-			} else {        	
-	            QLinearGradient gradient(rect.topLeft(), QPoint(rect.bottomLeft().x(), rect.bottomLeft().y()));
-	            gradient.setColorAt(0, QColor(235,235,235));
-	            gradient.setColorAt(1, QColor(198,198,198));
-	            painter->fillRect(rect, gradient);	            
 			}
+			
    	        painter->setPen(QPen(QColor(152,152,152)));
             painter->drawLine(rect.bottomLeft(), rect.bottomRight());			
         }
