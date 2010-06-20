@@ -3075,8 +3075,7 @@ void QHaikuStyle::drawComplexControl(ComplexControl control, const QStyleOptionC
             QRect groove = subControlRect(CC_Slider, option, SC_SliderGroove, widget);
             QRect handle = subControlRect(CC_Slider, option, SC_SliderHandle, widget);
             QRect ticks = subControlRect(CC_Slider, option, SC_SliderTickmarks, widget);
-
-            bool horizontal = slider->orientation == Qt::Horizontal;
+            
             bool ticksAbove = slider->tickPosition & QSlider::TicksAbove;
             bool ticksBelow = slider->tickPosition & QSlider::TicksBelow;
 
@@ -3101,272 +3100,29 @@ void QHaikuStyle::drawComplexControl(ComplexControl control, const QStyleOptionC
 					be_control_look->DrawSliderBar(surface.view(), bRect, bRect, base, fill_color, flags, orient);
 					painter->drawImage(r, surface.image());		
 				}
+
+				if (option->subControls & SC_SliderTickmarks) {
+					int mlocation = B_HASH_MARKS_NONE;
+					if(ticksAbove)mlocation|=B_HASH_MARKS_TOP;
+					if(ticksBelow)mlocation|=B_HASH_MARKS_BOTTOM;
+					int interval =  slider->tickInterval<=0?1:slider->tickInterval;
+					int num = 1+((slider->maximum-slider->minimum)/interval);
+					int len = pixelMetric(PM_SliderLength, slider, widget)/2;
+					r=(orient==B_HORIZONTAL)?option->rect.adjusted(len,0,-len,0):option->rect.adjusted(0,len,0,-len);
+					bRect = BRect(r.x(), r.y(), r.x()+r.width(), r.y()+r.height());						
+					be_control_look->DrawSliderHashMarks(surface.view(), bRect, bRect, base, num, (hash_mark_location)mlocation, flags, orient);						
+				}
 								
 				if (option->subControls & SC_SliderHandle ) {
-					if(orient==B_HORIZONTAL)
-						r = handle.adjusted(5,1,-5,0);
-					else
-						r = handle.adjusted(1,5,0,-5);
-					bRect = BRect(r.x(), r.y(), r.x()+r.width(), r.y()+r.height());						
-					be_control_look->DrawSliderThumb(surface.view(), bRect, bRect, base, flags, orient);						
+					r=handle.adjusted(1,1,0,0);
+					bRect = BRect(r.x(), r.y(), r.x()+r.width(), r.y()+r.height());
+					be_control_look->DrawSliderThumb(surface.view(), bRect, bRect, base, flags, orient);
 				}					    
-/*				
-				if (option->subControls & SC_SliderTickmarks) {
-					int num = 6;
-					r = ticks;
-					bRect = BRect(r.x(), r.y(), r.x()+r.width(), r.y()+r.height());						
-					be_control_look->DrawSliderHashMarks(surface.view(), bRect, bRect, base, num, B_HASH_MARKS_BOTH, flags, orient);						
-				}
-				*/
+								
 				painter->drawImage(slider->rect, surface.image());		
 			}            
             
             painter->restore();
-/*
-            QColor activeHighlight = option->palette.color(QPalette::Normal, QPalette::Highlight);
-            QPixmap cache;
-
-            QBrush oldBrush = painter->brush();
-            QPen oldPen = painter->pen();
-
-            QColor shadowAlpha(Qt::black);
-            shadowAlpha.setAlpha(10);
-            QColor highlightAlpha(Qt::white);
-            highlightAlpha.setAlpha(80);
-
-            if ((option->subControls & SC_SliderGroove) && groove.isValid()) {
-                QString groovePixmapName = uniqueName(QLatin1String("slider_groove"), option, groove.size());
-                QRect pixmapRect(0, 0, groove.width(), groove.height());
-
-                // draw background groove
-                if (!UsePixmapCache || !QPixmapCache::find(groovePixmapName, cache)) {
-                    cache = QPixmap(pixmapRect.size());
-                    cache.fill(Qt::transparent);
-                    QPainter groovePainter(&cache);
-
-                    groovePainter.setPen(shadowAlpha);
-                    groovePainter.drawLine(1, 0, groove.width(), 0);
-                    groovePainter.drawLine(0, 0, 0, groove.height() - 1);
-
-                    groovePainter.setPen(highlightAlpha);
-                    groovePainter.drawLine(1, groove.height() - 1, groove.width() - 1, groove.height() - 1);
-                    groovePainter.drawLine(groove.width() - 1, 1, groove.width() - 1, groove.height() - 1);
-                    QLinearGradient gradient;
-                    if (horizontal) {
-                        gradient.setStart(pixmapRect.center().x(), pixmapRect.top());
-                        gradient.setFinalStop(pixmapRect.center().x(), pixmapRect.bottom());
-                    }
-                    else {
-                        gradient.setStart(pixmapRect.left(), pixmapRect.center().y());
-                        gradient.setFinalStop(pixmapRect.right(), pixmapRect.center().y());
-                    }
-                    groovePainter.setPen(QPen(darkOutline.darker(110), 0));
-                    gradient.setColorAt(0, grooveColor.darker(110));//dark.lighter(120));
-                    gradient.setColorAt(1, grooveColor.lighter(110));//palette.button().color().darker(115));
-                    groovePainter.setBrush(gradient);
-                    groovePainter.drawRect(pixmapRect.adjusted(1, 1, -2, -2));
-                    groovePainter.end();
-                    if (UsePixmapCache)
-                        QPixmapCache::insert(groovePixmapName, cache);
-                }
-                painter->drawPixmap(groove.topLeft(), cache);
-
-                // draw blue groove highlight
-                QRect clipRect;
-                groovePixmapName += QLatin1String("_blue");
-                if (!UsePixmapCache || !QPixmapCache::find(groovePixmapName, cache)) {
-                    cache = QPixmap(pixmapRect.size());
-                    cache.fill(Qt::transparent);
-                    QPainter groovePainter(&cache);
-                    QLinearGradient gradient;
-                    if (horizontal) {
-                        gradient.setStart(pixmapRect.center().x(), pixmapRect.top());
-                        gradient.setFinalStop(pixmapRect.center().x(), pixmapRect.bottom());
-                    }
-                    else {
-                        gradient.setStart(pixmapRect.left(), pixmapRect.center().y());
-                        gradient.setFinalStop(pixmapRect.right(), pixmapRect.center().y());
-                    }
-                    groovePainter.setPen(QPen(activeHighlight.darker(150), 0));
-                    gradient.setColorAt(0, activeHighlight.darker(120));
-                    gradient.setColorAt(1, activeHighlight.lighter(160));
-                    groovePainter.setBrush(gradient);
-                    groovePainter.drawRect(pixmapRect.adjusted(1, 1, -2, -2));
-                    groovePainter.end();
-                    if (UsePixmapCache)
-                        QPixmapCache::insert(groovePixmapName, cache);
-                }
-                if (horizontal) {
-                    if (slider->upsideDown)
-                        clipRect = QRect(handle.right(), groove.top(), groove.right() - handle.right(), groove.height());
-                    else
-                        clipRect = QRect(groove.left(), groove.top(), handle.left(), groove.height());
-                } else {
-                    if (slider->upsideDown)
-                        clipRect = QRect(groove.left(), handle.bottom(), groove.width(), groove.height() - handle.bottom());
-                    else
-                        clipRect = QRect(groove.left(), groove.top(), groove.width(), handle.top() - groove.top());
-                }
-                painter->save();
-                painter->setClipRect(clipRect.adjusted(0, 0, 1, 1));
-                painter->drawPixmap(groove.topLeft(), cache);
-                painter->restore();
-            }
-
-            // draw handle
-            if ((option->subControls & SC_SliderHandle) ) {
-                QString handlePixmapName = uniqueName(QLatin1String("slider_handle"), option, handle.size());
-                if (!UsePixmapCache || !QPixmapCache::find(handlePixmapName, cache)) {
-                    cache = QPixmap(handle.size());
-                    cache.fill(Qt::transparent);
-                    QRect pixmapRect(0, 0, handle.width(), handle.height());
-                    QPainter handlePainter(&cache);
-
-                    QColor highlightedGradientStartColor = option->palette.button().color();
-                    QColor highlightedGradientStopColor = option->palette.light().color();
-                    QColor gradientStartColor = mergedColors(option->palette.button().color().lighter(155),
-                                                             dark.lighter(155), 50);
-                    QColor gradientStopColor = gradientStartColor.darker(108);
-                    QRect gradRect = pixmapRect.adjusted(2, 2, -2, -2);
-
-                    QColor gradientBgStartColor = gradientStartColor;
-                    QColor gradientBgStopColor = gradientStopColor;
-
-                    QColor outline = option->state & State_Enabled ? dark : dark.lighter(130);
-                    if (option->state & State_Enabled && option->activeSubControls & SC_SliderHandle) {
-                        gradientBgStartColor = option->palette.highlight().color().lighter(180);
-                        gradientBgStopColor = option->palette.highlight().color().lighter(110);
-                        outline = option->palette.highlight().color().darker(130);
-                    }
-
-                    // gradient fill
-                    QRect innerBorder = gradRect;
-                    QRect r = pixmapRect.adjusted(1, 1, -1, -1);
-
-                    qt_haiku_draw_gradient(&handlePainter, gradRect,
-                                                gradientBgStartColor,
-                                                gradientBgStopColor,
-                                                horizontal ? TopDown : FromLeft, option->palette.button());
-
-                    handlePainter.setPen(QPen(outline.darker(110), 1));
-                    handlePainter.drawLine(QPoint(r.left(), r.top() + 3), QPoint(r.left(), r.bottom() - 3));
-                    handlePainter.drawLine(QPoint(r.right(), r.top() + 3), QPoint(r.right(), r.bottom() - 3));
-                    handlePainter.drawLine(QPoint(r.left() + 3, r.bottom()), QPoint(r.right() - 3, r.bottom()));
-
-                    handlePainter.save();
-                    handlePainter.setRenderHint(QPainter::Antialiasing);
-                    handlePainter.translate(0.5, 0.5);
-                    handlePainter.drawLine(QPoint(r.left(), r.bottom() - 2), QPoint(r.left() + 2, r.bottom()));
-                    handlePainter.drawLine(QPoint(r.left(), r.top() + 2), QPoint(r.left() + 2, r.top()));
-                    handlePainter.drawLine(QPoint(r.right(), r.bottom() - 2), QPoint(r.right() - 2, r.bottom()));
-                    handlePainter.drawLine(QPoint(r.right(), r.top() + 2), QPoint(r.right() - 2, r.top()));
-                    handlePainter.restore();;
-                    handlePainter.setPen(QPen(outline.darker(130), 1));
-                    handlePainter.drawLine(QPoint(r.left() + 3, r.top()), QPoint(r.right() - 3, r.top()));
-                    QColor cornerAlpha = outline.darker(120);
-                    cornerAlpha.setAlpha(80);
-
-                    handlePainter.setPen(cornerAlpha);
-                    if (horizontal) {
-                        handlePainter.drawLine(QPoint(r.left() + 6, r.top()), QPoint(r.left() + 6, r.bottom()));
-                        handlePainter.drawLine(QPoint(r.right() - 6, r.top()), QPoint(r.right() - 6, r.bottom()));
-                    } else {
-                        handlePainter.drawLine(QPoint(r.left(), r.top() + 6), QPoint(r.right(), r.top() + 6));
-                        handlePainter.drawLine(QPoint(r.left(), r.bottom() - 6), QPoint(r.right(), r.bottom() - 6));
-                    }
-
-                    //handle shadow
-                    handlePainter.setPen(shadowAlpha);
-                    handlePainter.drawLine(QPoint(r.left() + 2, r.bottom() + 1), QPoint(r.right() - 2, r.bottom() + 1));
-                    handlePainter.drawLine(QPoint(r.right() + 1, r.bottom() - 3), QPoint(r.right() + 1, r.top() + 4));
-                    handlePainter.drawLine(QPoint(r.right() - 1, r.bottom()), QPoint(r.right() + 1, r.bottom() - 2));
-
-                    qt_haiku_draw_gradient(&handlePainter, horizontal ?
-                        gradRect.adjusted(6, 0, -6, 0) : gradRect.adjusted(0, 6, 0, -6),
-                        gradientStartColor,
-                        gradientStopColor.darker(106),
-                        horizontal ? TopDown : FromLeft,
-                        option->palette.button());
-
-                    //draw grips
-                    for (int i = -3; i< 6 ; i += 3) {
-                        for (int j = -3; j< 6 ; j += 3) {
-                            handlePainter.fillRect(r.center().x() + i, r.center().y() + j, 2, 2, highlightAlpha);
-                            handlePainter.setPen(gripShadow);
-                            handlePainter.drawPoint(r.center().x() + i, r.center().y() + j );
-                        }
-                    }
-                    handlePainter.end();
-                    if (UsePixmapCache)
-                        QPixmapCache::insert(handlePixmapName, cache);
-                }
-
-                painter->drawPixmap(handle.topLeft(), cache);
-
-                if (slider->state & State_HasFocus) {
-                    QStyleOptionFocusRect fropt;
-                    fropt.QStyleOption::operator=(*slider);
-                    fropt.rect = slider->rect;
-                    drawPrimitive(PE_FrameFocusRect, &fropt, painter, widget);
-                }
-            }
-            if (option->subControls & SC_SliderTickmarks) {
-                painter->setPen(darkOutline);
-                int tickSize = pixelMetric(PM_SliderTickmarkOffset, option, widget);
-                int available = pixelMetric(PM_SliderSpaceAvailable, slider, widget);
-                int interval = slider->tickInterval;
-                if (interval <= 0) {
-                    interval = slider->singleStep;
-                    if (QStyle::sliderPositionFromValue(slider->minimum, slider->maximum, interval,
-                                                        available)
-                        - QStyle::sliderPositionFromValue(slider->minimum, slider->maximum,
-                                                        0, available) < 3)
-                        interval = slider->pageStep;
-                }
-                if (interval <= 0)
-                    interval = 1;
-
-                int v = slider->minimum;
-                int len = pixelMetric(PM_SliderLength, slider, widget);
-                while (v <= slider->maximum + 1) {
-                    if (v == slider->maximum + 1 && interval == 1)
-                        break;
-                    const int v_ = qMin(v, slider->maximum);
-                    int pos = sliderPositionFromValue(slider->minimum, slider->maximum,
-                                                    v_, (horizontal
-                                                        ? slider->rect.width()
-                                                        : slider->rect.height()) - len,
-                                                    slider->upsideDown) + len / 2;
-                    int extra = 2 - ((v_ == slider->minimum || v_ == slider->maximum) ? 1 : 0);
-
-                    if (horizontal) {
-                        if (ticksAbove) {
-                            painter->drawLine(pos, slider->rect.top() + extra,
-                                pos, slider->rect.top() + tickSize);
-                        }
-                        if (ticksBelow) {
-                            painter->drawLine(pos, slider->rect.bottom() - extra,
-                                            pos, slider->rect.bottom() - tickSize);
-                        }
-                    } else {
-                        if (ticksAbove) {
-                            painter->drawLine(slider->rect.left() + extra, pos,
-                                            slider->rect.left() + tickSize, pos);
-                        }
-                        if (ticksBelow) {
-                            painter->drawLine(slider->rect.right() - extra, pos,
-                                            slider->rect.right() - tickSize, pos);
-                        }
-                    }
-                    // in the case where maximum is max int
-                    int nextInterval = v + interval;
-                    if (nextInterval < v)
-                        break;
-                    v = nextInterval;
-                }
-            }
-            painter->setBrush(oldBrush);
-            painter->setPen(oldPen);*/
         }
         break;
 #endif // QT_NO_SLIDER
@@ -3435,10 +3191,10 @@ int QHaikuStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, con
         ret = 15;
         break;
     case PM_SliderThickness:
-        ret = 15;
+        ret = 14;
         break;
     case PM_SliderLength:
-        ret = 27;
+        ret = 18;
         break;
     case PM_DockWidgetTitleMargin:
         ret = 1;
