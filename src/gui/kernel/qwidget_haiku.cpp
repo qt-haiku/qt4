@@ -338,7 +338,7 @@ QtHaikuWindow::sendKeyEvent(QEvent::Type type, BMessage *msg)
         }
     }    
     
-    qDebug() << "KeyEvent: " << code << " (" <<text<<")";
+//    qDebug() << "KeyEvent: " << code << " (" <<text<<")";
         	   
     emit fView->sendHaikuEvent(widget, new QKeyEvent(type, code, qt_mod, text, false, text.length()));
 }

@@ -597,13 +597,13 @@ void QApplication::setEffectEnabled(Qt::UIEffect effect, bool enable)
 {
 	Q_UNUSED(effect);
 	Q_UNUSED(enable);
-	qDebug("Unimplemented: QApplication::setEffectEnabled\n");
+//	qDebug("Unimplemented: QApplication::setEffectEnabled\n");
 }
 
 bool QApplication::isEffectEnabled(Qt::UIEffect effect)
 {
 	Q_UNUSED(effect);
-	qDebug("Unimplemented: QApplication::isEffectEnabled\n");
+//	qDebug("Unimplemented: QApplication::isEffectEnabled\n");
 	return false;
 }
 
