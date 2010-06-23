@@ -71,6 +71,10 @@
 # include "private/qpixmap_mac_p.h"
 #endif
 
+#ifdef Q_WS_HAIKU
+# include "private/qpixmap_haiku_p.h"
+#endif
+
 #if defined(Q_WS_X11)
 # include "qx11info_x11.h"
 # include <private/qt_x11_p.h>
@@ -1931,6 +1935,8 @@ int QPixmap::defaultDepth()
 #elif defined(Q_WS_WIN)
     return 32; // XXX
 #elif defined(Q_WS_MAC)
+    return 32;
+#elif defined(Q_WS_HAIKU)
     return 32;
 #elif defined(Q_OS_SYMBIAN)
     return S60->screenDepth;

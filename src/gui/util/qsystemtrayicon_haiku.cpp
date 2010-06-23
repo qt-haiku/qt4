@@ -29,7 +29,7 @@ public:
     ~QSystemTrayIconSys();
     QSystemTrayIcon *q;
     void createIcon();
-	
+        	
 	int32	ReplicantId;    
 	BBitmap	*icon;
 };
@@ -75,18 +75,8 @@ void QSystemTrayIconSys::createIcon()
 	}
 	
 	qDebug() << "QIcon() " << img.width() << img.height();
-		
-    icon = new BBitmap(BRect(0, 0, img.width()-1, img.height()-1), B_RGBA32);
-    for(int y=0;y<img.height();y++)
-    	for(int x=0;x<img.width();x++) {
-    		unsigned char *ptr = ((unsigned char *)icon->Bits())+(y*icon->BytesPerRow())+x*4;
-    		QColor color = QColor(img.pixel(x,y));    		
-    		*ptr++=color.blue();
-    		*ptr++=color.green();
-    		*ptr++=color.red();
-    		*ptr++=color.alpha();
-    	}
-	//icon->SetBits((const void*)img.bits(), img.byteCount(), 0, cspace);
+	
+	icon = pm.toHaikuBitmap();			
 
 	BMessage	bits(B_ARCHIVED_OBJECT);
 	icon->Archive(&bits);	
@@ -94,7 +84,7 @@ void QSystemTrayIconSys::createIcon()
 	mes.AddMessage("icon",&bits);
 	bits.MakeEmpty();
 		
-	SendMessageToReplicant(ReplicantId,&mes);    
+	SendMessageToReplicant(ReplicantId,&mes);    	
 
 	mes.PrintToStream();	
 }

@@ -57,6 +57,10 @@ class CFbsBitmap;
 class RSgImage;
 #endif
 
+#if defined(Q_OS_HAIKU)
+class BBitmap;
+#endif
+
 QT_BEGIN_NAMESPACE
 
 QT_MODULE(Gui)
@@ -160,6 +164,10 @@ public:
 #if defined(Q_WS_MAC)
     CGImageRef toMacCGImageRef() const;
     static QPixmap fromMacCGImageRef(CGImageRef image);
+#endif
+
+#if defined(Q_OS_HAIKU)
+	BBitmap *toHaikuBitmap() const;
 #endif
 
 #if defined(Q_OS_SYMBIAN)
