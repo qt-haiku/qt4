@@ -5,6 +5,7 @@
 #include "qeventdispatcher_haiku_p.h"
 #include "qwidget.h"
 #include "qwidget_p.h"
+#include "private/qsystemtrayicon_p.h"
 #include <QtGui>
 #include <Application.h>
 #include <Path.h>
@@ -88,7 +89,14 @@ HQApplication::~HQApplication()
 void HQApplication::MessageReceived(BMessage* msg)
 {
 	Q_UNUSED(msg);
-	qDebug("HQApplication::MessageReceived\n");
+	if(msg->what=='TRAY') {
+		ssize_t numBytes;
+		const void *sys=NULL;
+		msg->FindData("qtrayobject",B_ANY_TYPE,&sys,&numBytes);
+		if(sys) {
+			((QSystemTrayIconSys *)sys)->HaikuEvent(msg);
+		}
+	}
 	BApplication::MessageReceived(msg);
 }
 

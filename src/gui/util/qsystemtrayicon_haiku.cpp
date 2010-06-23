@@ -11,37 +11,90 @@
 #include <Deskbar.h>
 #include <View.h>
 #include <Roster.h>
+#include <Screen.h>
 #include <Resources.h>
 #include <Bitmap.h>
-#include <TranslationUtils.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+
+#define TRAY_MOUSEDOWN 	1
+#define TRAY_MOUSEUP	2
 
 #define DBAR_SIGNATURE 	"application/x-vnd.Be-TSKB"
 
 status_t SendMessageToReplicant(int32 index, BMessage *msg);
 
-class QSystemTrayIconSys : QWidget
-{
-public:
-    QSystemTrayIconSys(QSystemTrayIcon *object);
-    ~QSystemTrayIconSys();
-    QSystemTrayIcon *q;
-    void createIcon();
-        	
-	int32	ReplicantId;    
-	BBitmap	*icon;
-};
 
 QSystemTrayIconSys::QSystemTrayIconSys(QSystemTrayIcon *object)
-    : ReplicantId(0), q(object)
+    : ReplicantId(0), q(object), ignoreNextMouseRelease(false)
 {
 	
 }
 
 QSystemTrayIconSys::~QSystemTrayIconSys()
 {
+	if(icon)
+		delete icon;
+}
+
+void QSystemTrayIconSys::HaikuEvent(BMessage *m)
+{
+	int32 event = 0;
+	BPoint point(0,0);
+	int32 buttons = 0,
+		  clicks = 0;
+
+	m->FindInt32("event",&event);
+	m->FindPoint("point",&point);
+	m->FindInt32("buttons",&buttons);
+	m->FindInt32("clicks",&clicks);
+	
+	switch(event) {
+		case TRAY_MOUSEUP:
+			{				                
+				if(buttons==B_PRIMARY_MOUSE_BUTTON) {
+				if (ignoreNextMouseRelease)
+                    ignoreNextMouseRelease = false;
+                else
+                    emit q->activated(QSystemTrayIcon::Trigger);
+					break;
+				}
+				if(buttons==B_TERTIARY_MOUSE_BUTTON) {
+					emit q->activated(QSystemTrayIcon::MiddleClick);
+					break;
+				}
+				if(buttons==B_SECONDARY_MOUSE_BUTTON) {
+					QPoint gpos = QPoint(point.x,point.y);
+	                if (q->contextMenu()) {
+	                    q->contextMenu()->popup(gpos);
+	
+						BScreen screen(NULL);
+	                    QRect desktopRect( screen.Frame().left, screen.Frame().top,
+	                    				   screen.Frame().right, screen.Frame().bottom);
+	                    int maxY = desktopRect.y() + desktopRect.height() - q->contextMenu()->height();
+	                    if (gpos.y() > maxY) {
+	                        gpos.ry() = maxY;
+	                        q->contextMenu()->move(gpos);
+	                    }
+	                }
+	                emit q->activated(QSystemTrayIcon::Context);		
+	             	break;   			
+				}
+			}
+			break;
+		case TRAY_MOUSEDOWN:
+			{				
+				if(buttons==B_PRIMARY_MOUSE_BUTTON && clicks==2) {
+					ignoreNextMouseRelease = true;
+					emit q->activated(QSystemTrayIcon::DoubleClick);
+					break;
+				}
+			}
+			break;
+		default:
+			break;
+	}
 }
 
 void QSystemTrayIconSys::createIcon()
@@ -73,20 +126,15 @@ void QSystemTrayIconSys::createIcon()
 			cspace = B_RGB32;
 			break;
 	}
-	
-	qDebug() << "QIcon() " << img.width() << img.height();
-	
-	icon = pm.toHaikuBitmap();			
-
-	BMessage	bits(B_ARCHIVED_OBJECT);
-	icon->Archive(&bits);	
-	BMessage mes('BITS');
-	mes.AddMessage("icon",&bits);
-	bits.MakeEmpty();
 		
-	SendMessageToReplicant(ReplicantId,&mes);    	
-
-	mes.PrintToStream();	
+	if(icon = pm.toHaikuBitmap()) {
+		BMessage	bits(B_ARCHIVED_OBJECT);
+		icon->Archive(&bits);	
+		BMessage mes('BITS');
+		mes.AddMessage("icon",&bits);
+		bits.MakeEmpty();
+		SendMessageToReplicant(ReplicantId,&mes);
+	}
 }
 
 BMessenger GetMessenger(void)
@@ -180,6 +228,13 @@ void QSystemTrayIconPrivate::install_sys()
     if (!sys) {
         sys = new QSystemTrayIconSys(q);
         sys->ReplicantId = DeskBarLoadIcon();
+		
+		BMessage mes('MSGR');
+		mes.AddMessenger("messenger",be_app_messenger);
+		mes.AddData("qtrayobject",B_ANY_TYPE,&sys,sizeof(void*));
+
+		SendMessageToReplicant(sys->ReplicantId,&mes);        
+
         sys->createIcon();
     }
 }
@@ -190,7 +245,7 @@ void QSystemTrayIconPrivate::showMessage_sys(const QString &title,  const QStrin
 	Q_UNUSED(message);
 	Q_UNUSED(type);
 	Q_UNUSED(timeOut);
-	fprintf(stderr, "Unimplemented:  QSystemTrayIconPrivate::showMessage_sys\n");
+	fprintf(stderr, "Unimplemented:  QSystemTrayIconPrivate::showMessage_sys\n");	
 }
 
 QRect QSystemTrayIconPrivate::geometry_sys() const
@@ -214,11 +269,16 @@ void QSystemTrayIconPrivate::remove_sys()
 void QSystemTrayIconPrivate::updateIcon_sys()
 {
 	fprintf(stderr, "Reimplemented:  QSystemTrayIconPrivate::updateIcon_sys\n");
-
+	
     if (!sys)
         return;
         
+	BBitmap *iconToDestroy = sys->icon;
+        
     sys->createIcon();
+
+    if(iconToDestroy)
+        delete iconToDestroy;
 }
 
 void QSystemTrayIconPrivate::updateMenu_sys()
@@ -239,5 +299,5 @@ bool QSystemTrayIconPrivate::isSystemTrayAvailable_sys()
 
 bool QSystemTrayIconPrivate::supportsMessages_sys()
 {
-    return false;
+    return true;
 }
