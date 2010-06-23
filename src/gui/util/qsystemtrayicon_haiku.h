@@ -80,7 +80,7 @@ public:
     void createIcon();
 		
 	BMessenger GetMessenger(void);
-	status_t SendMessageToReplicant(int32 index, BMessage *msg);
+	status_t SendMessageToReplicant(BMessage *msg);
 	int32	ExecuteCommand(char *command);
 	int32 DeskBarLoadIcon(team_id tid);
 	int32 DeskBarLoadIcon(void);
@@ -89,7 +89,7 @@ public:
     QSystemTrayIcon *q;
 
 	QSystemTrayIconLooper* Looper;
-	int32	ReplicantId;    
+	int32	ReplicantId;
 	BBitmap	*icon;
 
     friend class QSystemTrayIconPrivate;

@@ -94,8 +94,17 @@ QSystemTrayIconSys::QSystemTrayIconSys(QSystemTrayIcon *object)
     : ReplicantId(0), q(object), ignoreNextMouseRelease(false)
 {
 	ReplicantId = DeskBarLoadIcon();
+
 	Looper = new QSystemTrayIconLooper();
 	Looper->Run();
+
+	BMessage mes('MSGR');
+	QSystemTrayIconSys *sys=this;
+	mes.AddMessenger("messenger",BMessenger(NULL,Looper));
+	mes.AddData("qtrayobject",B_ANY_TYPE,&sys,sizeof(void*));
+
+	SendMessageToReplicant(&mes);
+		
 	QObject::connect(Looper,SIGNAL(sendHaikuMessage(BMessage *)),this,SLOT(HaikuEvent(BMessage *)),Qt::QueuedConnection);
 }
 
@@ -194,13 +203,14 @@ void QSystemTrayIconSys::createIcon()
 			break;
 	}
 		
-	if(icon = pm.toHaikuBitmap()) {
+	icon = pm.toHaikuBitmap();
+	if(icon) {
 		BMessage	bits(B_ARCHIVED_OBJECT);
 		icon->Archive(&bits);	
 		BMessage *mes = new BMessage('BITS');
 		mes->AddMessage("icon",&bits);
 		bits.MakeEmpty();
-		SendMessageToReplicant(ReplicantId,mes);
+		SendMessageToReplicant(mes);
 	}
 }
 
@@ -228,8 +238,11 @@ QSystemTrayIconSys::GetMessenger(void)
 
 
 status_t 
-QSystemTrayIconSys::SendMessageToReplicant(int32 index, BMessage *msg)
+QSystemTrayIconSys::SendMessageToReplicant(BMessage *msg)
 {
+	if(ReplicantId<=0)
+		return B_ERROR;
+		
 	BMessage aReply;
 	status_t aErr = B_OK;
 	
@@ -239,7 +252,7 @@ QSystemTrayIconSys::SendMessageToReplicant(int32 index, BMessage *msg)
 	BMessage	uid_specifier(B_ID_SPECIFIER);
 	
 	msg->AddSpecifier("View");
-	uid_specifier.AddInt32("id", index);
+	uid_specifier.AddInt32("id", ReplicantId);
 	uid_specifier.AddString("property", "Replicant");
 	msg->AddSpecifier(&uid_specifier);
 		
@@ -299,14 +312,7 @@ void QSystemTrayIconPrivate::install_sys()
 	fprintf(stderr, "Reimplemented: QSystemTrayIconPrivate::install_sys \n");
     Q_Q(QSystemTrayIcon);
     if (!sys) {
-        sys = new QSystemTrayIconSys(q);        
-		
-		BMessage mes('MSGR');
-		mes.AddMessenger("messenger",BMessenger(NULL,sys->Looper)); //be_app_messenger
-		mes.AddData("qtrayobject",B_ANY_TYPE,&sys,sizeof(void*));
-
-		sys->SendMessageToReplicant(sys->ReplicantId,&mes);        
-
+        sys = new QSystemTrayIconSys(q);		
         sys->createIcon();
     }
 }
