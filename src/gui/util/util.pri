@@ -55,6 +55,8 @@ symbian {
 }
 
 haiku {
+		HEADERS += \
+				util/qsystemtrayicon_haiku.h
 		SOURCES += \
 				util/qsystemtrayicon_haiku.cpp
 }

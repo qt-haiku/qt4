@@ -180,28 +180,8 @@ private:
 
 #if defined(Q_WS_HAIKU)
 QT_BEGIN_INCLUDE_NAMESPACE
-#include <QtCore/qcoreapplication.h>
-#include <Application.h>
-#include <Bitmap.h>
-#include <Message.h>
+#include "qsystemtrayicon_haiku.h"
 QT_END_INCLUDE_NAMESPACE
-
-class QSystemTrayIconSys : public QWidget
-{
-    friend class QSystemTrayIconPrivate;
-public:
-    QSystemTrayIconSys(QSystemTrayIcon *object);
-    ~QSystemTrayIconSys();
-    QSystemTrayIcon *q;
-    void createIcon();
-    void HaikuEvent(BMessage *m);
-    
-        	
-	int32	ReplicantId;    
-	BBitmap	*icon;
-private:	
-	bool ignoreNextMouseRelease;
-};    
 #endif // Q_WS_HAIKU
 
 QT_END_NAMESPACE
