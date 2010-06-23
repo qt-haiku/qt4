@@ -60,25 +60,11 @@ QT_BEGIN_NAMESPACE
 QT_MODULE(Gui)
 
 
-/*class MyTrayProxy : public QObject
-{
-    Q_OBJECT
- 
-public:
-    MyTrayProxy();
-    void sendMessage(BMessage *m)
-    {
-      emit sendHaikuMessage(m);
-    }
-Q_SIGNALS:
-    void sendHaikuMessage(BMessage *);
-};*/
-
-class OurLooper :public QObject, public BLooper
+class QSystemTrayIconLooper :public QObject, public BLooper
 {
 	Q_OBJECT
 public:
-	OurLooper();
+	QSystemTrayIconLooper();
 	virtual void MessageReceived(BMessage* theMessage);
 	thread_id Run(void);
 Q_SIGNALS:
@@ -91,10 +77,18 @@ class QSystemTrayIconSys : public QWidget
 public:
     QSystemTrayIconSys(QSystemTrayIcon *object);
     ~QSystemTrayIconSys();
-    QSystemTrayIcon *q;
     void createIcon();
+		
+	BMessenger GetMessenger(void);
+	status_t SendMessageToReplicant(int32 index, BMessage *msg);
+	int32	ExecuteCommand(char *command);
+	int32 DeskBarLoadIcon(team_id tid);
+	int32 DeskBarLoadIcon(void);
+	void DeskbarRemoveIcon(int32 id);
 	
-	OurLooper* Looper;
+    QSystemTrayIcon *q;
+
+	QSystemTrayIconLooper* Looper;
 	int32	ReplicantId;    
 	BBitmap	*icon;
 

@@ -69,23 +69,21 @@ QT_BEGIN_NAMESPACE
 
 #define DBAR_SIGNATURE 	"application/x-vnd.Be-TSKB"
 
-status_t SendMessageToReplicant(int32 index, BMessage *msg);
-
-OurLooper::OurLooper() : QObject(), BLooper("traylooper")
+QSystemTrayIconLooper::QSystemTrayIconLooper() : QObject(), BLooper("traylooper")
 {	
 }
 
-thread_id OurLooper::Run(void)
+thread_id 
+QSystemTrayIconLooper::Run(void)
 {
 	thread_id Thread = BLooper::Run();	
 	return Thread;
 }
 
-void OurLooper::MessageReceived(BMessage* theMessage)
+void 
+QSystemTrayIconLooper::MessageReceived(BMessage* theMessage)
 {
 	if(theMessage->what == 'TRAY') {
-		printf("LOOPER TRAY - Signal\n");
-		theMessage->PrintToStream();
 		BMessage *mes = new BMessage(*theMessage);
 		sendHaikuMessage(mes);
 	}
@@ -95,7 +93,8 @@ void OurLooper::MessageReceived(BMessage* theMessage)
 QSystemTrayIconSys::QSystemTrayIconSys(QSystemTrayIcon *object)
     : ReplicantId(0), q(object), ignoreNextMouseRelease(false)
 {
-	Looper = new OurLooper();
+	ReplicantId = DeskBarLoadIcon();
+	Looper = new QSystemTrayIconLooper();
 	Looper->Run();
 	QObject::connect(Looper,SIGNAL(sendHaikuMessage(BMessage *)),this,SLOT(HaikuEvent(BMessage *)),Qt::QueuedConnection);
 }
@@ -107,10 +106,7 @@ QSystemTrayIconSys::~QSystemTrayIconSys()
 }
 
 void QSystemTrayIconSys::HaikuEvent(BMessage *m)
-{
-	printf("LOOPER TRAY - Slot\n");
-	m->PrintToStream();
-	
+{	
 	int32 event = 0;
 	BPoint point(0,0);
 	int32 buttons = 0,
@@ -201,14 +197,15 @@ void QSystemTrayIconSys::createIcon()
 	if(icon = pm.toHaikuBitmap()) {
 		BMessage	bits(B_ARCHIVED_OBJECT);
 		icon->Archive(&bits);	
-		BMessage mes('BITS');
-		mes.AddMessage("icon",&bits);
+		BMessage *mes = new BMessage('BITS');
+		mes->AddMessage("icon",&bits);
 		bits.MakeEmpty();
-		SendMessageToReplicant(ReplicantId,&mes);
+		SendMessageToReplicant(ReplicantId,mes);
 	}
 }
 
-BMessenger GetMessenger(void)
+BMessenger 
+QSystemTrayIconSys::GetMessenger(void)
 {
 	BMessenger aResult;
 	status_t aErr = B_OK;
@@ -230,7 +227,8 @@ BMessenger GetMessenger(void)
 }
 
 
-status_t SendMessageToReplicant(int32 index, BMessage *msg)
+status_t 
+QSystemTrayIconSys::SendMessageToReplicant(int32 index, BMessage *msg)
 {
 	BMessage aReply;
 	status_t aErr = B_OK;
@@ -249,7 +247,8 @@ status_t SendMessageToReplicant(int32 index, BMessage *msg)
 	return aErr;
 }
 
-int32	qsystray_exec_manager(char *command)
+int32	
+QSystemTrayIconSys::ExecuteCommand(char *command)
 {
    FILE *fpipe;
    char line[256];
@@ -263,15 +262,17 @@ int32	qsystray_exec_manager(char *command)
    return res;
 }
 
-int32 DeskBarLoadIcon(team_id tid)
+int32 
+QSystemTrayIconSys::DeskBarLoadIcon(team_id tid)
 {
 	char cmd[256];
 	sprintf(cmd,"qsystray %d",tid);	
-	int32 id = qsystray_exec_manager(cmd);
+	int32 id = ExecuteCommand(cmd);
 	return id;
 }
 
-int32 DeskBarLoadIcon(void)
+int32 
+QSystemTrayIconSys::DeskBarLoadIcon(void)
 {
 	thread_info threadInfo;
 	status_t error = get_thread_info(find_thread(NULL), &threadInfo);
@@ -285,7 +286,8 @@ int32 DeskBarLoadIcon(void)
 	return DeskBarLoadIcon(sTeam);
 }
 
-void DeskbarRemoveIcon(int32 id)
+void 
+QSystemTrayIconSys::DeskbarRemoveIcon(int32 id)
 {
 	BDeskbar deskbar;
 	deskbar.RemoveItem(id);
@@ -297,14 +299,13 @@ void QSystemTrayIconPrivate::install_sys()
 	fprintf(stderr, "Reimplemented: QSystemTrayIconPrivate::install_sys \n");
     Q_Q(QSystemTrayIcon);
     if (!sys) {
-        sys = new QSystemTrayIconSys(q);
-        sys->ReplicantId = DeskBarLoadIcon();
+        sys = new QSystemTrayIconSys(q);        
 		
 		BMessage mes('MSGR');
 		mes.AddMessenger("messenger",BMessenger(NULL,sys->Looper)); //be_app_messenger
 		mes.AddData("qtrayobject",B_ANY_TYPE,&sys,sizeof(void*));
 
-		SendMessageToReplicant(sys->ReplicantId,&mes);        
+		sys->SendMessageToReplicant(sys->ReplicantId,&mes);        
 
         sys->createIcon();
     }
@@ -331,7 +332,7 @@ void QSystemTrayIconPrivate::remove_sys()
 	if(!sys)
 		return;
 	if(sys->ReplicantId>0)
-		DeskbarRemoveIcon(sys->ReplicantId);
+		sys->DeskbarRemoveIcon(sys->ReplicantId);
     
     delete sys;
     sys = 0;		
@@ -370,7 +371,7 @@ bool QSystemTrayIconPrivate::isSystemTrayAvailable_sys()
 
 bool QSystemTrayIconPrivate::supportsMessages_sys()
 {
-    return true;
+    return false;
 }
 
 QT_END_NAMESPACE
