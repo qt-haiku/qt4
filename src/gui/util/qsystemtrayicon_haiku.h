@@ -77,28 +77,26 @@ class QSystemTrayIconSys : public QWidget
 public:
     QSystemTrayIconSys(QSystemTrayIcon *object);
     ~QSystemTrayIconSys();
-    void createIcon();
-		
-	BMessenger GetMessenger(void);
-	status_t SendMessageToReplicant(BMessage *msg);
-	int32	ExecuteCommand(char *command);
-	int32 DeskBarLoadIcon(team_id tid);
-	int32 DeskBarLoadIcon(void);
-	void DeskbarRemoveIcon(int32 id);
-	
+    
+    void UpdateIcon();		
+	status_t SendMessageToReplicant(BMessage *msg);	
+    
     QSystemTrayIcon *q;
-
 	QSystemTrayIconLooper* Looper;
-	int32	ReplicantId;
-	BBitmap	*icon;
-
-    friend class QSystemTrayIconPrivate;
 
 public slots:
     void HaikuEvent(BMessage *m);
 
 private:	
-	bool ignoreNextMouseRelease;
+	BMessenger GetShelfMessenger(void);
+	int32	ExecuteCommand(char *command);
+	int32 	DeskBarLoadIcon(team_id tid);
+	int32 	DeskBarLoadIcon(void);	
+
+	int32	ReplicantId;
+	bool 	ignoreNextMouseRelease;
+
+    friend class QSystemTrayIconPrivate;
 };    
 
 

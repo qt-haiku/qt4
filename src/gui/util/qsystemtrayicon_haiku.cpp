@@ -110,8 +110,10 @@ QSystemTrayIconSys::QSystemTrayIconSys(QSystemTrayIcon *object)
 
 QSystemTrayIconSys::~QSystemTrayIconSys()
 {
-	if(icon)
-		delete icon;
+	BDeskbar deskbar;
+	if(ReplicantId>0)
+		deskbar.RemoveItem(ReplicantId);
+	delete Looper;
 }
 
 void QSystemTrayIconSys::HaikuEvent(BMessage *m)
@@ -173,7 +175,7 @@ void QSystemTrayIconSys::HaikuEvent(BMessage *m)
 	}
 }
 
-void QSystemTrayIconSys::createIcon()
+void QSystemTrayIconSys::UpdateIcon()
 {    
     QIcon qicon = q->icon();
     if (qicon.isNull())
@@ -183,27 +185,8 @@ void QSystemTrayIconSys::createIcon()
     QPixmap pm = qicon.pixmap(size);
     if (pm.isNull())
         return;
-
-    QImage img = pm.toImage();
 	
-	color_space cspace=B_RGB32;
-	switch(img.format()) {
-		case QImage::Format_Mono:
-			cspace = B_GRAY1;
-			break;
-		case QImage::Format_Indexed8:
-			cspace = B_GRAY8;
-			break;
-		case QImage::Format_RGB16:
-			cspace = B_RGB16;
-			break;
-		case QImage::Format_RGB32:
-		default:
-			cspace = B_RGB32;
-			break;
-	}
-		
-	icon = pm.toHaikuBitmap();
+	BBitmap *icon = pm.toHaikuBitmap();
 	if(icon) {
 		BMessage	bits(B_ARCHIVED_OBJECT);
 		icon->Archive(&bits);	
@@ -211,11 +194,12 @@ void QSystemTrayIconSys::createIcon()
 		mes->AddMessage("icon",&bits);
 		bits.MakeEmpty();
 		SendMessageToReplicant(mes);
-	}
+		delete icon;
+	}	
 }
 
 BMessenger 
-QSystemTrayIconSys::GetMessenger(void)
+QSystemTrayIconSys::GetShelfMessenger(void)
 {
 	BMessenger aResult;
 	status_t aErr = B_OK;
@@ -256,7 +240,7 @@ QSystemTrayIconSys::SendMessageToReplicant(BMessage *msg)
 	uid_specifier.AddString("property", "Replicant");
 	msg->AddSpecifier(&uid_specifier);
 		
-	aErr = GetMessenger().SendMessage( msg, (BHandler*)NULL, 1000000 );
+	aErr = GetShelfMessenger().SendMessage( msg, (BHandler*)NULL, 1000000 );
 	return aErr;
 }
 
@@ -299,21 +283,13 @@ QSystemTrayIconSys::DeskBarLoadIcon(void)
 	return DeskBarLoadIcon(sTeam);
 }
 
-void 
-QSystemTrayIconSys::DeskbarRemoveIcon(int32 id)
-{
-	BDeskbar deskbar;
-	deskbar.RemoveItem(id);
-}
-
-
 void QSystemTrayIconPrivate::install_sys()
 {
 	fprintf(stderr, "Reimplemented: QSystemTrayIconPrivate::install_sys \n");
     Q_Q(QSystemTrayIcon);
     if (!sys) {
         sys = new QSystemTrayIconSys(q);		
-        sys->createIcon();
+        sys->UpdateIcon();
     }
 }
 
@@ -335,28 +311,18 @@ QRect QSystemTrayIconPrivate::geometry_sys() const
 void QSystemTrayIconPrivate::remove_sys()
 {
 	fprintf(stderr, "Reimplemented: QSystemTrayIconPrivate::remove_sys \n");
-	if(!sys)
-		return;
-	if(sys->ReplicantId>0)
-		sys->DeskbarRemoveIcon(sys->ReplicantId);
-    
-    delete sys;
-    sys = 0;		
+	if(sys) {    
+    	delete sys;
+    	sys = NULL;
+	}
 }
 
 void QSystemTrayIconPrivate::updateIcon_sys()
 {
-	fprintf(stderr, "Reimplemented:  QSystemTrayIconPrivate::updateIcon_sys\n");
-	
-    if (!sys)
-        return;
-        
-	BBitmap *iconToDestroy = sys->icon;
-        
-    sys->createIcon();
-
-    if(iconToDestroy)
-        delete iconToDestroy;
+	fprintf(stderr, "Reimplemented:  QSystemTrayIconPrivate::updateIcon_sys\n");	
+    if (sys) {
+	    sys->UpdateIcon();
+    }
 }
 
 void QSystemTrayIconPrivate::updateMenu_sys()
