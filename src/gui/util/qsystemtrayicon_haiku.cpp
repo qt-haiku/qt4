@@ -113,7 +113,8 @@ QSystemTrayIconSys::~QSystemTrayIconSys()
 	BDeskbar deskbar;
 	if(ReplicantId>0)
 		deskbar.RemoveItem(ReplicantId);
-	delete Looper;
+	if(Looper->Lock())
+		Looper->Quit();
 }
 
 void QSystemTrayIconSys::HaikuEvent(BMessage *m)
