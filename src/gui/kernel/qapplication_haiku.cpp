@@ -88,15 +88,6 @@ HQApplication::~HQApplication()
 
 void HQApplication::MessageReceived(BMessage* msg)
 {
-	Q_UNUSED(msg);
-	if(msg->what=='TRAY') {
-		ssize_t numBytes;
-		const void *sys=NULL;
-		msg->FindData("qtrayobject",B_ANY_TYPE,&sys,&numBytes);
-		if(sys) {
-			((QSystemTrayIconSys *)sys)->HaikuEvent(msg);
-		}
-	}
 	BApplication::MessageReceived(msg);
 }
 
