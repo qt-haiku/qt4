@@ -110,8 +110,29 @@ class DitaXmlGenerator : public PageGenerator
     virtual QString linkForNode(const Node *node, const Node *relative);
     virtual QString refForAtom(Atom *atom, const Node *node);
     
+    QString fullQualification(const Node* n);
+
     void writeDerivations(const ClassNode* cn, CodeMarker* marker);
-    void writeLocation(const ClassNode* cn, CodeMarker* marker);
+    void writeLocation(const Node* n);
+    void writeFunctions(const Section& s, 
+                        const ClassNode* cn, 
+                        CodeMarker* marker);
+    void writeParameters(const FunctionNode* fn, CodeMarker* marker);
+    void writeNestedClasses(const Section& s, 
+                            const ClassNode* cn, 
+                            CodeMarker* marker);
+    void writeEnumerations(const Section& s, 
+                           const ClassNode* cn, 
+                           CodeMarker* marker);
+    void writeTypedefs(const Section& s, 
+                       const ClassNode* cn, 
+                       CodeMarker* marker);
+    void writeDataMembers(const Section& s, 
+                          const ClassNode* cn, 
+                          CodeMarker* marker);
+    void writeProperties(const Section& s, 
+                         const ClassNode* cn, 
+                         CodeMarker* marker);
 
  private:
     enum SubTitleSize { SmallSubTitle, LargeSubTitle };
