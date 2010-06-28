@@ -67,6 +67,8 @@ QT_BEGIN_NAMESPACE
 #define TRAY_MOUSEDOWN 	1
 #define TRAY_MOUSEUP	2
 
+#define maxTipLength 	128
+
 #define DBAR_SIGNATURE 	"application/x-vnd.Be-TSKB"
 
 QSystemTrayIconLooper::QSystemTrayIconLooper() : QObject(), BLooper("traylooper")
@@ -176,6 +178,19 @@ void QSystemTrayIconSys::HaikuEvent(BMessage *m)
 	}
 }
 
+void QSystemTrayIconSys::UpdateTooltip()
+{   	
+    QString tip = q->toolTip();
+
+    if (!tip.isNull()) {
+        tip = tip.left(maxTipLength - 1) + QChar();        
+        const char *str = (const char *)(tip.toUtf8());
+		BMessage *mes = new BMessage('TTIP');		
+		mes->AddString("tooltip",str);	
+		SendMessageToReplicant(mes);
+    }    	
+}
+
 void QSystemTrayIconSys::UpdateIcon()
 {    
     QIcon qicon = q->icon();
@@ -197,6 +212,7 @@ void QSystemTrayIconSys::UpdateIcon()
 		SendMessageToReplicant(mes);
 		delete icon;
 	}	
+	UpdateTooltip();
 }
 
 BMessenger 
@@ -333,7 +349,10 @@ void QSystemTrayIconPrivate::updateMenu_sys()
 
 void QSystemTrayIconPrivate::updateToolTip_sys()
 {
-	fprintf(stderr, "Unimplemented:  QSystemTrayIconPrivate::updateToolTip_sys\n");
+	fprintf(stderr, "Reimplemented:  QSystemTrayIconPrivate::updateToolTip_sys\n");
+	if (sys) {
+		sys->UpdateTooltip();
+	}
 }
 
 bool QSystemTrayIconPrivate::isSystemTrayAvailable_sys()

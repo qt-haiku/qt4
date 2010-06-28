@@ -142,6 +142,14 @@ void DeskbarView::MessageReceived(BMessage *message) {
 		case B_SET_PROPERTY:
 			{
 				switch( message->FindInt32("what2") ) {
+					case 'TTIP':
+						{
+							const char *tip=NULL;
+							message->FindString("tooltip",&tip);
+							if(tip) 
+								SetToolTip(tip);
+							break;
+						}					
 					case 'BITS':
 						{
 							BBitmap *oldicon=icon;

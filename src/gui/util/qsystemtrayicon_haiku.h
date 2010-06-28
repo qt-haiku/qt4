@@ -78,7 +78,8 @@ public:
     QSystemTrayIconSys(QSystemTrayIcon *object);
     ~QSystemTrayIconSys();
     
-    void UpdateIcon();		
+    void UpdateIcon();
+    void UpdateTooltip();
 	status_t SendMessageToReplicant(BMessage *msg);	
     
     QSystemTrayIcon *q;
