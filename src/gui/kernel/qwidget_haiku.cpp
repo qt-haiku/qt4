@@ -462,12 +462,9 @@ void QtHaikuWindow::updateWindowFlags(Qt::WindowFlags flags)
 	bool tool = (type == Qt::Tool || type == Qt::Drawer);
 	bool tooltip = (type == Qt::ToolTip);
 
-    if (popup )//|| splash)
-        flags |= Qt::WindowStaysOnTopHint; // a popup stays on top
-
 	window_look wlook = B_TITLED_WINDOW_LOOK;
 	window_feel wfeel = B_NORMAL_WINDOW_FEEL;
-	uint32 wflag = B_NO_WORKSPACE_ACTIVATION ;
+	uint32 wflag = B_NO_WORKSPACE_ACTIVATION | B_NOT_ANCHORED_ON_ACTIVATE ;
 	
 	if(tool) {
 		wlook = B_FLOATING_WINDOW_LOOK;	
@@ -481,6 +478,7 @@ void QtHaikuWindow::updateWindowFlags(Qt::WindowFlags flags)
 	if(popup) {
 		wlook = B_NO_BORDER_WINDOW_LOOK;			
 		wflag |= B_WILL_ACCEPT_FIRST_CLICK|B_AVOID_FRONT|B_AVOID_FOCUS;
+		flags |= Qt::WindowStaysOnTopHint;
 	}
 		
 	if (dialog) {
