@@ -52,6 +52,7 @@
 #include <Message.h>
 #include <Looper.h>
 #include <OS.h>
+#include <MessageRunner.h>
 
 QT_BEGIN_HEADER
 
@@ -85,18 +86,25 @@ public:
     QSystemTrayIcon *q;
 	QSystemTrayIconLooper* Looper;
 
+	QRect	shelfRect;
+
 public slots:
     void HaikuEvent(BMessage *m);
 
 private:	
-	BMessenger GetShelfMessenger(void);
+	BMessenger GetShelfMessenger(void);	
 	int32	ExecuteCommand(char *command);
 	int32 	DeskBarLoadIcon(team_id tid);
 	int32 	DeskBarLoadIcon(void);	
+	void 	InstallIcon(void);
 
 	int32	ReplicantId;
+	int32	LiveFactor;
+		
 	bool 	ignoreNextMouseRelease;
-
+	
+	BMessageRunner *pulse;
+	
     friend class QSystemTrayIconPrivate;
 };    
 

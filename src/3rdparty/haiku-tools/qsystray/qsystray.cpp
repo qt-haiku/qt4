@@ -65,8 +65,8 @@ status_t DeskbarView::Archive(BMessage *data, bool deep) const {
 void DeskbarView::AttachedToWindow()
 {
 	ticks = 0;	
-	BMessage* tickMsg = new BMessage('TICK');
-	BMessageRunner *runner = new BMessageRunner( this, tickMsg, 500000 );
+	BMessage* tickMsg = new BMessage('LIVE');
+	BMessageRunner *runner = new BMessageRunner( this, tickMsg, 1000000 );
 	color = Parent()->ViewColor();	
 	BView::AttachedToWindow();
 }
@@ -127,7 +127,7 @@ void DeskbarView::MessageReceived(BMessage *message) {
 //	message->PrintToStream();
 	switch (message->what)
 	{
-		case 'TICK':
+		case 'LIVE':
 			{
 				ticks++;				
 				Invalidate();
@@ -136,6 +136,10 @@ void DeskbarView::MessageReceived(BMessage *message) {
 				if (error != B_OK && id>0) {
 					BDeskbar deskbar;
 					deskbar.RemoveItem(id);
+				} else {
+					BMessage *mes=new BMessage(*message);
+					mes->AddRect("rect",ConvertToScreen(Bounds()));
+					ReplyMessenger.SendMessage(mes);
 				}
 				break;
 			}

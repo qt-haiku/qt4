@@ -85,28 +85,25 @@ QSystemTrayIconLooper::Run(void)
 void 
 QSystemTrayIconLooper::MessageReceived(BMessage* theMessage)
 {
-	if(theMessage->what == 'TRAY') {
+	if( theMessage->what == 'TRAY' || 
+		theMessage->what == 'PULS' || 
+		theMessage->what == 'LIVE') {
 		BMessage *mes = new BMessage(*theMessage);
-		sendHaikuMessage(mes);
+		emit sendHaikuMessage(mes);
 	}
 	BLooper::MessageReceived(theMessage);
 } 
 
 QSystemTrayIconSys::QSystemTrayIconSys(QSystemTrayIcon *object)
-    : ReplicantId(0), q(object), ignoreNextMouseRelease(false)
+    : ReplicantId(0), q(object), ignoreNextMouseRelease(false), LiveFactor(0)
 {
-	ReplicantId = DeskBarLoadIcon();
-
 	Looper = new QSystemTrayIconLooper();
-	Looper->Run();
-
-	BMessage mes('MSGR');
-	QSystemTrayIconSys *sys=this;
-	mes.AddMessenger("messenger",BMessenger(NULL,Looper));
-	mes.AddData("qtrayobject",B_ANY_TYPE,&sys,sizeof(void*));
-
-	SendMessageToReplicant(&mes);
+	Looper->Run();		
+	
+	pulse = new BMessageRunner(BMessenger(NULL, Looper),new BMessage('PULS'),1000000);
 		
+	InstallIcon();
+	
 	QObject::connect(Looper,SIGNAL(sendHaikuMessage(BMessage *)),this,SLOT(HaikuEvent(BMessage *)),Qt::QueuedConnection);
 }
 
@@ -115,66 +112,101 @@ QSystemTrayIconSys::~QSystemTrayIconSys()
 	BDeskbar deskbar;
 	if(ReplicantId>0)
 		deskbar.RemoveItem(ReplicantId);
+	if(pulse)
+		delete pulse;	
 	if(Looper->Lock())
 		Looper->Quit();
 }
 
+void
+QSystemTrayIconSys::InstallIcon(void)
+{
+	ReplicantId = DeskBarLoadIcon();
+
+	BMessage mes('MSGR');
+	QSystemTrayIconSys *sys=this;
+	mes.AddMessenger("messenger",BMessenger(NULL,Looper));
+	mes.AddData("qtrayobject",B_ANY_TYPE,&sys,sizeof(void*));
+
+	int32 ret = SendMessageToReplicant(&mes);
+}
+
 void QSystemTrayIconSys::HaikuEvent(BMessage *m)
 {	
-	int32 event = 0;
-	BPoint point(0,0);
-	int32 buttons = 0,
-		  clicks = 0;
-
-	m->FindInt32("event",&event);
-	m->FindPoint("point",&point);
-	m->FindInt32("buttons",&buttons);
-	m->FindInt32("clicks",&clicks);
+	if(m->what == 'PULS') {
+		LiveFactor--;
+		if(LiveFactor<-3) {		//Reinstallation time
+			LiveFactor = 0;
+			ReplicantId = 0;
+			InstallIcon();
+			LiveFactor = 0;
+			UpdateIcon();
+			UpdateTooltip();
+		}		
+	}
+	if(m->what == 'LIVE') {
+		LiveFactor++;		
+		BRect rect;
+		if(m->FindRect("rect",&rect)==B_OK) {
+			shelfRect.setRect(rect.left, rect.top, rect.Width(), rect.Height());
+		}		
+	}
+	if(m->what == 'TRAY') {
+		int32 event = 0;
+		BPoint point(0,0);
+		int32 buttons = 0,
+			  clicks = 0;
 	
-	switch(event) {
-		case TRAY_MOUSEUP:
-			{				                
-				if(buttons==B_PRIMARY_MOUSE_BUTTON) {
-				if (ignoreNextMouseRelease)
-                    ignoreNextMouseRelease = false;
-                else
-                    emit q->activated(QSystemTrayIcon::Trigger);
-					break;
+		m->FindInt32("event",&event);
+		m->FindPoint("point",&point);
+		m->FindInt32("buttons",&buttons);
+		m->FindInt32("clicks",&clicks);
+		
+		switch(event) {
+			case TRAY_MOUSEUP:
+				{				                
+					if(buttons==B_PRIMARY_MOUSE_BUTTON) {
+					if (ignoreNextMouseRelease)
+	                    ignoreNextMouseRelease = false;
+	                else
+	                    emit q->activated(QSystemTrayIcon::Trigger);
+						break;
+					}
+					if(buttons==B_TERTIARY_MOUSE_BUTTON) {
+						emit q->activated(QSystemTrayIcon::MiddleClick);
+						break;
+					}
+					if(buttons==B_SECONDARY_MOUSE_BUTTON) {
+						QPoint gpos = QPoint(point.x,point.y);
+		                if (q->contextMenu()) {
+		                    q->contextMenu()->popup(gpos);
+		
+							BScreen screen(NULL);
+		                    QRect desktopRect( screen.Frame().left, screen.Frame().top,
+		                    				   screen.Frame().right, screen.Frame().bottom);
+		                    int maxY = desktopRect.y() + desktopRect.height() - q->contextMenu()->height();
+		                    if (gpos.y() > maxY) {
+		                        gpos.ry() = maxY;
+		                        q->contextMenu()->move(gpos);
+		                    }
+		                }
+		                emit q->activated(QSystemTrayIcon::Context);		
+		             	break;   			
+					}
 				}
-				if(buttons==B_TERTIARY_MOUSE_BUTTON) {
-					emit q->activated(QSystemTrayIcon::MiddleClick);
-					break;
+				break;
+			case TRAY_MOUSEDOWN:
+				{				
+					if(buttons==B_PRIMARY_MOUSE_BUTTON && clicks==2) {
+						ignoreNextMouseRelease = true;
+						emit q->activated(QSystemTrayIcon::DoubleClick);
+						break;
+					}
 				}
-				if(buttons==B_SECONDARY_MOUSE_BUTTON) {
-					QPoint gpos = QPoint(point.x,point.y);
-	                if (q->contextMenu()) {
-	                    q->contextMenu()->popup(gpos);
-	
-						BScreen screen(NULL);
-	                    QRect desktopRect( screen.Frame().left, screen.Frame().top,
-	                    				   screen.Frame().right, screen.Frame().bottom);
-	                    int maxY = desktopRect.y() + desktopRect.height() - q->contextMenu()->height();
-	                    if (gpos.y() > maxY) {
-	                        gpos.ry() = maxY;
-	                        q->contextMenu()->move(gpos);
-	                    }
-	                }
-	                emit q->activated(QSystemTrayIcon::Context);		
-	             	break;   			
-				}
-			}
-			break;
-		case TRAY_MOUSEDOWN:
-			{				
-				if(buttons==B_PRIMARY_MOUSE_BUTTON && clicks==2) {
-					ignoreNextMouseRelease = true;
-					emit q->activated(QSystemTrayIcon::DoubleClick);
-					break;
-				}
-			}
-			break;
-		default:
-			break;
+				break;
+			default:
+				break;
+		}
 	}
 }
 
@@ -237,7 +269,6 @@ QSystemTrayIconSys::GetShelfMessenger(void)
 	return aResult;
 }
 
-
 status_t 
 QSystemTrayIconSys::SendMessageToReplicant(BMessage *msg)
 {
@@ -291,9 +322,8 @@ QSystemTrayIconSys::DeskBarLoadIcon(void)
 	thread_info threadInfo;
 	status_t error = get_thread_info(find_thread(NULL), &threadInfo);
 	if (error != B_OK) {
-		fprintf(stderr, "Failed to get info for the current thread: %s\n",
-			strerror(error));
-			return -1;	
+		fprintf(stderr, "Failed to get info for the current thread: %s\n", strerror(error));
+		return -1;	
 	}
 	team_id sTeam = threadInfo.team;
 	
@@ -312,17 +342,48 @@ void QSystemTrayIconPrivate::install_sys()
 
 void QSystemTrayIconPrivate::showMessage_sys(const QString &title,  const QString &message, QSystemTrayIcon::MessageIcon type, int timeOut)
 {
-	Q_UNUSED(title);
-	Q_UNUSED(message);
-	Q_UNUSED(type);
-	Q_UNUSED(timeOut);
-	fprintf(stderr, "Unimplemented:  QSystemTrayIconPrivate::showMessage_sys\n");	
+	fprintf(stderr, "Reimplemented:  QSystemTrayIconPrivate::showMessage_sys\n");	
+
+	QPoint point(sys->shelfRect.x(),sys->shelfRect.y());
+			
+	BDeskbar deskbar;
+	BRect deskRect = deskbar.Frame();
+	BScreen  screen(B_MAIN_SCREEN_ID);
+	
+	switch(deskbar.Location())
+	{
+		case B_DESKBAR_TOP:
+			point.setX(screen.Frame().Width()-8);
+			point.setY(deskRect.Height()+8);
+			break;
+		case B_DESKBAR_RIGHT_TOP:		
+			point.setX(screen.Frame().Width()-deskRect.Width()-8);
+			point.setY(8);
+			break;
+		case B_DESKBAR_BOTTOM:
+			point.setX(screen.Frame().Width()-8);
+			point.setY(screen.Frame().Height()-deskRect.Height()-8);
+			break;	
+		case B_DESKBAR_LEFT_BOTTOM:
+			point.setX(deskRect.Width()+8);
+			point.setY(screen.Frame().Height()-8);
+			break;				
+		case B_DESKBAR_RIGHT_BOTTOM:		
+			point.setX(deskRect.Width()-deskRect.Width()-8);
+			point.setY(screen.Frame().Height()-8);
+			break;				
+		case B_DESKBAR_LEFT_TOP:
+			point.setX(deskRect.Width()+8);
+			point.setY(8);
+			break;				
+	}
+    QBalloonTip::showBalloon(type, title, message, sys->q, point, timeOut, false);
 }
 
 QRect QSystemTrayIconPrivate::geometry_sys() const
 {
-	fprintf(stderr, "Unimplemented: QSystemTrayIconPrivate::geometry_sys \n");
-	return QRect();
+	fprintf(stderr, "Reimplemented: QSystemTrayIconPrivate::geometry_sys \n");
+	return sys->shelfRect;
 }
 
 void QSystemTrayIconPrivate::remove_sys()
@@ -357,13 +418,12 @@ void QSystemTrayIconPrivate::updateToolTip_sys()
 
 bool QSystemTrayIconPrivate::isSystemTrayAvailable_sys()
 {
-	fprintf(stderr, "Reimplemented:  QSystemTrayIconPrivate::isSystemTrayAvailable_sys\n");
 	return true;
 }
 
 bool QSystemTrayIconPrivate::supportsMessages_sys()
 {
-    return false;
+    return true;
 }
 
 QT_END_NAMESPACE
