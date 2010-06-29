@@ -17,7 +17,10 @@
 
 #include "qsystray.h"
 
+#ifndef APP_SIGNATURE
 #define APP_SIGNATURE	"application/x-vnd.QtSystrayManager"
+#endif
+
 #define REPL_NAME		"QtTrayItem"
 #define DBAR_SIGNATURE 	"application/x-vnd.Be-TSKB"
 
@@ -272,12 +275,23 @@ int main(int argc, char *argv[])
 	BApplication(APP_SIGNATURE);
 	
 	if(argc<2) {
+#ifdef GCC4BUILD
 		printf("QtSystrayManager for Haiku v0.1\n\tqsystray [team_id]\n\n");
+#else		
+		printf("QtSystrayManager for Haiku v0.1 (gcc2 loader)\n\tqsystray_gcc2 [team_id]\n\n");
+#endif
 		exit(0);
 	}
 
 	int32 team_id = atoi(argv[1]);
 	int32 id = LoadIcon(team_id);
+#ifdef GCC4BUILD
+	if(id<=0) {
+		char cmd[128];
+		sprintf(cmd,"qsystray_gcc2 %d",team_id);
+		return system(cmd);
+	}		
+#endif	
 	printf("%d\n",id);
 	
 	return id;
