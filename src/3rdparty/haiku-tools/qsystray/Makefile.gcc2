@@ -3,16 +3,22 @@ SIGNATURE="application/x-vnd.QtSystrayManager_gcc2"
 
 all: qsystray
 
-qsystray: qsystray.o
-		$(CC) -g qsystray.o -ltracker -lroot -lbe -oqsystray_gcc2
-		settype -s $(SIGNATURE) ./qsystray_gcc2
+qsystray: qsystray_gcc2.o
+		$(CC) -g qsystray_gcc2.o -ltracker -lroot -lbe -oqsystray_gcc2
+		rc qsystray_gcc2.rdef
+		xres -o ./qsystray_gcc2 qsystray_gcc2.rsrc
+		open ./qsystray_gcc2
 
-qsystray.o:
-		$(CC) -g -DGCC2BUILD=1 -DAPP_SIGNATURE="\"$(SIGNATURE)\"" -c qsystray.cpp
+qsystray_gcc2.o:
+		$(CC) -g -oqsystray_gcc2.o -DGCC2BUILD=1 -DAPP_SIGNATURE="\"$(SIGNATURE)\"" -c qsystray.cpp
 
 clean:
-		rm -f ./*.o
+		rm -f ./qsystray_gcc2.o
+		rm -f ./qsystray_gcc2.rsrc
 		rm -f ./qsystray_gcc2
-
+		
 install:
 		cp -f ./qsystray_gcc2 /boot/common/bin/qsystray_gcc2
+		rm -f ./qsystray_gcc2.o
+		rm -f ./qsystray_gcc2.rsrc
+		rm -f ./qsystray_gcc2
