@@ -1,0 +1,24 @@
+CC=g++
+SIGNATURE="application/x-vnd.QtSystrayManager_gcc4"
+
+all: qsystray
+
+qsystray: qsystray_gcc4.o
+		$(CC) -g qsystray_gcc4.o -ltracker -lroot -lbe -oqsystray
+		rc qsystray_gcc4.rdef
+		xres -o ./qsystray qsystray_gcc4.rsrc
+		open ./qsystray
+
+qsystray_gcc4.o:
+		$(CC) -g -oqsystray_gcc4.o -DGCC4BUILD=1 -DAPP_SIGNATURE="\"$(SIGNATURE)\"" -c qsystray.cpp
+
+clean:
+		rm -f ./qsystray_gcc4.o
+		rm -f ./qsystray_gcc4.rsrc
+		rm -f ./qsystray
+
+install:
+		cp -f ./qsystray /boot/common/bin/qsystray
+		rm -f ./qsystray_gcc4.o
+		rm -f ./qsystray_gcc4.rsrc
+		rm -f ./qsystray
