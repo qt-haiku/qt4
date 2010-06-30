@@ -7,7 +7,7 @@ qsystray: qsystray_gcc2.o
 		$(CC) -g qsystray_gcc2.o -ltracker -lroot -lbe -oqsystray_gcc2
 		rc qsystray_gcc2.rdef
 		xres -o ./qsystray_gcc2 qsystray_gcc2.rsrc
-		open ./qsystray_gcc2
+		mimeset -f ./qsystray_gcc2
 
 qsystray_gcc2.o:
 		$(CC) -g -oqsystray_gcc2.o -DGCC2BUILD=1 -DAPP_SIGNATURE="\"$(SIGNATURE)\"" -c qsystray.cpp
