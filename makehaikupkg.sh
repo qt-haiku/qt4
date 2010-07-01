@@ -13,14 +13,6 @@ echo " Install Qt"
 INSTALL_ROOT=$QTROOT make install
 echo " Install documentation"
 INSTALL_ROOT=$QTROOT make install_qchdocs
-echo " Make qsystray utility"
-cd ./src/3rdparty/haiku-tools/qsystray
-make
-echo " Install qsystray utility"
-cp -f ./qsystray $QTROOT/boot/common/bin
-cp -f ./qsystray_gcc2 $QTROOT/boot/common/bin
-mimeset -f $QTROOT/boot/common/bin/qsystray
-mimeset -f $QTROOT/boot/common/bin/qsystray_gcc2
 
 ######################################################################
 echo "Remove debug info"
@@ -31,6 +23,18 @@ echo " Strip debug info from *.so files"
 find "$QTROOT/boot/common/" -name "*.so*" -exec strip -s {} \;
 echo " Strip debug info from binary files"
 find "$QTROOT/boot/common/bin/" -name "*" -exec strip -s {} \;
+
+######################################################################
+echo "Make qsystray utility"
+######################################################################
+echo " Make"
+cd ./src/3rdparty/haiku-tools/qsystray
+make
+echo " Install"
+cp -f ./qsystray $QTROOT/boot/common/bin
+cp -f ./qsystray_gcc2 $QTROOT/boot/common/bin
+mimeset -f $QTROOT/boot/common/bin/qsystray
+mimeset -f $QTROOT/boot/common/bin/qsystray_gcc2
 
 ######################################################################
 echo "Remove useless files"
