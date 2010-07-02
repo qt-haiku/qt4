@@ -82,7 +82,7 @@ public:
     void UpdateIcon();
     void UpdateTooltip();
 	status_t SendMessageToReplicant(BMessage *msg);	
-    
+     
     QSystemTrayIcon *q;
 	QSystemTrayIconLooper* Looper;
 

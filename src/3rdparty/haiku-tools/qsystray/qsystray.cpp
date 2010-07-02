@@ -148,9 +148,12 @@ void DeskbarView::MessageReceived(BMessage *message) {
 					case 'TTIP':
 						{
 							const char *tip=NULL;
-							message->FindString("tooltip",&tip);
-							if(tip) 
+							status_t res = message->FindString("tooltip",&tip);
+							if(tip && res==B_OK) {
 								SetToolTip(tip);
+							} else {
+								SetToolTip("");
+							}
 							break;
 						}					
 					case 'BITS':

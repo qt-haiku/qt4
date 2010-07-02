@@ -45,9 +45,11 @@
 
 QT_BEGIN_NAMESPACE
 
+#include "qapplication.h"
 #include "qsystemtrayicon.h"
 #include "qdebug.h"
 #include "qcolor.h"
+#include "qfileinfo.h"
 
 #include <OS.h>
 #include <Application.h>
@@ -55,11 +57,13 @@ QT_BEGIN_NAMESPACE
 #include <Message.h>
 #include <Deskbar.h>
 #include <View.h>
+#include <String.h>
 #include <Roster.h>
 #include <Screen.h>
 #include <Resources.h>
 #include <Bitmap.h>
 #include <Looper.h>
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -67,9 +71,15 @@ QT_BEGIN_NAMESPACE
 #define TRAY_MOUSEDOWN 	1
 #define TRAY_MOUSEUP	2
 
+#define NF_NONE		0
+#define NF_QT		1
+#define NF_NATIVE	2
+
 #define maxTipLength 	128
 
 #define DBAR_SIGNATURE 	"application/x-vnd.Be-TSKB"
+
+static 	int32 notifyMode = NF_NONE;
 
 QSystemTrayIconLooper::QSystemTrayIconLooper() : QObject(), BLooper("traylooper")
 {	
@@ -128,7 +138,7 @@ QSystemTrayIconSys::InstallIcon(void)
 	mes.AddMessenger("messenger",BMessenger(NULL,Looper));
 	mes.AddData("qtrayobject",B_ANY_TYPE,&sys,sizeof(void*));
 
-	int32 ret = SendMessageToReplicant(&mes);
+	SendMessageToReplicant(&mes);
 }
 
 void QSystemTrayIconSys::HaikuEvent(BMessage *m)
@@ -214,13 +224,17 @@ void QSystemTrayIconSys::UpdateTooltip()
 {   	
     QString tip = q->toolTip();
 
+    BString tipStr("");
+    
     if (!tip.isNull()) {
-        tip = tip.left(maxTipLength - 1) + QChar();        
-        const char *str = (const char *)(tip.toUtf8());
-		BMessage *mes = new BMessage('TTIP');		
-		mes->AddString("tooltip",str);	
-		SendMessageToReplicant(mes);
-    }    	
+    	tip = tip.left(maxTipLength - 1) + QChar();        
+    	const char *str = (const char *)(tip.toUtf8());
+    	tipStr.SetTo(str);
+    }
+	
+	BMessage *mes = new BMessage('TTIP');		
+	mes->AddString("tooltip",tipStr.String());	
+	SendMessageToReplicant(mes);
 }
 
 void QSystemTrayIconSys::UpdateIcon()
@@ -264,7 +278,7 @@ QSystemTrayIconSys::GetShelfMessenger(void)
 	
 	BMessage aReply;
 
-	if (aDeskbar.SendMessage(&aMessage, &aReply, 1000000, 1000000) == B_OK)
+	if (aDeskbar.SendMessage(&aMessage, &aReply, 500000, 500000) == B_OK)
 		aReply.FindMessenger("result", &aResult);
 	return aResult;
 }
@@ -288,7 +302,7 @@ QSystemTrayIconSys::SendMessageToReplicant(BMessage *msg)
 	uid_specifier.AddString("property", "Replicant");
 	msg->AddSpecifier(&uid_specifier);
 		
-	aErr = GetShelfMessenger().SendMessage( msg, (BHandler*)NULL, 1000000 );
+	aErr = GetShelfMessenger().SendMessage( msg, (BHandler*)NULL, 500000 );
 	return aErr;
 }
 
@@ -311,7 +325,7 @@ int32
 QSystemTrayIconSys::DeskBarLoadIcon(team_id tid)
 {
 	char cmd[256];
-	sprintf(cmd,"qsystray %d",tid);	
+	sprintf(cmd,"qsystray %d",(int)tid);	
 	int32 id = ExecuteCommand(cmd);
 	return id;
 }
@@ -338,46 +352,71 @@ void QSystemTrayIconPrivate::install_sys()
         sys = new QSystemTrayIconSys(q);		
         sys->UpdateIcon();
     }
+    supportsMessages_sys();    
 }
 
 void QSystemTrayIconPrivate::showMessage_sys(const QString &title,  const QString &message, QSystemTrayIcon::MessageIcon type, int timeOut)
 {
-	fprintf(stderr, "Reimplemented:  QSystemTrayIconPrivate::showMessage_sys\n");	
-
-	QPoint point(sys->shelfRect.x(),sys->shelfRect.y());
-			
-	BDeskbar deskbar;
-	BRect deskRect = deskbar.Frame();
-	BScreen  screen(B_MAIN_SCREEN_ID);
-	
-	switch(deskbar.Location())
-	{
-		case B_DESKBAR_TOP:
-			point.setX(screen.Frame().Width()-8);
-			point.setY(deskRect.Height()+8);
-			break;
-		case B_DESKBAR_RIGHT_TOP:		
-			point.setX(screen.Frame().Width()-deskRect.Width()-8);
-			point.setY(8);
-			break;
-		case B_DESKBAR_BOTTOM:
-			point.setX(screen.Frame().Width()-8);
-			point.setY(screen.Frame().Height()-deskRect.Height()-8);
-			break;	
-		case B_DESKBAR_LEFT_BOTTOM:
-			point.setX(deskRect.Width()+8);
-			point.setY(screen.Frame().Height()-8);
-			break;				
-		case B_DESKBAR_RIGHT_BOTTOM:		
-			point.setX(deskRect.Width()-deskRect.Width()-8);
-			point.setY(screen.Frame().Height()-8);
-			break;				
-		case B_DESKBAR_LEFT_TOP:
-			point.setX(deskRect.Width()+8);
-			point.setY(8);
-			break;				
+	fprintf(stderr, "Reimplemented:  QSystemTrayIconPrivate::showMessage_sys()\n");	
+		
+	if(notifyMode == NF_QT) {
+		QPoint point(sys->shelfRect.x(),sys->shelfRect.y());
+				
+		BDeskbar deskbar;
+		BRect deskRect = deskbar.Frame();
+		BScreen  screen(B_MAIN_SCREEN_ID);
+		
+		switch(deskbar.Location())
+		{
+			case B_DESKBAR_TOP:
+				point.setX(screen.Frame().Width()-8);
+				point.setY(deskRect.Height()+8);
+				break;
+			case B_DESKBAR_RIGHT_TOP:		
+				point.setX(screen.Frame().Width()-deskRect.Width()-8);
+				point.setY(8);
+				break;
+			case B_DESKBAR_BOTTOM:
+				point.setX(screen.Frame().Width()-8);
+				point.setY(screen.Frame().Height()-deskRect.Height()-8);
+				break;	
+			case B_DESKBAR_LEFT_BOTTOM:
+				point.setX(deskRect.Width()+8);
+				point.setY(screen.Frame().Height()-8);
+				break;				
+			case B_DESKBAR_RIGHT_BOTTOM:		
+				point.setX(deskRect.Width()-deskRect.Width()-8);
+				point.setY(screen.Frame().Height()-8);
+				break;				
+			case B_DESKBAR_LEFT_TOP:
+				point.setX(deskRect.Width()+8);
+				point.setY(8);
+				break;				
+		}
+	    QBalloonTip::showBalloon(type, title, message, sys->q, point, timeOut, false);
 	}
-    QBalloonTip::showBalloon(type, title, message, sys->q, point, timeOut, false);
+	if(notifyMode == NF_NATIVE) {
+		QString cmd;
+		QString stitle(title);
+		stitle.replace(L'"',"''");
+		stitle.remove(L'\r');
+		stitle.remove(L'\n');
+		
+		QString smessage(message);
+		smessage.replace(L'"',"''");
+		smessage.remove(L'\r');
+		smessage.remove(L'\n');
+		
+		cmd = QString("notify --app \"%1\" --type %2 --title \"%3\" --timeout %4 \"%5\"")
+					.arg(QFileInfo(QApplication::applicationFilePath()).fileName())
+					.arg(type==QSystemTrayIcon::Warning?"important":type==QSystemTrayIcon::Critical?"error":"information")
+					.arg(stitle)
+					.arg(timeOut/1000)
+					.arg(smessage);
+					
+		const char *str = (const char *)(cmd.toUtf8());		
+		system(str);
+	}
 }
 
 QRect QSystemTrayIconPrivate::geometry_sys() const
@@ -417,13 +456,21 @@ void QSystemTrayIconPrivate::updateToolTip_sys()
 }
 
 bool QSystemTrayIconPrivate::isSystemTrayAvailable_sys()
-{
-	return true;
+{	
+	supportsMessages_sys();	
+	QFileInfo qsystrayfile("/boot/common/bin/qsystray");	
+	return qsystrayfile.exists();
 }
 
 bool QSystemTrayIconPrivate::supportsMessages_sys()
 {
-    return true;
+	QFileInfo notifyfile("/bin/notify");
+	if(notifyfile.exists()) {
+		notifyMode = NF_NATIVE;
+	} else {
+		notifyMode = NF_QT;
+	}	
+	return true;
 }
 
 QT_END_NAMESPACE

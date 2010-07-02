@@ -491,6 +491,7 @@ void QtHaikuWindow::updateWindowFlags(Qt::WindowFlags flags)
 	if (tooltip) {
 		wlook = B_NO_BORDER_WINDOW_LOOK;
 		wflag |= B_WILL_ACCEPT_FIRST_CLICK|B_AVOID_FOCUS;
+		flags |= Qt::WindowStaysOnTopHint;
 	}
 
     if (flags & Qt::FramelessWindowHint)
