@@ -168,6 +168,7 @@ public:
 
 #if defined(Q_OS_HAIKU)
 	BBitmap *toHaikuBitmap() const;
+	static QPixmap fromHaikuBitmap(BBitmap *);
 #endif
 
 #if defined(Q_OS_SYMBIAN)

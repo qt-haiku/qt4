@@ -57,7 +57,28 @@ QPixmap::toHaikuBitmap() const
 	return bitmap;
 }
 
-QPixmap QPixmap::grabWindow(WId winId, int x, int y, int w, int h )
+QPixmap
+QPixmap::fromHaikuBitmap(BBitmap *bmp)
+{
+	if(!bmp) 
+		return QPixmap();
+		
+	int w = bmp->Bounds().IntegerWidth() + 1;
+	int h = bmp->Bounds().IntegerHeight() + 1;
+	
+	QImage image(w,h,QImage::Format_ARGB32);
+
+	int bytes_per_line = w * 4;                        	
+    uchar *pixels = (uchar *)bmp->Bits();
+
+    for (int y=0; y<h; ++y)
+       memcpy( image.scanLine(y), pixels + y * bytes_per_line, bytes_per_line);
+    
+	return QPixmap::fromImage(image);
+}
+
+QPixmap 
+QPixmap::grabWindow(WId winId, int x, int y, int w, int h )
 {
     if (w == 0 || h == 0 || winId!=0)
         return QPixmap();

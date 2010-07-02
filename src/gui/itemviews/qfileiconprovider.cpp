@@ -53,6 +53,11 @@
 #  include <objbase.h>
 #elif defined(Q_WS_MAC)
 #  include <private/qt_cocoa_helpers_mac_p.h>
+#elif defined(Q_WS_HAIKU)
+#  include <AppKit.h>
+#  include <StorageKit.h>
+#  include <InterfaceKit.h>
+#  include <NodeInfo.h>
 #endif
 
 #include <private/qfunctions_p.h>
@@ -98,6 +103,8 @@ public:
     QIcon getWinIcon(const QFileInfo &fi) const;
 #elif defined(Q_WS_MAC)
     QIcon getMacIcon(const QFileInfo &fi) const;
+#elif defined(Q_WS_HAIKU)
+    QIcon getHaikuIcon(const QFileInfo &fi) const;
 #endif
     QFileIconProvider *q_ptr;
     QString homePath;
@@ -195,6 +202,7 @@ QFileIconProvider::~QFileIconProvider()
 QIcon QFileIconProvider::icon(IconType type) const
 {
     Q_D(const QFileIconProvider);
+    
     switch (type) {
     case Computer:
         return d->getIcon(QStyle::SP_ComputerIcon);
@@ -378,6 +386,33 @@ QIcon QFileIconProviderPrivate::getMacIcon(const QFileInfo &fi) const
 
     return retIcon;
 }
+#elif defined(Q_WS_HAIKU)
+QIcon QFileIconProviderPrivate::getHaikuIcon(const QFileInfo &fi) const
+{
+    QIcon retIcon;
+    
+	BNode node(fi.canonicalFilePath().toUtf8().constData());
+	if (node.InitCheck() == B_OK) {
+		BNodeInfo nodeinfo(&node);
+		
+		BBitmap *hIcon = new BBitmap(BRect(0, 0, 15, 15), B_RGBA32);
+		nodeinfo.GetTrackerIcon(hIcon, B_MINI_ICON);
+		if(hIcon) {
+			QPixmap p = QPixmap::fromHaikuBitmap(hIcon);
+			retIcon.addPixmap(p);
+			delete hIcon;
+		}
+
+		BBitmap *hIconBig = new BBitmap(BRect(0, 0, 31, 31), B_RGBA32);
+		nodeinfo.GetTrackerIcon(hIcon, B_LARGE_ICON);
+		if(hIconBig) {
+			QPixmap p = QPixmap::fromHaikuBitmap(hIconBig);
+			retIcon.addPixmap(p);
+			delete hIconBig;
+		}		
+	}	
+    return retIcon;
+}
 #endif
 
 
@@ -407,6 +442,10 @@ QIcon QFileIconProvider::icon(const QFileInfo &info) const
         return retIcon;
 #elif defined Q_WS_WIN
     QIcon icon = d->getWinIcon(info);
+    if (!icon.isNull())
+        return icon;
+#elif defined Q_WS_HAIKU
+    QIcon icon = d->getHaikuIcon(info);
     if (!icon.isNull())
         return icon;
 #endif

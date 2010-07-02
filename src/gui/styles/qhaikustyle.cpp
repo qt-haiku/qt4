@@ -49,6 +49,7 @@
 #include <qimage.h>
 #include <qpushbutton.h>
 #include <qpainter.h>
+#include <qdebug.h>
 #include <qdir.h>
 #include <qhash.h>
 #include <qstyleoption.h>
@@ -68,6 +69,10 @@
 #include <qwizard.h>
 #include <qlibrary.h>
 
+#include <AppKit.h>
+#include <StorageKit.h>
+#include <InterfaceKit.h>
+#include <NodeInfo.h>
 #include <Bitmap.h>
 #include <ControlLook.h>
 #include <View.h>
@@ -3861,11 +3866,54 @@ void QHaikuStylePrivate::lookupIconTheme() const
 /*!
     \internal
 */
+
+QPixmap
+haikuIconFromMime(const char *mime, icon_size which)
+{
+	QPixmap pixmap;
+	BMimeType mtype(mime);
+	BBitmap *bmp = new BBitmap(BRect(0, 0, which - 1, which - 1), B_RGBA32);
+
+	if (mtype.GetIcon(bmp, which) != B_OK) {
+		BMimeType super;
+		mtype.GetSupertype(&super);
+		if (super.GetIcon(bmp, which) != B_OK) {
+			delete bmp;
+			bmp = NULL;			
+		}
+	}
+			
+	if(bmp) {
+		pixmap = QPixmap::fromHaikuBitmap(bmp);
+		delete bmp;
+	}
+				
+	return pixmap;
+}
+
 QIcon QHaikuStyle::standardIconImplementation(StandardPixmap standardIcon,
                                                   const QStyleOption *option,
                                                   const QWidget *widget) const
 {
-    return QWindowsStyle::standardIconImplementation(standardIcon, option, widget);
+	qDebug() << "QHaikuStyle::standardIconImplementation " << standardIcon;
+    
+    QIcon icon;
+    QPixmap pixmap;
+
+    switch (standardIcon) {
+	    case SP_ComputerIcon:
+	    {
+	        icon.addPixmap(haikuIconFromMime("application/x-vnd.Be-root",B_MINI_ICON));
+	        icon.addPixmap(haikuIconFromMime("application/x-vnd.Be-root",B_LARGE_ICON));
+	        break;    	
+	    }
+    default:
+        break;
+    }
+
+    if (icon.isNull())
+        icon = QCommonStyle::standardIconImplementation(standardIcon, option, widget);
+    return icon;		
 }
 
 /*!
