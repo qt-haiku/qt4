@@ -146,14 +146,17 @@ void DeskbarView::MessageReceived(BMessage *message) {
 			{
 				switch( message->FindInt32("what2") ) {
 					case 'TTIP':
-						{
+						{							
 							const char *tip=NULL;
 							status_t res = message->FindString("tooltip",&tip);
-							if(tip && res==B_OK) {
+							
+							if(!tip || res!=B_OK)
+								tip = applicationName.String();
+							if(strlen(tip)==0)
+								tip = applicationName.String();													
+							if(strlen(tip)!=0)		
 								SetToolTip(tip);
-							} else {
-								SetToolTip("");
-							}
+								
 							break;
 						}					
 					case 'BITS':
@@ -176,8 +179,11 @@ void DeskbarView::MessageReceived(BMessage *message) {
 					case 'MSGR':
 						{
 							ssize_t numBytes;
+							const char *name=NULL;
 							message->FindMessenger("messenger", &ReplyMessenger);
-							message->FindData("qtrayobject",B_ANY_TYPE,&traysysobject,&numBytes);							
+							message->FindData("qtrayobject",B_ANY_TYPE,&traysysobject,&numBytes);
+							if(message->FindString("application_name",&name)==B_OK)
+								applicationName.SetTo(name);
 							break;
 						}
 				}

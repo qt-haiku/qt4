@@ -8,6 +8,7 @@
 #include <MenuItem.h>
 #include <Message.h>
 #include <Bitmap.h>
+#include <String.h>
 
 #define TRAY_MOUSEDOWN 	1
 #define TRAY_MOUSEUP	2
@@ -38,6 +39,7 @@ class DeskbarView : public BView {
 		BBitmap			*icon;
 		BMessenger 		ReplyMessenger;		
 		const void 		*traysysobject;
+		BString			applicationName;
 };
 
 #endif

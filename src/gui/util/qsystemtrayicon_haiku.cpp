@@ -133,10 +133,14 @@ QSystemTrayIconSys::InstallIcon(void)
 {
 	ReplicantId = DeskBarLoadIcon();
 
+	QString appName = QFileInfo(QApplication::applicationFilePath()).fileName();
+	BString app_name((const char *)(appName.toUtf8()));
+
 	BMessage mes('MSGR');
 	QSystemTrayIconSys *sys=this;
 	mes.AddMessenger("messenger",BMessenger(NULL,Looper));
 	mes.AddData("qtrayobject",B_ANY_TYPE,&sys,sizeof(void*));
+	mes.AddString( "application_name",app_name);
 
 	SendMessageToReplicant(&mes);
 }
