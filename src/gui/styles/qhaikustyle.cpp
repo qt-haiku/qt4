@@ -3894,9 +3894,7 @@ haikuIconFromMime(const char *mime, icon_size which)
 QIcon QHaikuStyle::standardIconImplementation(StandardPixmap standardIcon,
                                                   const QStyleOption *option,
                                                   const QWidget *widget) const
-{
-	qDebug() << "QHaikuStyle::standardIconImplementation " << standardIcon;
-    
+{    
     QIcon icon;
     QPixmap pixmap;
 
