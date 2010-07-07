@@ -226,7 +226,7 @@ void QThreadPrivate::createEventDispatcher(QThreadData *data)
 void *QThreadPrivate::start(void *arg)
 {
     // Symbian Open C supports neither thread cancellation nor cleanup_push.
-#ifndef Q_OS_SYMBIAN
+#if !defined(Q_OS_SYMBIAN) && !defined(Q_OS_HAIKU)
     pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
     pthread_cleanup_push(QThreadPrivate::finish, arg);
 #endif
@@ -265,7 +265,7 @@ void *QThreadPrivate::start(void *arg)
 #endif
     thr->run();
 
-#ifdef Q_OS_SYMBIAN
+#if defined(Q_OS_SYMBIAN) || defined(Q_OS_HAIKU)
     QThreadPrivate::finish(arg);
 #else
     pthread_cleanup_pop(1);
@@ -274,7 +274,7 @@ void *QThreadPrivate::start(void *arg)
     return 0;
 }
 
-#ifdef Q_OS_SYMBIAN
+#if defined(Q_OS_SYMBIAN) || defined(Q_OS_HAIKU)
 void QThreadPrivate::finish(void *arg, bool lockAnyway, bool closeNativeHandle)
 #else
 void QThreadPrivate::finish(void *arg)
@@ -282,7 +282,7 @@ void QThreadPrivate::finish(void *arg)
 {
     QThread *thr = reinterpret_cast<QThread *>(arg);
     QThreadPrivate *d = thr->d_func();
-#ifdef Q_OS_SYMBIAN
+#if defined(Q_OS_SYMBIAN) || defined(Q_OS_HAIKU)
     if (lockAnyway)
 #endif
         d->mutex.lock();
@@ -311,7 +311,7 @@ void QThreadPrivate::finish(void *arg)
         d->data->symbian_thread_handle.Close();
 #endif
     d->thread_done.wakeAll();
-#ifdef Q_OS_SYMBIAN
+#if defined(Q_OS_SYMBIAN) || defined(Q_OS_HAIKU)
     if (lockAnyway)
 #endif
         d->mutex.unlock();
@@ -605,7 +605,7 @@ void QThread::terminate()
     if (!d->thread_id)
         return;
 
-#ifndef Q_OS_SYMBIAN
+#if !defined(Q_OS_SYMBIAN) && !defined(Q_OS_HAIKU)
     int code = pthread_cancel(d->thread_id);
     if (code) {
         qWarning("QThread::start: Thread termination error: %s",
@@ -628,11 +628,14 @@ void QThread::terminate()
     // 2. closeNativeSymbianHandle = false. We don't want to close the thread handle,
     //    because we need it here to terminate the thread.
     QThreadPrivate::finish(this, false, false);
+#ifdef Q_OS_SYMBIAN
     d->data->symbian_thread_handle.Terminate(KErrNone);
     d->data->symbian_thread_handle.Close();
 #endif
-
-
+#ifdef Q_OS_HAIKU
+	pthread_kill(d->thread_id,0);
+#endif
+#endif
 }
 
 bool QThread::wait(unsigned long time)
