@@ -46,6 +46,7 @@
 #include <private/qfiledialog_p.h>
 #include <qapplication.h>
 #include <private/qapplication_p.h>
+#include <qdesktopservices.h>
 #include <qglobal.h>
 #include <qregexp.h>
 #include <qbuffer.h>
@@ -245,8 +246,8 @@ QString qt_haiku_get_open_file_name(const QFileDialogArgs &args,
             isel = fi.fileName();
     }
 
-    if (!fi.exists())
-        *initialDirectory = QDir::homePath();
+    if (!fi.exists() || *initialDirectory==QDir::homePath())
+        *initialDirectory = QDesktopServices::storageLocation(QDesktopServices::HomeLocation);
 
 /*    int selFilIdx = 0;
 
@@ -303,9 +304,9 @@ QString qt_haiku_get_save_file_name(const QFileDialogArgs &args,
         if (isel.isEmpty())
             isel = fi.fileName();
     }
-
-    if (!fi.exists())
-        *initialDirectory = QDir::homePath();
+	
+    if (!fi.exists() || *initialDirectory==QDir::homePath())
+        *initialDirectory = QDesktopServices::storageLocation(QDesktopServices::HomeLocation);
 /*
     int selFilIdx = 0;
 
@@ -377,8 +378,8 @@ QStringList qt_haiku_get_open_file_names(const QFileDialogArgs &args,
             isel = fi.fileName();
     }
 
-    if (!fi.exists())
-        *initialDirectory = QDir::homePath();
+    if (!fi.exists() || *initialDirectory==QDir::homePath())
+        *initialDirectory = QDesktopServices::storageLocation(QDesktopServices::HomeLocation);
 
     int selFilIdx = 0;
 
