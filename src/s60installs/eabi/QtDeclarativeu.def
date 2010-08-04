@@ -44,7 +44,7 @@ EXPORTS
 	_ZN16QDeclarativeInfoD1Ev @ 43 NONAME
 	_ZN16QDeclarativeInfoD2Ev @ 44 NONAME
 	_ZN16QDeclarativeItem10classBeginEv @ 45 NONAME
-	_ZN16QDeclarativeItem10forceFocusEv @ 46 NONAME
+	_ZN16QDeclarativeItem10forceFocusEv @ 46 NONAME ABSENT
 	_ZN16QDeclarativeItem10itemChangeEN13QGraphicsItem18GraphicsItemChangeERK8QVariant @ 47 NONAME
 	_ZN16QDeclarativeItem10resetWidthEv @ 48 NONAME
 	_ZN16QDeclarativeItem10sceneEventEP6QEvent @ 49 NONAME
@@ -59,7 +59,7 @@ EXPORTS
 	_ZN16QDeclarativeItem13parentChangedEPS_ @ 58 NONAME
 	_ZN16QDeclarativeItem13setParentItemEPS_ @ 59 NONAME
 	_ZN16QDeclarativeItem13smoothChangedEb @ 60 NONAME
-	_ZN16QDeclarativeItem15childrenChangedEv @ 61 NONAME
+	_ZN16QDeclarativeItem15childrenChangedEv @ 61 NONAME ABSENT
 	_ZN16QDeclarativeItem15geometryChangedERK6QRectFS2_ @ 62 NONAME
 	_ZN16QDeclarativeItem15keyReleaseEventEP9QKeyEvent @ 63 NONAME
 	_ZN16QDeclarativeItem16inputMethodEventEP17QInputMethodEvent @ 64 NONAME
@@ -69,7 +69,7 @@ EXPORTS
 	_ZN16QDeclarativeItem17componentCompleteEv @ 68 NONAME
 	_ZN16QDeclarativeItem17setBaselineOffsetEf @ 69 NONAME
 	_ZN16QDeclarativeItem17setImplicitHeightEf @ 70 NONAME
-	_ZN16QDeclarativeItem17wantsFocusChangedEb @ 71 NONAME
+	_ZN16QDeclarativeItem17wantsFocusChangedEb @ 71 NONAME ABSENT
 	_ZN16QDeclarativeItem18keyPressPreHandlerEP9QKeyEvent @ 72 NONAME
 	_ZN16QDeclarativeItem18setTransformOriginENS_15TransformOriginE @ 73 NONAME
 	_ZN16QDeclarativeItem19childrenRectChangedERK6QRectF @ 74 NONAME
@@ -116,7 +116,7 @@ EXPORTS
 	_ZN16QDeclarativeText17textFormatChangedENS_10TextFormatE @ 115 NONAME
 	_ZN16QDeclarativeText18paintedSizeChangedEv @ 116 NONAME
 	_ZN16QDeclarativeText19getStaticMetaObjectEv @ 117 NONAME
-	_ZN16QDeclarativeText19reloadWithResourcesEv @ 118 NONAME
+	_ZN16QDeclarativeText19reloadWithResourcesEv @ 118 NONAME ABSENT
 	_ZN16QDeclarativeText24verticalAlignmentChangedENS_10VAlignmentE @ 119 NONAME
 	_ZN16QDeclarativeText26horizontalAlignmentChangedENS_10HAlignmentE @ 120 NONAME
 	_ZN16QDeclarativeText5paintEP8QPainterPK24QStyleOptionGraphicsItemP7QWidget @ 121 NONAME
@@ -143,7 +143,7 @@ EXPORTS
 	_ZN16QDeclarativeView11qt_metacallEN11QMetaObject4CallEiPPv @ 142 NONAME
 	_ZN16QDeclarativeView11qt_metacastEPKc @ 143 NONAME
 	_ZN16QDeclarativeView11resizeEventEP12QResizeEvent @ 144 NONAME
-	_ZN16QDeclarativeView11rootContextEv @ 145 NONAME
+	_ZN16QDeclarativeView11rootContextEv @ 145 NONAME ABSENT
 	_ZN16QDeclarativeView12sceneResizedE5QSize @ 146 NONAME
 	_ZN16QDeclarativeView13setResizeModeENS_10ResizeModeE @ 147 NONAME
 	_ZN16QDeclarativeView13setRootObjectEP7QObject @ 148 NONAME
@@ -151,7 +151,7 @@ EXPORTS
 	_ZN16QDeclarativeView15continueExecuteEv @ 150 NONAME
 	_ZN16QDeclarativeView16staticMetaObjectE @ 151 NONAME DATA 16
 	_ZN16QDeclarativeView19getStaticMetaObjectEv @ 152 NONAME
-	_ZN16QDeclarativeView6engineEv @ 153 NONAME
+	_ZN16QDeclarativeView6engineEv @ 153 NONAME ABSENT
 	_ZN16QDeclarativeView9setSourceERK4QUrl @ 154 NONAME
 	_ZN16QDeclarativeViewC1EP7QWidget @ 155 NONAME
 	_ZN16QDeclarativeViewC1ERK4QUrlP7QWidget @ 156 NONAME
@@ -202,7 +202,7 @@ EXPORTS
 	_ZN18QDeclarativeEngine10setBaseUrlERK4QUrl @ 201 NONAME
 	_ZN18QDeclarativeEngine11qt_metacallEN11QMetaObject4CallEiPPv @ 202 NONAME
 	_ZN18QDeclarativeEngine11qt_metacastEPKc @ 203 NONAME
-	_ZN18QDeclarativeEngine11rootContextEv @ 204 NONAME
+	_ZN18QDeclarativeEngine11rootContextEv @ 204 NONAME ABSENT
 	_ZN18QDeclarativeEngine12importPluginERK7QStringS2_PS0_ @ 205 NONAME
 	_ZN18QDeclarativeEngine13addImportPathERK7QString @ 206 NONAME
 	_ZN18QDeclarativeEngine13addPluginPathERK7QString @ 207 NONAME
@@ -385,9 +385,9 @@ EXPORTS
 	_ZN19QDeclarativeDomListD1Ev @ 384 NONAME
 	_ZN19QDeclarativeDomListD2Ev @ 385 NONAME
 	_ZN19QDeclarativeDomListaSERKS_ @ 386 NONAME
-	_ZN19QDeclarativePrivate12registerTypeERKNS_12RegisterTypeE @ 387 NONAME
-	_ZN19QDeclarativePrivate12registerTypeERKNS_17RegisterInterfaceE @ 388 NONAME
-	_ZN19QDeclarativePrivate26registerAutoParentFunctionEPFNS_16AutoParentResultEP7QObjectS2_E @ 389 NONAME
+	_ZN19QDeclarativePrivate12registerTypeERKNS_12RegisterTypeE @ 387 NONAME ABSENT
+	_ZN19QDeclarativePrivate12registerTypeERKNS_17RegisterInterfaceE @ 388 NONAME ABSENT
+	_ZN19QDeclarativePrivate26registerAutoParentFunctionEPFNS_16AutoParentResultEP7QObjectS2_E @ 389 NONAME ABSENT
 	_ZN19QDeclarativePrivate30qdeclarativeelement_destructorEP7QObject @ 390 NONAME
 	_ZN19QListModelInterface10itemsMovedEiii @ 391 NONAME
 	_ZN19QListModelInterface11qt_metacallEN11QMetaObject4CallEiPPv @ 392 NONAME
@@ -691,7 +691,7 @@ EXPORTS
 	_ZN23QDeclarativeEngineDebug16staticMetaObjectE @ 690 NONAME DATA 16
 	_ZN23QDeclarativeEngineDebug17queryRootContextsERK32QDeclarativeDebugEngineReferenceP7QObject @ 691 NONAME
 	_ZN23QDeclarativeEngineDebug19getStaticMetaObjectEv @ 692 NONAME
-	_ZN23QDeclarativeEngineDebug19setBindingForObjectEiRK7QStringRK8QVariantbP7QObject @ 693 NONAME
+	_ZN23QDeclarativeEngineDebug19setBindingForObjectEiRK7QStringRK8QVariantbP7QObject @ 693 NONAME ABSENT
 	_ZN23QDeclarativeEngineDebug20queryObjectRecursiveERK32QDeclarativeDebugObjectReferenceP7QObject @ 694 NONAME
 	_ZN23QDeclarativeEngineDebug21queryAvailableEnginesEP7QObject @ 695 NONAME
 	_ZN23QDeclarativeEngineDebug21queryExpressionResultEiRK7QStringP7QObject @ 696 NONAME
@@ -729,25 +729,25 @@ EXPORTS
 	_ZN23QDeclarativeItemPrivate8setWidthEf @ 728 NONAME
 	_ZN23QDeclarativeItemPrivate9resourcesEv @ 729 NONAME
 	_ZN23QDeclarativeItemPrivate9setHeightEf @ 730 NONAME
-	_ZN23QDeclarativePixmapCache15pendingRequestsEv @ 731 NONAME
-	_ZN23QDeclarativePixmapCache3getERK4QUrlP7QPixmapP7QStringP5QSizebii @ 732 NONAME
-	_ZN23QDeclarativePixmapCache6cancelERK4QUrlP7QObject @ 733 NONAME
-	_ZN23QDeclarativePixmapCache7requestEP18QDeclarativeEngineRK4QUrlii @ 734 NONAME
-	_ZN23QDeclarativePixmapReply10setLoadingEv @ 735 NONAME
-	_ZN23QDeclarativePixmapReply11qt_metacallEN11QMetaObject4CallEiPPv @ 736 NONAME
-	_ZN23QDeclarativePixmapReply11qt_metacastEPKc @ 737 NONAME
-	_ZN23QDeclarativePixmapReply16downloadProgressExx @ 738 NONAME
-	_ZN23QDeclarativePixmapReply16staticMetaObjectE @ 739 NONAME DATA 16
-	_ZN23QDeclarativePixmapReply19getStaticMetaObjectEv @ 740 NONAME
-	_ZN23QDeclarativePixmapReply5eventEP6QEvent @ 741 NONAME
-	_ZN23QDeclarativePixmapReply6addRefEv @ 742 NONAME
-	_ZN23QDeclarativePixmapReply7releaseEb @ 743 NONAME
-	_ZN23QDeclarativePixmapReply8finishedEv @ 744 NONAME
-	_ZN23QDeclarativePixmapReplyC1EP23QDeclarativeImageReaderRK4QUrlii @ 745 NONAME
-	_ZN23QDeclarativePixmapReplyC2EP23QDeclarativeImageReaderRK4QUrlii @ 746 NONAME
-	_ZN23QDeclarativePixmapReplyD0Ev @ 747 NONAME
-	_ZN23QDeclarativePixmapReplyD1Ev @ 748 NONAME
-	_ZN23QDeclarativePixmapReplyD2Ev @ 749 NONAME
+	_ZN23QDeclarativePixmapCache15pendingRequestsEv @ 731 NONAME ABSENT
+	_ZN23QDeclarativePixmapCache3getERK4QUrlP7QPixmapP7QStringP5QSizebii @ 732 NONAME ABSENT
+	_ZN23QDeclarativePixmapCache6cancelERK4QUrlP7QObject @ 733 NONAME ABSENT
+	_ZN23QDeclarativePixmapCache7requestEP18QDeclarativeEngineRK4QUrlii @ 734 NONAME ABSENT
+	_ZN23QDeclarativePixmapReply10setLoadingEv @ 735 NONAME ABSENT
+	_ZN23QDeclarativePixmapReply11qt_metacallEN11QMetaObject4CallEiPPv @ 736 NONAME ABSENT
+	_ZN23QDeclarativePixmapReply11qt_metacastEPKc @ 737 NONAME ABSENT
+	_ZN23QDeclarativePixmapReply16downloadProgressExx @ 738 NONAME ABSENT
+	_ZN23QDeclarativePixmapReply16staticMetaObjectE @ 739 NONAME DATA 16 ABSENT
+	_ZN23QDeclarativePixmapReply19getStaticMetaObjectEv @ 740 NONAME ABSENT
+	_ZN23QDeclarativePixmapReply5eventEP6QEvent @ 741 NONAME ABSENT
+	_ZN23QDeclarativePixmapReply6addRefEv @ 742 NONAME ABSENT
+	_ZN23QDeclarativePixmapReply7releaseEb @ 743 NONAME ABSENT
+	_ZN23QDeclarativePixmapReply8finishedEv @ 744 NONAME ABSENT
+	_ZN23QDeclarativePixmapReplyC1EP23QDeclarativeImageReaderRK4QUrlii @ 745 NONAME ABSENT
+	_ZN23QDeclarativePixmapReplyC2EP23QDeclarativeImageReaderRK4QUrlii @ 746 NONAME ABSENT
+	_ZN23QDeclarativePixmapReplyD0Ev @ 747 NONAME ABSENT
+	_ZN23QDeclarativePixmapReplyD1Ev @ 748 NONAME ABSENT
+	_ZN23QDeclarativePixmapReplyD2Ev @ 749 NONAME ABSENT
 	_ZN23QDeclarativePropertyMap11qt_metacallEN11QMetaObject4CallEiPPv @ 750 NONAME
 	_ZN23QDeclarativePropertyMap11qt_metacastEPKc @ 751 NONAME
 	_ZN23QDeclarativePropertyMap12valueChangedERK7QStringRK8QVariant @ 752 NONAME
@@ -1075,7 +1075,7 @@ EXPORTS
 	_ZNK15QPacketProtocol17maximumPacketSizeEv @ 1074 NONAME
 	_ZNK16QDeclarativeItem10metaObjectEv @ 1075 NONAME
 	_ZNK16QDeclarativeItem10parentItemEv @ 1076 NONAME
-	_ZNK16QDeclarativeItem10wantsFocusEv @ 1077 NONAME
+	_ZNK16QDeclarativeItem10wantsFocusEv @ 1077 NONAME ABSENT
 	_ZNK16QDeclarativeItem10widthValidEv @ 1078 NONAME
 	_ZNK16QDeclarativeItem11heightValidEv @ 1079 NONAME
 	_ZNK16QDeclarativeItem11mapFromItemERK12QScriptValueff @ 1080 NONAME
@@ -1399,14 +1399,14 @@ EXPORTS
 	_ZNK23QDeclarativeItemPrivate6bottomEv @ 1398 NONAME
 	_ZNK23QDeclarativeItemPrivate6heightEv @ 1399 NONAME
 	_ZNK23QDeclarativeItemPrivate8baselineEv @ 1400 NONAME
-	_ZNK23QDeclarativePixmapReply10metaObjectEv @ 1401 NONAME
-	_ZNK23QDeclarativePixmapReply11errorStringEv @ 1402 NONAME
-	_ZNK23QDeclarativePixmapReply11forcedWidthEv @ 1403 NONAME
-	_ZNK23QDeclarativePixmapReply12forcedHeightEv @ 1404 NONAME
-	_ZNK23QDeclarativePixmapReply12implicitSizeEv @ 1405 NONAME
-	_ZNK23QDeclarativePixmapReply3urlEv @ 1406 NONAME
-	_ZNK23QDeclarativePixmapReply6statusEv @ 1407 NONAME
-	_ZNK23QDeclarativePixmapReply9isLoadingEv @ 1408 NONAME
+	_ZNK23QDeclarativePixmapReply10metaObjectEv @ 1401 NONAME ABSENT
+	_ZNK23QDeclarativePixmapReply11errorStringEv @ 1402 NONAME ABSENT
+	_ZNK23QDeclarativePixmapReply11forcedWidthEv @ 1403 NONAME ABSENT
+	_ZNK23QDeclarativePixmapReply12forcedHeightEv @ 1404 NONAME ABSENT
+	_ZNK23QDeclarativePixmapReply12implicitSizeEv @ 1405 NONAME ABSENT
+	_ZNK23QDeclarativePixmapReply3urlEv @ 1406 NONAME ABSENT
+	_ZNK23QDeclarativePixmapReply6statusEv @ 1407 NONAME ABSENT
+	_ZNK23QDeclarativePixmapReply9isLoadingEv @ 1408 NONAME ABSENT
 	_ZNK23QDeclarativePropertyMap10metaObjectEv @ 1409 NONAME
 	_ZNK23QDeclarativePropertyMap4keysEv @ 1410 NONAME
 	_ZNK23QDeclarativePropertyMap4sizeEv @ 1411 NONAME
@@ -1542,7 +1542,7 @@ EXPORTS
 	_ZTI23QDeclarativeDebugClient @ 1541 NONAME
 	_ZTI23QDeclarativeEngineDebug @ 1542 NONAME
 	_ZTI23QDeclarativeItemPrivate @ 1543 NONAME
-	_ZTI23QDeclarativePixmapReply @ 1544 NONAME
+	_ZTI23QDeclarativePixmapReply @ 1544 NONAME ABSENT
 	_ZTI23QDeclarativePropertyMap @ 1545 NONAME
 	_ZTI24QDeclarativeCustomParser @ 1546 NONAME
 	_ZTI24QDeclarativeDebugService @ 1547 NONAME
@@ -1593,7 +1593,7 @@ EXPORTS
 	_ZTV23QDeclarativeDebugClient @ 1592 NONAME
 	_ZTV23QDeclarativeEngineDebug @ 1593 NONAME
 	_ZTV23QDeclarativeItemPrivate @ 1594 NONAME
-	_ZTV23QDeclarativePixmapReply @ 1595 NONAME
+	_ZTV23QDeclarativePixmapReply @ 1595 NONAME ABSENT
 	_ZTV23QDeclarativePropertyMap @ 1596 NONAME
 	_ZTV24QDeclarativeCustomParser @ 1597 NONAME
 	_ZTV24QDeclarativeDebugService @ 1598 NONAME
@@ -1666,4 +1666,52 @@ EXPORTS
 	_ZlsR11QDataStreamRKN29QDeclarativeEngineDebugServer26QDeclarativeObjectPropertyE @ 1665 NONAME
 	_ZrsR11QDataStreamRN29QDeclarativeEngineDebugServer22QDeclarativeObjectDataE @ 1666 NONAME
 	_ZrsR11QDataStreamRN29QDeclarativeEngineDebugServer26QDeclarativeObjectPropertyE @ 1667 NONAME
+	_ZN18QDeclarativePixmap15connectFinishedEP7QObjectPKc @ 1668 NONAME
+	_ZN18QDeclarativePixmap15connectFinishedEP7QObjecti @ 1669 NONAME
+	_ZN18QDeclarativePixmap23connectDownloadProgressEP7QObjectPKc @ 1670 NONAME
+	_ZN18QDeclarativePixmap23connectDownloadProgressEP7QObjecti @ 1671 NONAME
+	_ZN18QDeclarativePixmap4loadEP18QDeclarativeEngineRK4QUrl @ 1672 NONAME
+	_ZN18QDeclarativePixmap4loadEP18QDeclarativeEngineRK4QUrlRK5QSize @ 1673 NONAME
+	_ZN18QDeclarativePixmap4loadEP18QDeclarativeEngineRK4QUrlRK5QSizeb @ 1674 NONAME
+	_ZN18QDeclarativePixmap4loadEP18QDeclarativeEngineRK4QUrlb @ 1675 NONAME
+	_ZN18QDeclarativePixmap5clearEP7QObject @ 1676 NONAME
+	_ZN18QDeclarativePixmap5clearEv @ 1677 NONAME
+	_ZN18QDeclarativePixmap9setPixmapERK7QPixmap @ 1678 NONAME
+	_ZN18QDeclarativePixmapC1EP18QDeclarativeEngineRK4QUrl @ 1679 NONAME
+	_ZN18QDeclarativePixmapC1EP18QDeclarativeEngineRK4QUrlRK5QSize @ 1680 NONAME
+	_ZN18QDeclarativePixmapC1Ev @ 1681 NONAME
+	_ZN18QDeclarativePixmapC2EP18QDeclarativeEngineRK4QUrl @ 1682 NONAME
+	_ZN18QDeclarativePixmapC2EP18QDeclarativeEngineRK4QUrlRK5QSize @ 1683 NONAME
+	_ZN18QDeclarativePixmapC2Ev @ 1684 NONAME
+	_ZN18QDeclarativePixmapD1Ev @ 1685 NONAME
+	_ZN18QDeclarativePixmapD2Ev @ 1686 NONAME
+	_ZNK18QDeclarativePixmap11requestSizeEv @ 1687 NONAME
+	_ZNK18QDeclarativePixmap12implicitSizeEv @ 1688 NONAME
+	_ZNK18QDeclarativePixmap3urlEv @ 1689 NONAME
+	_ZNK18QDeclarativePixmap4rectEv @ 1690 NONAME
+	_ZNK18QDeclarativePixmap5errorEv @ 1691 NONAME
+	_ZNK18QDeclarativePixmap5widthEv @ 1692 NONAME
+	_ZNK18QDeclarativePixmap6heightEv @ 1693 NONAME
+	_ZNK18QDeclarativePixmap6isNullEv @ 1694 NONAME
+	_ZNK18QDeclarativePixmap6pixmapEv @ 1695 NONAME
+	_ZNK18QDeclarativePixmap6statusEv @ 1696 NONAME
+	_ZNK18QDeclarativePixmap7isErrorEv @ 1697 NONAME
+	_ZNK18QDeclarativePixmap7isReadyEv @ 1698 NONAME
+	_ZNK18QDeclarativePixmap9isLoadingEv @ 1699 NONAME
+	_ZN20QDeclarativeBehavior23qtAnimationStateChangedEN18QAbstractAnimation5StateES1_ @ 1700 NONAME
+	_ZN23QDeclarativeEngineDebug13setMethodBodyEiRK7QStringS2_ @ 1701 NONAME
+	_ZN23QDeclarativeEngineDebug19setBindingForObjectEiRK7QStringRK8QVariantb @ 1702 NONAME
+	_ZN25QDeclarativeImageProvider12requestImageERK7QStringP5QSizeRKS3_ @ 1703 NONAME
+	_ZN25QDeclarativeImageProvider13requestPixmapERK7QStringP5QSizeRKS3_ @ 1704 NONAME
+	_ZN25QDeclarativeImageProviderC1ENS_9ImageTypeE @ 1705 NONAME
+	_ZN25QDeclarativeImageProviderC2ENS_9ImageTypeE @ 1706 NONAME
+	_ZNK25QDeclarativeImageProvider9imageTypeEv @ 1707 NONAME
+	_ZN23QDeclarativeEngineDebug21resetBindingForObjectEiRK7QString @ 1708 NONAME
+	_ZN16QDeclarativeItem16forceActiveFocusEv @ 1709 NONAME
+	_ZN16QDeclarativeItem18activeFocusChangedEb @ 1710 NONAME
+	_ZNK16QDeclarativeItem14hasActiveFocusEv @ 1711 NONAME
+	_ZNK16QDeclarativeView11rootContextEv @ 1712 NONAME
+	_ZNK16QDeclarativeView6engineEv @ 1713 NONAME
+	_ZNK18QDeclarativeEngine11rootContextEv @ 1714 NONAME
+	_ZN19QDeclarativePrivate11qmlregisterENS_16RegistrationTypeEPv @ 1715 NONAME
 

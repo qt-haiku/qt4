@@ -105,6 +105,7 @@ public:
 
     QDeclarativeView *view() const;
     LoggerWidget *warningsWidget() const;
+    QString currentFile() const { return currentFileOrUrl; }
 
     void enableExperimentalGestures();
 
@@ -145,9 +146,9 @@ private slots:
     void warningsWidgetOpened();
     void warningsWidgetClosed();
 
-    void updateSizeHints();
-
 private:
+    void updateSizeHints(bool initial = false);
+
     QString getVideoFileName();
 
     LoggerWidget *loggerWindow;
@@ -169,8 +170,6 @@ private:
     int record_autotime;
     bool devicemode;
     QAction *recordAction;
-    QString currentSkin;
-    bool scaleSkin;
     RecordingDialog *recdlg;
 
     void senseImageMagick();
@@ -179,6 +178,7 @@ private:
     bool ffmpegAvailable;
     bool convertAvailable;
 
+    QAction *rotateAction;
     QActionGroup *orientation;
     QAction *showWarningsWindow;
 

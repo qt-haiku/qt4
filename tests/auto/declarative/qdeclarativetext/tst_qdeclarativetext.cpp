@@ -48,6 +48,7 @@
 #include <QGraphicsSceneMouseEvent>
 #include <qmath.h>
 #include <QDeclarativeView>
+#include <private/qapplication_p.h>
 
 #include "../../../shared/util.h"
 #include "testhttpserver.h"
@@ -95,6 +96,8 @@ private slots:
     void wordSpacing();
 
     void clickLink();
+
+    void QTBUG_12291();
 
 private:
     QStringList standard;
@@ -245,6 +248,7 @@ void tst_qdeclarativetext::width()
         QDeclarativeText *textObject = qobject_cast<QDeclarativeText*>(textComponent.create());
 
         QVERIFY(textObject != 0);
+        QVERIFY(textObject->boundingRect().width() > 0);
         QCOMPARE(textObject->width(), qreal(metricWidth));
         QVERIFY(textObject->textFormat() == QDeclarativeText::AutoText); // setting text doesn't change format
     }
@@ -452,7 +456,9 @@ void tst_qdeclarativetext::alignments()
 
 #ifdef Q_WS_X11
     // Font-specific, but not likely platform-specific, so only test on one platform
-    QCOMPARE(actual,expect);
+    if (QApplicationPrivate::graphics_system_name == "raster" || QApplicationPrivate::graphics_system_name == "") {
+        QCOMPARE(actual,expect);
+    }
 #endif
 }
 
@@ -844,22 +850,22 @@ void tst_qdeclarativetext::letterSpacing()
         QCOMPARE(textObject->font().letterSpacing(), 0.0);
     }
     {
-        QString componentStr = "import Qt 4.7\nText { text: \"Hello world!\"; font.letterSpacing: -50 }";
+        QString componentStr = "import Qt 4.7\nText { text: \"Hello world!\"; font.letterSpacing: -2 }";
         QDeclarativeComponent textComponent(&engine);
         textComponent.setData(componentStr.toLatin1(), QUrl::fromLocalFile(""));
         QDeclarativeText *textObject = qobject_cast<QDeclarativeText*>(textComponent.create());
 
         QVERIFY(textObject != 0);
-        QCOMPARE(textObject->font().letterSpacing(), -50.);
+        QCOMPARE(textObject->font().letterSpacing(), -2.);
     }
     {
-        QString componentStr = "import Qt 4.7\nText { text: \"Hello world!\"; font.letterSpacing: 200 }";
+        QString componentStr = "import Qt 4.7\nText { text: \"Hello world!\"; font.letterSpacing: 3 }";
         QDeclarativeComponent textComponent(&engine);
         textComponent.setData(componentStr.toLatin1(), QUrl::fromLocalFile(""));
         QDeclarativeText *textObject = qobject_cast<QDeclarativeText*>(textComponent.create());
 
         QVERIFY(textObject != 0);
-        QCOMPARE(textObject->font().letterSpacing(), 200.);
+        QCOMPARE(textObject->font().letterSpacing(), 3.);
     }
 }
 
@@ -892,6 +898,23 @@ void tst_qdeclarativetext::wordSpacing()
         QVERIFY(textObject != 0);
         QCOMPARE(textObject->font().wordSpacing(), 200.);
     }
+}
+
+void tst_qdeclarativetext::QTBUG_12291()
+{
+    QDeclarativeView *canvas = createView(SRCDIR "/data/rotated.qml");
+
+    canvas->show();
+    QApplication::setActiveWindow(canvas);
+    QTest::qWaitForWindowShown(canvas);
+    QTRY_COMPARE(QApplication::activeWindow(), static_cast<QWidget *>(canvas));
+
+    QObject *ob = canvas->rootObject();
+    QVERIFY(ob != 0);
+
+    QDeclarativeText *text = ob->findChild<QDeclarativeText*>("text");
+    QVERIFY(text);
+    QVERIFY(text->boundingRect().isValid());
 }
 
 class EventSender : public QGraphicsItem

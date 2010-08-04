@@ -228,10 +228,10 @@ bool QDeclarativeCompiler::testLiteralAssignment(const QMetaProperty &prop,
             }
             break;
         case QMetaType::Float:
-            if (!v->value.isNumber()) COMPILE_EXCEPTION(v, tr("Invalid property assignment: float expected"));
+            if (!v->value.isNumber()) COMPILE_EXCEPTION(v, tr("Invalid property assignment: number expected"));
             break;
         case QVariant::Double:
-            if (!v->value.isNumber()) COMPILE_EXCEPTION(v, tr("Invalid property assignment: double expected"));
+            if (!v->value.isNumber()) COMPILE_EXCEPTION(v, tr("Invalid property assignment: number expected"));
             break;
         case QVariant::Color:
             {
@@ -240,7 +240,7 @@ bool QDeclarativeCompiler::testLiteralAssignment(const QMetaProperty &prop,
             if (!ok) COMPILE_EXCEPTION(v, tr("Invalid property assignment: color expected"));
             }
             break;
-#ifndef QT_NO_TEXTDATE
+#ifndef QT_NO_DATESTRING
         case QVariant::Date:
             {
             bool ok;
@@ -262,7 +262,7 @@ bool QDeclarativeCompiler::testLiteralAssignment(const QMetaProperty &prop,
             if (!ok) COMPILE_EXCEPTION(v, tr("Invalid property assignment: datetime expected"));
             }
             break;
-#endif // QT_NO_TEXTDATE
+#endif // QT_NO_DATESTRING
         case QVariant::Point:
         case QVariant::PointF:
             {
@@ -416,7 +416,7 @@ void QDeclarativeCompiler::genLiteralAssignment(const QMetaProperty &prop,
             instr.storeColor.value = c.rgba();
             }
             break;
-#ifndef QT_NO_TEXTDATE
+#ifndef QT_NO_DATESTRING
         case QVariant::Date:
             {
             QDate d = QDeclarativeStringConverters::dateFromString(string);
@@ -450,7 +450,7 @@ void QDeclarativeCompiler::genLiteralAssignment(const QMetaProperty &prop,
             instr.storeDateTime.valueIndex = index;
             }
             break;
-#endif // QT_NO_TEXTDATE
+#endif // QT_NO_DATESTRING
         case QVariant::Point:
         case QVariant::PointF:
             {
@@ -1070,6 +1070,7 @@ void QDeclarativeCompiler::genObjectBody(QDeclarativeParser::Object *obj)
             store.storeSignal.value =
                 output->indexForString(v->value.asScript().trimmed());
             store.storeSignal.context = ctxt.stack;
+            store.storeSignal.name = output->indexForByteArray(prop->name);
             output->bytecode << store;
 
         }
@@ -2449,7 +2450,7 @@ bool QDeclarativeCompiler::buildDynamicMeta(QDeclarativeParser::Object *obj, Dyn
     for (int ii = 0; ii < obj->dynamicSlots.count(); ++ii) {
         Object::DynamicSlot &s = obj->dynamicSlots[ii];
         QByteArray sig(s.name + '(');
-        QString funcScript(QLatin1String("(function("));
+        QString funcScript(QLatin1String("(function ") + s.name + QLatin1Char('('));
 
         for (int jj = 0; jj < s.parameterNames.count(); ++jj) {
             if (jj) { 
@@ -2765,6 +2766,7 @@ bool QDeclarativeCompiler::completeComponentBuild()
         bool isSharable = sharableTest.isSharable(expression);
         
         QDeclarativeRewrite::RewriteBinding rewriteBinding;
+        rewriteBinding.setName('$'+binding.property->name);
         expression = rewriteBinding(expression);
 
         quint32 length = expression.length();

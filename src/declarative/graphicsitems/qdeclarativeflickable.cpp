@@ -641,18 +641,6 @@ void QDeclarativeFlickable::setFlickableDirection(FlickableDirection direction)
     }
 }
 
-QDeclarativeFlickable::FlickableDirection QDeclarativeFlickable::flickDirection() const
-{
-    qmlInfo(this) << "'flickDirection' is deprecated. Please use 'flickableDirection' instead.";
-    return flickableDirection();
-}
-
-void QDeclarativeFlickable::setFlickDirection(FlickableDirection direction)
-{
-    qmlInfo(this) << "'flickDirection' is deprecated. Please use 'flickableDirection' instead.";
-    setFlickableDirection(direction);
-}
-
 void QDeclarativeFlickablePrivate::handleMousePressEvent(QGraphicsSceneMouseEvent *event)
 {
     if (interactive && timeline.isActive() && (qAbs(hData.velocity) > 10 || qAbs(vData.velocity) > 10))
@@ -693,12 +681,15 @@ void QDeclarativeFlickablePrivate::handleMouseMoveEvent(QGraphicsSceneMouseEvent
             if (newY < maxY && maxY - minY <= 0)
                 newY = maxY + (newY - maxY) / 2;
             if (boundsBehavior == QDeclarativeFlickable::StopAtBounds && (newY > minY || newY < maxY)) {
-                if (newY > minY)
-                    newY = minY;
-                else if (newY < maxY)
+                rejectY = true;
+                if (newY < maxY) {
                     newY = maxY;
-                else
-                    rejectY = true;
+                    rejectY = false;
+                }
+                if (newY > minY) {
+                    newY = minY;
+                    rejectY = false;
+                }
             }
             if (!rejectY && stealMouse) {
                 vData.move.setValue(qRound(newY));
@@ -720,12 +711,15 @@ void QDeclarativeFlickablePrivate::handleMouseMoveEvent(QGraphicsSceneMouseEvent
             if (newX < maxX && maxX - minX <= 0)
                 newX = maxX + (newX - maxX) / 2;
             if (boundsBehavior == QDeclarativeFlickable::StopAtBounds && (newX > minX || newX < maxX)) {
-                if (newX > minX)
-                    newX = minX;
-                else if (newX < maxX)
+                rejectX = true;
+                if (newX < maxX) {
                     newX = maxX;
-                else
-                    rejectX = true;
+                    rejectX = false;
+                }
+                if (newX > minX) {
+                    newX = minX;
+                    rejectX = false;
+                }
             }
             if (!rejectX && stealMouse) {
                 hData.move.setValue(qRound(newX));
@@ -1226,6 +1220,7 @@ bool QDeclarativeFlickable::sendMouseEvent(QGraphicsSceneMouseEvent *event)
 
             d->handleMousePressEvent(&mouseEvent);
             d->captureDelayedPress(event);
+            stealThisEvent = d->stealMouse;   // Update stealThisEvent in case changed by function call above
             break;
         case QEvent::GraphicsSceneMouseRelease:
             if (d->delayedPressEvent) {
@@ -1246,7 +1241,6 @@ bool QDeclarativeFlickable::sendMouseEvent(QGraphicsSceneMouseEvent *event)
         default:
             break;
         }
-        stealThisEvent = d->stealMouse;   // Update stealThisEvent and grabber in case changed by function calls above
         grabber = qobject_cast<QDeclarativeItem*>(s->mouseGrabberItem());
         if (grabber && stealThisEvent && !grabber->keepMouseGrab() && grabber != this) {
             d->clearDelayedPress();
@@ -1354,7 +1348,7 @@ bool QDeclarativeFlickable::isFlickingVertically() const
 
     This property holds the time to delay (ms) delivering a press to
     children of the Flickable.  This can be useful where reacting
-    to a press before a flicking action has undesireable effects.
+    to a press before a flicking action has undesirable effects.
 
     If the flickable is dragged/flicked before the delay times out
     the press event will not be delivered.  If the button is released
@@ -1438,21 +1432,23 @@ void QDeclarativeFlickable::movementEnding()
         if (!d->flickingHorizontally)
            emit flickEnded();
     }
-    if (d->movingHorizontally) {
-        d->movingHorizontally = false;
-        d->hMoved = false;
-        emit movingChanged();
-        emit movingHorizontallyChanged();
-        if (!d->movingVertically)
-            emit movementEnded();
-    }
-    if (d->movingVertically) {
-        d->movingVertically = false;
-        d->vMoved = false;
-        emit movingChanged();
-        emit movingVerticallyChanged();
-        if (!d->movingHorizontally)
-            emit movementEnded();
+    if (!d->pressed && !d->stealMouse) {
+        if (d->movingHorizontally) {
+            d->movingHorizontally = false;
+            d->hMoved = false;
+            emit movingChanged();
+            emit movingHorizontallyChanged();
+            if (!d->movingVertically)
+                emit movementEnded();
+        }
+        if (d->movingVertically) {
+            d->movingVertically = false;
+            d->vMoved = false;
+            emit movingChanged();
+            emit movingVerticallyChanged();
+            if (!d->movingHorizontally)
+                emit movementEnded();
+        }
     }
     d->hData.smoothVelocity.setValue(0);
     d->vData.smoothVelocity.setValue(0);

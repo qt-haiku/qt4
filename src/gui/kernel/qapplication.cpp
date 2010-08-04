@@ -902,6 +902,7 @@ QApplication::QApplication(Display *dpy, int &argc, char **argv,
 #endif // Q_WS_X11
 
 extern void qInitDrawhelperAsm();
+extern void qInitImageConversions();
 extern int qRegisterGuiVariant();
 extern int qUnregisterGuiVariant();
 #ifndef QT_NO_STATEMACHINE
@@ -959,6 +960,8 @@ void QApplicationPrivate::initialize()
 
     // Set up which span functions should be used in raster engine...
     qInitDrawhelperAsm();
+    // and QImage conversion functions
+    qInitImageConversions();
 
 #ifndef QT_NO_WHEELEVENT
     QApplicationPrivate::wheel_scroll_lines = 3;
@@ -2536,6 +2539,13 @@ void QApplication::setActiveWindow(QWidget* act)
         sendSpontaneousEvent(w, &windowActivate);
         sendSpontaneousEvent(w, &activationChange);
     }
+
+#ifdef QT_MAC_USE_COCOA
+    // In case the user clicked on a child window, we need to
+    // reestablish the stacking order of the window so
+    // it pops in front of other child windows in cocoa:
+    qt_cocoaStackChildWindowOnTopOfOtherChildren(window);
+#endif
 
     for(int i = 0; i < toBeDeactivated.size(); ++i) {
         QWidget *w = toBeDeactivated.at(i);
@@ -5291,6 +5301,7 @@ bool QApplication::keypadNavigationEnabled()
     \sa QCoreApplication::instance()
 */
 
+#ifndef QT_NO_IM
 // ************************************************************************
 // Input Method support
 // ************************************************************************
@@ -5356,6 +5367,7 @@ QInputContext *QApplication::inputContext() const
 #endif
     return d->inputContext;
 }
+#endif // QT_NO_IM
 
 //Returns the current platform used by keyBindings
 uint QApplicationPrivate::currentPlatform(){
@@ -5786,10 +5798,12 @@ Q_GUI_EXPORT void qt_translateRawTouchEvent(QWidget *window,
 #ifndef QT_NO_GESTURES
 QGestureManager* QGestureManager::instance()
 {
-    QApplicationPrivate *qAppPriv = QApplicationPrivate::instance();
-    if (!qAppPriv->gestureManager)
-        qAppPriv->gestureManager = new QGestureManager(qApp);
-    return qAppPriv->gestureManager;
+    if (QApplicationPrivate *qAppPriv = QApplicationPrivate::instance()) {
+        if (!qAppPriv->gestureManager)
+            qAppPriv->gestureManager = new QGestureManager(qApp);
+        return qAppPriv->gestureManager;
+    }
+    return 0;
 }
 #endif // QT_NO_GESTURES
 
