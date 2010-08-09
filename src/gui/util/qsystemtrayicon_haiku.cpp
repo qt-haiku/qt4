@@ -149,7 +149,7 @@ void QSystemTrayIconSys::HaikuEvent(BMessage *m)
 {	
 	if(m->what == 'PULS') {
 		LiveFactor--;
-		if(LiveFactor<-3) {		//Reinstallation time
+		if(LiveFactor<-5) {		//Reinstallation time
 			LiveFactor = 0;
 			ReplicantId = 0;
 			InstallIcon();
