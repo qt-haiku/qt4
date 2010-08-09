@@ -137,9 +137,6 @@ void qt_init(QApplicationPrivate *priv, int)
 
 	happ = new HQApplication("application/x-vnd."+QFileInfo(QApplication::applicationFilePath()).fileName().toLatin1(), priv );	
 	be_app = happ;
-
-	QString appDir = QCoreApplication::applicationDirPath();
-	chdir(appDir.toUtf8());
     		
 	QApplicationPrivate::haiku_apply_settings();	
 	
@@ -148,17 +145,21 @@ void qt_init(QApplicationPrivate *priv, int)
 		
 	happ->UnlockLooper();
 
-	if(priv->argc==1)
-	for(i=0;i<100;i++) {
-		if(happ->RefHandled) {
-			BPath p(&happ->Ref);
-			priv->argc = 2;
-			priv->argv[1]=strdup(p.Path());
-			priv->argv[2]=0;
-			break;
-		}
-		snooze(1000);
-	}	
+	if(priv->argc==1) {
+		for(i=0;i<100;i++) {
+			if(happ->RefHandled) {
+				BPath p(&happ->Ref);
+				priv->argc = 2;
+				priv->argv[1]=strdup(p.Path());
+				priv->argv[2]=0;
+				break;
+			}
+			snooze(1000);
+		}	
+		
+		QString appDir = QCoreApplication::applicationDirPath();
+		chdir(appDir.toUtf8());		
+	}
 }
 
 void qt_cleanup()
