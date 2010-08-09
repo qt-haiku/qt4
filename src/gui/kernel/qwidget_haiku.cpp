@@ -414,6 +414,9 @@ void QtHaikuWindow::FrameMoved(BPoint point)
 	if(oldPos==newCPos)
 		return;
 
+	while (qApp->activePopupWidget())
+		qApp->activePopupWidget()->close();		
+
 	fView->fWidgetPrivate->data.fstrut_dirty = true;
 	
 	cr.moveTopLeft(newCPos);
