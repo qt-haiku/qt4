@@ -469,7 +469,7 @@ void QApplicationPrivate::haiku_initialize_style()
 
 bool QApplicationPrivate::modalState()
 {
-	qDebug()<<"Unimplemented: QApplicationPrivate::modalState():"<<app_do_modal;
+	//qDebug()<<"Unimplemented: QApplicationPrivate::modalState():"<<app_do_modal;
 	return app_do_modal;
 }
 
@@ -625,8 +625,10 @@ QWidget *QApplication::topLevelAt(const QPoint &point)
     for (int i = 0; i < list.count(); ++i) {
         QWidget *widget = list.at(i);
         if (widget->isVisible() && !(widget->windowType() == Qt::Desktop)) {
-            if (widget->geometry().adjusted(0,0,1,1).contains(point)) {
-                    found = widget;			//TODO: check for z-order needed
+            if (widget->geometry().adjusted(0,0,1,1).contains(point)) {            	    
+                    found = widget;			//TODO: check for z-order needed!
+                   	if(widget->nativeView()->Window()->IsActive())
+                   		break;
             }
         }
     }

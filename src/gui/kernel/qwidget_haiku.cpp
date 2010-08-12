@@ -175,6 +175,18 @@ void QtHaikuView::MouseUp(BPoint point)
 	QWidget *widget = fWidget->mouseGrabber();
 	if(!widget)
 		widget = fWidget;
+		
+	QWidget *wat = QApplication::widgetAt(QPoint(glob_pos.x,glob_pos.y));
+	
+	qDebug() << "MouseUp " << fWidget << widget << wat;
+	if(wat && wat!=widget) {
+		QPoint lpoint = wat->mapFromGlobal(QPoint(glob_pos.x,glob_pos.y));
+		if(fWidget->nativeView()->Window()==wat->nativeView()->Window()) {
+			widget = wat;
+			point.x= lpoint.x();
+			point.y= lpoint.y();
+		}
+	}	
 	
 	if (qt_button == Qt::RightButton)
 		emit sendHaikuEvent(widget, new QContextMenuEvent(QContextMenuEvent::Mouse, 
@@ -203,6 +215,18 @@ void QtHaikuView::MouseDown(BPoint point)
 	QWidget *widget = fWidget->mouseGrabber();
 	if(!widget)
 		widget = fWidget;		
+		
+	QWidget *wat = QApplication::widgetAt(QPoint(glob_pos.x,glob_pos.y));
+	
+	qDebug() << "MouseDown " << fWidget << widget << wat;
+	if(wat && wat!=widget) {
+		QPoint lpoint = wat->mapFromGlobal(QPoint(glob_pos.x,glob_pos.y));
+		if(fWidget->nativeView()->Window()==wat->nativeView()->Window()) {
+			widget = wat;
+			point.x= lpoint.x();
+			point.y= lpoint.y();
+		}
+	}
 		
 	bigtime_t now=system_time();
 
@@ -266,6 +290,16 @@ void QtHaikuView::MouseMoved(BPoint point, uint32 transit, const BMessage *messa
 	QWidget *widget = fWidget->mouseGrabber();
 	if(!widget)
 		widget = fWidget;
+			
+
+	/*QWidget *wat = QApplication::widgetAt(QPoint(glob_pos.x,glob_pos.y));
+	
+	if(wat && wat!=widget) {
+		QPoint lpoint = wat->mapFromGlobal(QPoint(glob_pos.x,glob_pos.y));
+		widget = wat;
+		point.x= lpoint.x();
+		point.y= lpoint.y();
+	}*/
 			
 	emit sendHaikuEvent(widget, new QMouseEvent(QEvent::MouseMove, QPoint(point.x,point.y), Qt::NoButton, qt_buttons, qt_mod));
 //	qDebug()<<"MouseMove()"<<point.x<<" "<<point.y<<" "<<haiku_global_mouse_x<<" "<<haiku_global_mouse_y;	
@@ -918,7 +952,7 @@ void QWidgetPrivate::updateSystemBackground()
 
 void QWidgetPrivate::setModal_sys()
 {
-//	Q_Q(QWidget);
+	Q_Q(QWidget);
 //	qDebug() << "Unimplemented: QWidgetPrivate::setModal_sys() "<<  q ;
 }
 
