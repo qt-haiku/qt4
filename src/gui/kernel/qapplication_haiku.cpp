@@ -648,26 +648,5 @@ void QApplicationPrivate::initializeMultitouch_sys()
 }
 
 void QApplicationPrivate::cleanupMultitouch_sys()
-{ }
-
-#ifndef QT_NO_SESSIONMANAGER
-QSessionManager::QSessionManager(QApplication * /* app */, QString & /* id */, QString& /* key */)
 {
-
 }
-
-QSessionManager::~QSessionManager()
-{
-
-}
-
-bool QSessionManager::allowsInteraction()
-{
-    return false;
-}
-
-void QSessionManager::cancel()
-{
-
-}
-#endif //QT_NO_SESSIONMANAGER
