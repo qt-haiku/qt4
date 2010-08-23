@@ -474,7 +474,7 @@ int qt_antialiasing_threshold = -1;
 static int drag_time = 500;
 #ifdef Q_OS_SYMBIAN
 // The screens are a bit too small to for your thumb when using only 4 pixels drag distance.
-static int drag_distance = 8;
+static int drag_distance = 12;
 #else
 static int drag_distance = 4;
 #endif
@@ -1055,6 +1055,18 @@ QApplication::~QApplication()
     QApplicationPrivate::is_app_closing = true;
     QApplicationPrivate::is_app_running = false;
 
+    // delete all widgets
+    if (QWidgetPrivate::allWidgets) {
+        QWidgetSet *mySet = QWidgetPrivate::allWidgets;
+        QWidgetPrivate::allWidgets = 0;
+        for (QWidgetSet::ConstIterator it = mySet->constBegin(); it != mySet->constEnd(); ++it) {
+            register QWidget *w = *it;
+            if (!w->parent())                        // window
+                w->destroy(true, true);
+        }
+        delete mySet;
+    }
+
     delete qt_desktopWidget;
     qt_desktopWidget = 0;
 
@@ -1074,18 +1086,6 @@ QApplication::~QApplication()
 
     delete QWidgetPrivate::mapper;
     QWidgetPrivate::mapper = 0;
-
-    // delete all widgets
-    if (QWidgetPrivate::allWidgets) {
-        QWidgetSet *mySet = QWidgetPrivate::allWidgets;
-        QWidgetPrivate::allWidgets = 0;
-        for (QWidgetSet::ConstIterator it = mySet->constBegin(); it != mySet->constEnd(); ++it) {
-            register QWidget *w = *it;
-            if (!w->parent())                        // window
-                w->destroy(true, true);
-        }
-        delete mySet;
-    }
 
     delete QApplicationPrivate::app_pal;
     QApplicationPrivate::app_pal = 0;
