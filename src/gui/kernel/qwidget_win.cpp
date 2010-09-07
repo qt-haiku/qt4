@@ -70,6 +70,7 @@
 #include "qguifunctions_wince.h"
 QT_USE_NAMESPACE
 extern void qt_wince_maximize(QWidget *widget);                          //defined in qguifunctions_wince.cpp
+extern void qt_wince_unmaximize(QWidget *widget);                        //defined in qguifunctions_wince.cpp
 extern void qt_wince_minimize(HWND hwnd);                                //defined in qguifunctions_wince.cpp
 extern void qt_wince_full_screen(HWND hwnd, bool fullScreen, UINT swpf); //defined in qguifunctions_wince.cpp
 extern bool qt_wince_is_mobile();                                        //defined in qguifunctions_wince.cpp
@@ -165,7 +166,7 @@ static void qt_tablet_init()
     qt_tablet_widget = new QWidget(0);
     qt_tablet_widget->createWinId();
     qt_tablet_widget->setObjectName(QLatin1String("Qt internal tablet widget"));
-    // We dont need this internal widget to appear in QApplication::topLevelWidgets()
+    // We don't need this internal widget to appear in QApplication::topLevelWidgets()
     if (QWidgetPrivate::allWidgets)
         QWidgetPrivate::allWidgets->remove(qt_tablet_widget);
     LOGCONTEXT lcMine;
@@ -544,6 +545,7 @@ void QWidgetPrivate::create_sys(WId window, bool initializeWindow, bool destroyO
 void QWidget::destroy(bool destroyWindow, bool destroySubWindows)
 {
     Q_D(QWidget);
+    d->aboutToDestroy();
     if (!isWindow() && parentWidget())
         parentWidget()->d_func()->invalidateBuffer(d->effectiveRectFor(geometry()));
     d->deactivateWidgetCleanup();
@@ -1166,7 +1168,7 @@ void QWidgetPrivate::show_sys()
         // This is to resolve the problem where popups are opened from the
         // system tray and not being implicitly activated
         if (q->windowType() == Qt::Popup &&
-            (!q->parentWidget() || !q->parentWidget()->isActiveWindow()))
+            !q->parentWidget() && !qApp->activeWindow()) 
             q->activateWindow();
     }
 
@@ -1545,7 +1547,7 @@ bool QWidgetPrivate::shouldShowMaximizeButton()
 {
     if (data.window_flags & Qt::MSWindowsFixedSizeDialogHint)
         return false;
-    // if the user explicitely asked for the maximize button, we try to add
+    // if the user explicitly asked for the maximize button, we try to add
     // it even if the window has fixed size.
     if (data.window_flags & Qt::CustomizeWindowHint &&
         data.window_flags & Qt::WindowMaximizeButtonHint)
@@ -2075,7 +2077,7 @@ void QWidgetPrivate::registerTouchWindow()
 
 void QWidgetPrivate::winSetupGestures()
 {
-#if !defined(QT_NO_NATIVE_GESTURES)
+#if !defined(QT_NO_GESTURES) && !defined(QT_NO_NATIVE_GESTURES)
     Q_Q(QWidget);
     if (!q || !q->isVisible() || !nativeGesturePanEnabled)
         return;

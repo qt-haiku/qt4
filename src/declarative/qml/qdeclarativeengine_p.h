@@ -64,6 +64,7 @@
 #include "qdeclarativecontext.h"
 #include "private/qdeclarativecontext_p.h"
 #include "qdeclarativeexpression.h"
+#include "qdeclarativeimageprovider.h"
 #include "private/qdeclarativeproperty_p.h"
 #include "private/qdeclarativepropertycache_p.h"
 #include "private/qdeclarativeobjectscriptclass_p.h"
@@ -91,6 +92,7 @@ class QDeclarativeEngine;
 class QDeclarativeContextPrivate;
 class QDeclarativeExpression;
 class QDeclarativeContextScriptClass;
+class QDeclarativeImportDatabase;
 class QDeclarativeObjectScriptClass;
 class QDeclarativeTypeNameScriptClass;
 class QDeclarativeValueTypeScriptClass;
@@ -160,7 +162,6 @@ public:
     QPODVector<CapturedProperty> capturedProperties;
 
     QDeclarativeContext *rootContext;
-    QDeclarativeExpression *currentExpression;
     bool isDebugging;
 
     bool outputWarningsToStdErr;
@@ -231,8 +232,10 @@ public:
     mutable QNetworkAccessManager *networkAccessManager;
     mutable QDeclarativeNetworkAccessManagerFactory *networkAccessManagerFactory;
 
-    QHash<QString,QDeclarativeImageProvider*> imageProviders;
+    QHash<QString,QSharedPointer<QDeclarativeImageProvider> > imageProviders;
+    QDeclarativeImageProvider::ImageType getImageProviderType(const QUrl &url);
     QImage getImageFromProvider(const QUrl &url, QSize *size, const QSize& req_size);
+    QPixmap getPixmapFromProvider(const QUrl &url, QSize *size, const QSize& req_size);
 
     mutable QMutex mutex;
 
@@ -282,7 +285,7 @@ public:
     static QScriptValue createComponent(QScriptContext*, QScriptEngine*);
     static QScriptValue createQmlObject(QScriptContext*, QScriptEngine*);
     static QScriptValue isQtObject(QScriptContext*, QScriptEngine*);
-    static QScriptValue vector(QScriptContext*, QScriptEngine*);
+    static QScriptValue vector3d(QScriptContext*, QScriptEngine*);
     static QScriptValue rgba(QScriptContext*, QScriptEngine*);
     static QScriptValue hsla(QScriptContext*, QScriptEngine*);
     static QScriptValue point(QScriptContext*, QScriptEngine*);
@@ -301,10 +304,11 @@ public:
     static QScriptValue consoleLog(QScriptContext*, QScriptEngine*);
     static QScriptValue quit(QScriptContext*, QScriptEngine*);
 
+#ifndef QT_NO_DATESTRING
     static QScriptValue formatDate(QScriptContext*, QScriptEngine*);
     static QScriptValue formatTime(QScriptContext*, QScriptEngine*);
     static QScriptValue formatDateTime(QScriptContext*, QScriptEngine*);
-
+#endif
     static QScriptEngine *getScriptEngine(QDeclarativeEngine *e) { return &e->d_func()->scriptEngine; }
     static QDeclarativeEngine *getEngine(QScriptEngine *e) { return static_cast<QDeclarativeScriptEngine*>(e)->p->q_func(); }
     static QDeclarativeEnginePrivate *get(QDeclarativeEngine *e) { return e->d_func(); }
@@ -313,6 +317,9 @@ public:
     static QDeclarativeEnginePrivate *get(QScriptEngine *e) { return static_cast<QDeclarativeScriptEngine*>(e)->p; }
     static QDeclarativeEngine *get(QDeclarativeEnginePrivate *p) { return p->q_func(); }
     QDeclarativeContextData *getContext(QScriptContext *);
+    QUrl getUrl(QScriptContext *);
+
+    static QString urlToLocalFileOrQrc(const QUrl& url);
 
     static void defineModule();
 };

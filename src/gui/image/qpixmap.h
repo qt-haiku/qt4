@@ -57,11 +57,16 @@ class CFbsBitmap;
 class RSgImage;
 #endif
 
+#if defined(Q_OS_HAIKU)
+class BBitmap;
+#endif
+
 QT_BEGIN_NAMESPACE
 
 QT_MODULE(Gui)
 
 class QImageWriter;
+class QImageReader;
 class QColor;
 class QVariant;
 class QX11Info;
@@ -134,6 +139,7 @@ public:
 
     QImage toImage() const;
     static QPixmap fromImage(const QImage &image, Qt::ImageConversionFlags flags = Qt::AutoColor);
+    static QPixmap fromImageReader(QImageReader *imageReader, Qt::ImageConversionFlags flags = Qt::AutoColor);
 
     bool load(const QString& fileName, const char *format = 0, Qt::ImageConversionFlags flags = Qt::AutoColor);
     bool loadFromData(const uchar *buf, uint len, const char* format = 0, Qt::ImageConversionFlags flags = Qt::AutoColor);
@@ -160,6 +166,11 @@ public:
 #if defined(Q_WS_MAC)
     CGImageRef toMacCGImageRef() const;
     static QPixmap fromMacCGImageRef(CGImageRef image);
+#endif
+
+#if defined(Q_OS_HAIKU)
+	BBitmap *toHaikuBitmap() const;
+	static QPixmap fromHaikuBitmap(BBitmap *);
 #endif
 
 #if defined(Q_OS_SYMBIAN)
@@ -271,9 +282,7 @@ private:
     friend class QX11PaintEngine;
     friend class QCoreGraphicsPaintEngine;
     friend class QWidgetPrivate;
-    friend class QRasterPaintEngine;
     friend class QRasterBuffer;
-    friend class QPixmapCacheEntry;
 #if !defined(QT_NO_DATASTREAM)
     friend Q_GUI_EXPORT QDataStream &operator>>(QDataStream &, QPixmap &);
 #endif

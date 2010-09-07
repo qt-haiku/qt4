@@ -108,7 +108,7 @@ public:
 
 class QDeclarativeComponentAttached;
 class QDeclarativeGuardedContextData;
-class QDeclarativeContextData
+class Q_AUTOTEST_EXPORT QDeclarativeContextData
 {
 public:
     QDeclarativeContextData();
@@ -198,6 +198,7 @@ public:
     // context
     QDeclarativeComponentAttached *componentAttached;
 
+    // Return the outermost id for obj, if any.
     QString findObjectId(const QObject *obj) const;
 
     static QDeclarativeContextData *get(QDeclarativeContext *context) {

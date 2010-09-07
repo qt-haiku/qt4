@@ -65,6 +65,7 @@ public slots:
 private slots:
     void simple_app();
     void simple_app_shadowbuild();
+    void simple_app_shadowbuild2();
     void simple_lib();
     void simple_dll();
     void subdirs();
@@ -89,6 +90,7 @@ private slots:
     void bundle_spaces();
 #endif
     void includefunction();
+    void substitutes();
 
 private:
     TestCompiler test_compiler;
@@ -152,6 +154,21 @@ void tst_qmake::simple_app_shadowbuild()
 {
     QString workDir = base_path + "/testdata/simple_app";
     QString buildDir = base_path + "/testdata/simple_app_build";
+
+    QVERIFY( test_compiler.qmake( workDir, "simple_app", buildDir ));
+    QVERIFY( test_compiler.make( buildDir ));
+    QVERIFY( test_compiler.exists( buildDir, "simple_app", Exe, "1.0.0" ));
+    QVERIFY( test_compiler.makeClean( buildDir ));
+    QVERIFY( test_compiler.exists( buildDir, "simple_app", Exe, "1.0.0" )); // Should still exist after a make clean
+    QVERIFY( test_compiler.makeDistClean( buildDir ));
+    QVERIFY( !test_compiler.exists( buildDir, "simple_app", Exe, "1.0.0" )); // Should not exist after a make distclean
+    QVERIFY( test_compiler.removeMakefile( buildDir ) );
+}
+
+void tst_qmake::simple_app_shadowbuild2()
+{
+    QString workDir = base_path + "/testdata/simple_app";
+    QString buildDir = base_path + "/testdata/simple_app/build";
 
     QVERIFY( test_compiler.qmake( workDir, "simple_app", buildDir ));
     QVERIFY( test_compiler.make( buildDir ));
@@ -459,6 +476,21 @@ void tst_qmake::includefunction()
     workDir = base_path + "/testdata/include_function";
     QVERIFY(test_compiler.qmake( workDir, "include_missing_file2" ));
     QVERIFY(test_compiler.commandOutput().contains(warningMsg));
+}
+
+void tst_qmake::substitutes()
+{
+    QString workDir = base_path + "/testdata/substitutes";
+    QVERIFY( test_compiler.qmake( workDir, "test" ));
+    QVERIFY( test_compiler.exists( workDir, "test", Plain, "" ));
+    QVERIFY( test_compiler.exists( workDir, "sub/test2", Plain, "" ));
+    QVERIFY( test_compiler.makeDistClean( workDir ));
+
+    QString buildDir = base_path + "/testdata/substitutes_build";
+    QVERIFY( test_compiler.qmake( workDir, "test", buildDir ));
+    QVERIFY( test_compiler.exists( buildDir, "test", Plain, "" ));
+    QVERIFY( test_compiler.exists( buildDir, "sub/test2", Plain, "" ));
+    QVERIFY( test_compiler.makeDistClean( buildDir ));
 }
 
 QTEST_MAIN(tst_qmake)

@@ -68,8 +68,6 @@ public:
     QString getInterfaceFromId(const QString &id);
     bool hasIdentifier(const QString &id);
 
-    QString bearerName(const QString &id);
-
     void connectToId(const QString &id);
     void disconnectFromId(const QString &id);
 
@@ -77,6 +75,10 @@ public:
     Q_INVOKABLE void requestUpdate();
 
     QNetworkSession::State sessionStateForId(const QString &id);
+
+    quint64 bytesWritten(const QString &id);
+    quint64 bytesReceived(const QString &id);
+    quint64 startTime(const QString &id);
 
     QNetworkConfigurationManager::Capabilities capabilities() const;
 
@@ -99,6 +101,8 @@ private:
     bool hasWifi;
     bool scanning;
     QScanThread *scanThread;
+
+    quint64 getBytes(const QString &interfaceName,bool b);
 
 protected:
     void startNetworkChangeLoop();

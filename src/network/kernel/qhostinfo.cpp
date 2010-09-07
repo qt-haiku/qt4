@@ -44,14 +44,10 @@
 
 #include "QtCore/qscopedpointer.h"
 #include <qabstracteventdispatcher.h>
-#include <private/qunicodetables_p.h>
 #include <qcoreapplication.h>
 #include <qmetaobject.h>
-#include <qregexp.h>
-#include <private/qnativesocketengine_p.h>
 #include <qstringlist.h>
 #include <qthread.h>
-#include <qtimer.h>
 #include <qurl.h>
 
 #ifdef Q_OS_UNIX
@@ -651,7 +647,7 @@ void QHostInfoLookupManager::lookupFinished(QHostInfoRunnable *r)
     work();
 }
 
-// This function returns immediatly when we had a result in the cache, else it will later emit a signal
+// This function returns immediately when we had a result in the cache, else it will later emit a signal
 QHostInfo qt_qhostinfo_lookup(const QString &name, QObject *receiver, const char *member, bool *valid, int *id)
 {
     *valid = false;

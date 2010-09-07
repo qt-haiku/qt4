@@ -75,8 +75,6 @@ public:
     QString getInterfaceFromId(const QString &id);
     bool hasIdentifier(const QString &id);
 
-    //QString bearerName(const QString &id);
-
     void connectToId(const QString &id);
     void disconnectFromId(const QString &id);
 
@@ -91,12 +89,13 @@ public:
 
     QNetworkConfigurationPrivatePointer defaultConfiguration();
 
-    inline bool available() const { return handle != 0; }
+    bool available();
 
     bool requiresPolling() const;
 
-public Q_SLOTS:
+private Q_SLOTS:
     void scanComplete();
+    void closeHandle();
 
 private:
     Qt::HANDLE handle;

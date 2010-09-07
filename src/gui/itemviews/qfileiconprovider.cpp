@@ -53,6 +53,11 @@
 #  include <objbase.h>
 #elif defined(Q_WS_MAC)
 #  include <private/qt_cocoa_helpers_mac_p.h>
+#elif defined(Q_WS_HAIKU)
+#  include <AppKit.h>
+#  include <StorageKit.h>
+#  include <InterfaceKit.h>
+#  include <NodeInfo.h>
 #endif
 
 #include <private/qfunctions_p.h>
@@ -98,71 +103,84 @@ public:
     QIcon getWinIcon(const QFileInfo &fi) const;
 #elif defined(Q_WS_MAC)
     QIcon getMacIcon(const QFileInfo &fi) const;
+#elif defined(Q_WS_HAIKU)
+    QIcon getHaikuIcon(const QFileInfo &fi) const;
 #endif
     QFileIconProvider *q_ptr;
-    QString homePath;
+    const QString homePath;
 
 private:
-    QIcon file;
-    QIcon fileLink;
-    QIcon directory;
-    QIcon directoryLink;
-    QIcon harddisk;
-    QIcon floppy;
-    QIcon cdrom;
-    QIcon ram;
-    QIcon network;
-    QIcon computer;
-    QIcon desktop;
-    QIcon trashcan;
-    QIcon generic;
-    QIcon home;
+    mutable QIcon file;
+    mutable QIcon fileLink;
+    mutable QIcon directory;
+    mutable QIcon directoryLink;
+    mutable QIcon harddisk;
+    mutable QIcon floppy;
+    mutable QIcon cdrom;
+    mutable QIcon ram;
+    mutable QIcon network;
+    mutable QIcon computer;
+    mutable QIcon desktop;
+    mutable QIcon trashcan;
+    mutable QIcon generic;
+    mutable QIcon home;
 };
 
-QFileIconProviderPrivate::QFileIconProviderPrivate()
+QFileIconProviderPrivate::QFileIconProviderPrivate() :
+    homePath(QDir::home().absolutePath())
 {
-    QStyle *style = QApplication::style();
-    file = style->standardIcon(QStyle::SP_FileIcon);
-    directory = style->standardIcon(QStyle::SP_DirIcon);
-    fileLink = style->standardIcon(QStyle::SP_FileLinkIcon);
-    directoryLink = style->standardIcon(QStyle::SP_DirLinkIcon);
-    harddisk = style->standardIcon(QStyle::SP_DriveHDIcon);
-    floppy = style->standardIcon(QStyle::SP_DriveFDIcon);
-    cdrom = style->standardIcon(QStyle::SP_DriveCDIcon);
-    network = style->standardIcon(QStyle::SP_DriveNetIcon);
-    computer = style->standardIcon(QStyle::SP_ComputerIcon);
-    desktop = style->standardIcon(QStyle::SP_DesktopIcon);
-    trashcan = style->standardIcon(QStyle::SP_TrashIcon);
-    home = style->standardIcon(QStyle::SP_DirHomeIcon);
-    homePath = QDir::home().absolutePath();
 }
 
 QIcon QFileIconProviderPrivate::getIcon(QStyle::StandardPixmap name) const
 {
     switch (name) {
     case QStyle::SP_FileIcon:
+        if (file.isNull())
+            file = QApplication::style()->standardIcon(name);
         return file;
     case QStyle::SP_FileLinkIcon:
+        if (fileLink.isNull())
+            fileLink = QApplication::style()->standardIcon(name);
         return fileLink;
     case QStyle::SP_DirIcon:
+        if (directory.isNull())
+            directory = QApplication::style()->standardIcon(name);
         return directory;
     case QStyle::SP_DirLinkIcon:
+        if (directoryLink.isNull())
+            directoryLink = QApplication::style()->standardIcon(name);
         return directoryLink;
     case QStyle::SP_DriveHDIcon:
+        if (harddisk.isNull())
+            harddisk = QApplication::style()->standardIcon(name);
         return harddisk;
     case QStyle::SP_DriveFDIcon:
+        if (floppy.isNull())
+            floppy = QApplication::style()->standardIcon(name);
         return floppy;
     case QStyle::SP_DriveCDIcon:
+        if (cdrom.isNull())
+            cdrom = QApplication::style()->standardIcon(name);
         return cdrom;
     case QStyle::SP_DriveNetIcon:
+        if (network.isNull())
+            network = QApplication::style()->standardIcon(name);
         return network;
     case QStyle::SP_ComputerIcon:
+        if (computer.isNull())
+            computer = QApplication::style()->standardIcon(name);
         return computer;
     case QStyle::SP_DesktopIcon:
+        if (desktop.isNull())
+            desktop = QApplication::style()->standardIcon(name);
         return desktop;
     case QStyle::SP_TrashIcon:
+        if (trashcan.isNull())
+            trashcan = QApplication::style()->standardIcon(name);
         return trashcan;
     case QStyle::SP_DirHomeIcon:
+        if (home.isNull())
+            home = QApplication::style()->standardIcon(name);
         return home;
     default:
         return QIcon();
@@ -195,6 +213,7 @@ QFileIconProvider::~QFileIconProvider()
 QIcon QFileIconProvider::icon(IconType type) const
 {
     Q_D(const QFileIconProvider);
+    
     switch (type) {
     case Computer:
         return d->getIcon(QStyle::SP_ComputerIcon);
@@ -378,6 +397,33 @@ QIcon QFileIconProviderPrivate::getMacIcon(const QFileInfo &fi) const
 
     return retIcon;
 }
+#elif defined(Q_WS_HAIKU)
+QIcon QFileIconProviderPrivate::getHaikuIcon(const QFileInfo &fi) const
+{
+    QIcon retIcon;
+    
+	BNode node(fi.canonicalFilePath().toUtf8().constData());
+	if (node.InitCheck() == B_OK) {
+		BNodeInfo nodeinfo(&node);
+		
+		BBitmap *hIcon = new BBitmap(BRect(0, 0, 15, 15), B_RGBA32);
+		nodeinfo.GetTrackerIcon(hIcon, B_MINI_ICON);
+		if(hIcon) {
+			QPixmap p = QPixmap::fromHaikuBitmap(hIcon);
+			retIcon.addPixmap(p);
+			delete hIcon;
+		}
+
+		BBitmap *hIconBig = new BBitmap(BRect(0, 0, 31, 31), B_RGBA32);
+		nodeinfo.GetTrackerIcon(hIcon, B_LARGE_ICON);
+		if(hIconBig) {
+			QPixmap p = QPixmap::fromHaikuBitmap(hIconBig);
+			retIcon.addPixmap(p);
+			delete hIconBig;
+		}		
+	}	
+    return retIcon;
+}
 #endif
 
 
@@ -407,6 +453,10 @@ QIcon QFileIconProvider::icon(const QFileInfo &info) const
         return retIcon;
 #elif defined Q_WS_WIN
     QIcon icon = d->getWinIcon(info);
+    if (!icon.isNull())
+        return icon;
+#elif defined Q_WS_HAIKU
+    QIcon icon = d->getHaikuIcon(info);
     if (!icon.isNull())
         return icon;
 #endif

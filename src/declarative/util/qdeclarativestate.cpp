@@ -133,15 +133,36 @@ QDeclarativeStateOperation::QDeclarativeStateOperation(QObjectPrivate &dd, QObje
 
 /*!
     \qmlclass State QDeclarativeState
+    \ingroup qml-state-elements
     \since 4.7
     \brief The State element defines configurations of objects and properties.
 
-    A state is specified as a set of batched changes from the default configuration.
+    A \e state is a set of batched changes from the default configuration.
 
-    \note setting the state of an object from within another state of the same object is
+    All items have a default state that defines the default configuration of objects
+    and property values. New states can be defined by adding State items to the \l {Item::states}{states} property to
+    allow items to switch between different configurations. These configurations
+    can, for example, be used to apply different sets of property values or execute
+    different scripts.
+
+    The following example displays a single \l Rectangle. In the default state, the rectangle
+    is colored black. In the "clicked" state, a PropertyChanges element changes the
+    rectangle's color to red. Clicking within the MouseArea toggles the rectangle's state
+    between the default state and the "clicked" state, thus toggling the color of the
+    rectangle between black and red.
+
+    \snippet doc/src/snippets/declarative/state.qml 0
+
+    Notice the default state is referred to using an empty string ("").
+
+    States are commonly used together with \l {Transitions} to provide
+    animations when state changes occur.
+
+    \note Setting the state of an object from within another state of the same object is
     not allowed.
 
-    \sa {qmlstates}{States}, {state-transitions}{Transitions}, QtDeclarative
+    \sa {declarative/animation/states}{states example}, {qmlstates}{States},
+    {qdeclarativeanimation.html#transitions}{QML Transitions}, QtDeclarative
 */
 
 /*!
@@ -173,9 +194,9 @@ QDeclarativeState::~QDeclarativeState()
 
 /*!
     \qmlproperty string State::name
-    This property holds the name of the state
+    This property holds the name of the state.
 
-    Each state should have a unique name.
+    Each state should have a unique name within its item.
 */
 QString QDeclarativeState::name() const
 {
@@ -187,6 +208,13 @@ void QDeclarativeState::setName(const QString &n)
 {
     Q_D(QDeclarativeState);
     d->name = n;
+    d->named = true;
+}
+
+bool QDeclarativeState::isNamed() const
+{
+    Q_D(const QDeclarativeState);
+    return d->named;
 }
 
 bool QDeclarativeState::isWhenKnown() const
@@ -197,12 +225,15 @@ bool QDeclarativeState::isWhenKnown() const
 
 /*!
     \qmlproperty bool State::when
-    This property holds when the state should be applied
+    This property holds when the state should be applied.
 
-    This should be set to an expression that evaluates to true when you want the state to
-    be applied.
+    This should be set to an expression that evaluates to \c true when you want the state to
+    be applied. For example, the following \l Rectangle changes in and out of the "hidden"
+    state when the \l MouseArea is pressed:
 
-    If multiple states in a group have \c when clauses that evaluate to true at the same time,
+    \snippet doc/src/snippets/declarative/state-when.qml 0
+
+    If multiple states in a group have \c when clauses that evaluate to \c true at the same time,
     the first matching state will be applied. For example, in the following snippet
     \c state1 will always be selected rather than \c state2 when sharedCondition becomes
     \c true.
@@ -229,7 +260,9 @@ void QDeclarativeState::setWhen(QDeclarativeBinding *when)
 
 /*!
     \qmlproperty string State::extend
-    This property holds the state that this state extends
+    This property holds the state that this state extends.
+
+    When a state extends another state, it inherits all the changes of that state.
 
     The state being extended is treated as the base state in regards to
     the changes specified by the extending state.
@@ -314,8 +347,10 @@ QDeclarativeStatePrivate::generateActionList(QDeclarativeStateGroup *group) cons
     if (!extends.isEmpty()) {
         QList<QDeclarativeState *> states = group->states();
         for (int ii = 0; ii < states.count(); ++ii)
-            if (states.at(ii)->name() == extends)
+            if (states.at(ii)->name() == extends) {
+                qmlExecuteDeferred(states.at(ii));
                 applyList = static_cast<QDeclarativeStatePrivate*>(states.at(ii)->d_func())->generateActionList(group);
+            }
     }
 
     foreach(QDeclarativeStateOperation *op, operations)
@@ -486,6 +521,7 @@ void QDeclarativeState::apply(QDeclarativeStateGroup *group, QDeclarativeTransit
     // All the local reverts now become part of the ongoing revertList
     d->revertList << additionalReverts;
 
+#ifndef QT_NO_DEBUG_STREAM
     // Output for debugging
     if (stateChangeDebug()) {
         foreach(const QDeclarativeAction &action, applyList) {
@@ -497,6 +533,7 @@ void QDeclarativeState::apply(QDeclarativeStateGroup *group, QDeclarativeTransit
                            << "To:" << action.toValue;
         }
     }
+#endif
 
     d->transitionManager.transition(applyList, trans);
 }

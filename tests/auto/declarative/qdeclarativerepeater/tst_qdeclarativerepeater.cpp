@@ -45,8 +45,14 @@
 #include <QtDeclarative/qdeclarativeengine.h>
 #include <QtDeclarative/qdeclarativeview.h>
 #include <QtDeclarative/qdeclarativecontext.h>
+#include <QtDeclarative/qdeclarativeexpression.h>
 #include <private/qdeclarativerepeater_p.h>
 #include <private/qdeclarativetext_p.h>
+
+#ifdef Q_OS_SYMBIAN
+// In Symbian OS test data is located in applications private dir
+#define SRCDIR "."
+#endif
 
 inline QUrl TEST_FILE(const QString &filename)
 {
@@ -69,6 +75,8 @@ private slots:
 
 private:
     QDeclarativeView *createView();
+    template<typename T>
+    T *findItem(QGraphicsObject *parent, const QString &objectName, int index);
     template<typename T>
     T *findItem(QGraphicsObject *parent, const QString &id);
 };
@@ -301,11 +309,28 @@ void tst_QDeclarativeRepeater::dataModel()
 
     QCOMPARE(container->childItems().count(), 4);
 
+    QSignalSpy repeaterSpy(repeater, SIGNAL(countChanged()));
     testModel.addItem("four", "4");
     QCOMPARE(container->childItems().count(), 5);
+    QCOMPARE(repeaterSpy.count(),1);
 
     testModel.removeItem(2);
     QCOMPARE(container->childItems().count(), 4);
+    QCOMPARE(repeaterSpy.count(),2);
+
+    // Check that model changes are propagated
+    QDeclarativeText *text = findItem<QDeclarativeText>(canvas->rootObject(), "myName", 1);
+    QVERIFY(text);
+    QCOMPARE(text->text(), QString("two"));
+
+    testModel.modifyItem(1, "Item two", "_2");
+    text = findItem<QDeclarativeText>(canvas->rootObject(), "myName", 1);
+    QVERIFY(text);
+    QCOMPARE(text->text(), QString("Item two"));
+
+    text = findItem<QDeclarativeText>(canvas->rootObject(), "myNumber", 1);
+    QVERIFY(text);
+    QCOMPARE(text->text(), QString("_2"));
 
     delete testObject;
     delete canvas;
@@ -338,6 +363,15 @@ void tst_QDeclarativeRepeater::itemModel()
     QVERIFY(qobject_cast<QObject*>(container->childItems().at(1))->objectName() == "item2");
     QVERIFY(qobject_cast<QObject*>(container->childItems().at(2))->objectName() == "item3");
     QVERIFY(container->childItems().at(3) == repeater);
+
+    QMetaObject::invokeMethod(canvas->rootObject(), "switchModel");
+    QCOMPARE(container->childItems().count(), 3);
+    QVERIFY(qobject_cast<QObject*>(container->childItems().at(0))->objectName() == "item4");
+    QVERIFY(qobject_cast<QObject*>(container->childItems().at(1))->objectName() == "item5");
+    QVERIFY(container->childItems().at(2) == repeater);
+
+    testObject->setUseModel(false);
+    QCOMPARE(container->childItems().count(), 1);
 
     delete testObject;
     delete canvas;
@@ -379,6 +413,33 @@ QDeclarativeView *tst_QDeclarativeRepeater::createView()
     canvas->setFixedSize(240,320);
 
     return canvas;
+}
+
+template<typename T>
+T *tst_QDeclarativeRepeater::findItem(QGraphicsObject *parent, const QString &objectName, int index)
+{
+    const QMetaObject &mo = T::staticMetaObject;
+    //qDebug() << parent->childItems().count() << "children";
+    for (int i = 0; i < parent->childItems().count(); ++i) {
+        QDeclarativeItem *item = qobject_cast<QDeclarativeItem*>(parent->childItems().at(i));
+        if(!item)
+            continue;
+        //qDebug() << "try" << item;
+        if (mo.cast(item) && (objectName.isEmpty() || item->objectName() == objectName)) {
+            if (index != -1) {
+                QDeclarativeExpression e(qmlContext(item), item, "index");
+                if (e.evaluate().toInt() == index)
+                    return static_cast<T*>(item);
+            } else {
+                return static_cast<T*>(item);
+            }
+        }
+        item = findItem<T>(item, objectName, index);
+        if (item)
+            return static_cast<T*>(item);
+    }
+
+    return 0;
 }
 
 template<typename T>

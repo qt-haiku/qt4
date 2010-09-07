@@ -49,6 +49,8 @@
 #include <QtCore/qrect.h>
 #include <QtCore/qmetatype.h>
 
+#ifndef QT_NO_GESTURES
+
 QT_BEGIN_HEADER
 
 Q_DECLARE_METATYPE(Qt::GestureState)
@@ -132,6 +134,7 @@ class Q_GUI_EXPORT QPinchGesture : public QGesture
 {
     Q_OBJECT
     Q_DECLARE_PRIVATE(QPinchGesture)
+    Q_FLAGS(ChangeFlags ChangeFlag)
 
 public:
     enum ChangeFlag {
@@ -188,6 +191,8 @@ public:
 
     friend class QPinchGestureRecognizer;
 };
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(QPinchGesture::ChangeFlags)
 
 QT_END_NAMESPACE
 
@@ -250,6 +255,9 @@ public:
     QPointF position() const;
     void setPosition(const QPointF &pos);
 
+    static void setTimeout(int msecs);
+    static int timeout();
+
     friend class QTapAndHoldGestureRecognizer;
 };
 
@@ -257,5 +265,7 @@ QT_END_NAMESPACE
 
 Q_DECLARE_METATYPE(QGesture::GestureCancelPolicy)
 QT_END_HEADER
+
+#endif // QT_NO_GESTURES
 
 #endif // QGESTURE_H

@@ -20,7 +20,10 @@ SOURCES += \
         util/qundoview.cpp
 
 
-win32 {
+wince* {
+		SOURCES += \
+				util/qsystemtrayicon_wince.cpp
+} else:win32 {
 		SOURCES += \
 				util/qsystemtrayicon_win.cpp
 }
@@ -40,9 +43,8 @@ embedded {
 }
 
 symbian {
-    LIBS += -lsendas2 -letext -lapmime
+    LIBS += -lsendas2 -letext -lapmime -lplatformenv
     contains(QT_CONFIG, s60) {
-        LIBS += -lplatformenv
         contains(CONFIG, is_using_gnupoc) {
             LIBS += -lcommonui
         } else {
@@ -52,6 +54,8 @@ symbian {
 }
 
 haiku {
+		HEADERS += \
+				util/qsystemtrayicon_haiku.h
 		SOURCES += \
 				util/qsystemtrayicon_haiku.cpp
 }

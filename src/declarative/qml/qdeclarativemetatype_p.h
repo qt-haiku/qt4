@@ -63,6 +63,8 @@ QT_BEGIN_NAMESPACE
 
 class QDeclarativeType;
 class QDeclarativeCustomParser;
+class QDeclarativeTypePrivate;
+
 class Q_DECLARATIVE_EXPORT QDeclarativeMetaType
 {
 public:
@@ -99,9 +101,10 @@ public:
     static StringConverter customStringConverter(int);
 
     static bool isModule(const QByteArray &module, int versionMajor, int versionMinor);
+
+    static QList<QDeclarativePrivate::AutoParentFunction> parentFunctions();
 };
 
-class QDeclarativeTypePrivate;
 class Q_DECLARATIVE_EXPORT QDeclarativeType
 {
 public:
@@ -142,11 +145,12 @@ public:
     int propertyValueInterceptorCast() const;
 
     int index() const;
+
 private:
     friend class QDeclarativeTypePrivate;
     friend struct QDeclarativeMetaTypeData;
-    friend int QDeclarativePrivate::registerType(const QDeclarativePrivate::RegisterInterface &);
-    friend int QDeclarativePrivate::registerType(const QDeclarativePrivate::RegisterType &);
+    friend int registerType(const QDeclarativePrivate::RegisterType &);
+    friend int registerInterface(const QDeclarativePrivate::RegisterInterface &);
     QDeclarativeType(int, const QDeclarativePrivate::RegisterInterface &);
     QDeclarativeType(int, const QDeclarativePrivate::RegisterType &);
     ~QDeclarativeType();

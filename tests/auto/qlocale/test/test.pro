@@ -25,7 +25,7 @@ wince*: {
    addFiles.sources = \
         ../syslocaleapp
 
-   addFiles.path = \Program Files\tst_qlocale
+   addFiles.path = "\\Program Files\\tst_qlocale"
    DEPLOYMENT += addFiles
 }
 
@@ -37,3 +37,5 @@ symbian:contains(S60_VERSION,3.2) {
         "$${LITERAL_HASH}endif"
     MMP_RULES += custom_paged_rule
 }
+
+symbian: INCLUDEPATH *= $$MW_LAYER_SYSTEMINCLUDE  # Needed for e32svr.h in S^3 envs

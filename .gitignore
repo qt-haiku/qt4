@@ -6,7 +6,10 @@ examples/*/*/*
 !examples/*/*/README
 examples/*/*/*[.]app
 !examples/declarative/*
+!examples/ja_JP/*/*
 demos/*/*
+!demos/spectrum/*
+demos/spectrum/bin
 !demos/*/*[.]*
 demos/*/*[.]app
 !demos/declarative/*
@@ -58,6 +61,7 @@ bin/lrelease*
 bin/lupdate*
 bin/lconvert*
 bin/moc*
+bin/makeqpf*
 bin/pixeltool*
 bin/qmake*
 bin/qdoc3*
@@ -110,6 +114,7 @@ tools/qtestlib/chart/chart*
 tools/qtestlib/updater/updater*
 tools/activeqt/testcon/testcon.tlb
 translations/*.qm
+translations/*_untranslated.ts
 qrc_*.cpp
 
 # xemacs temporary files
@@ -128,6 +133,9 @@ qrc_*.cpp
 *.vcproj
 *vcproj.*.*.user
 *.ncb
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
 
 # MinGW generated files
 *.Debug
@@ -200,7 +208,7 @@ bld.inf
 *.loc
 !s60main.rss
 *.pkg
-plugin_commonU.def
+plugin_commonu.def
 *.qtplugin
 *.sis
 *.sisx

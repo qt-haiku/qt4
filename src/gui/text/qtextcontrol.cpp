@@ -747,7 +747,11 @@ void QTextControl::undo()
 {
     Q_D(QTextControl);
     d->repaintSelection();
+    const int oldCursorPos = d->cursor.position();
     d->doc->undo(&d->cursor);
+    if (d->cursor.position() != oldCursorPos)
+        emit cursorPositionChanged();
+    emit microFocusChanged();
     ensureCursorVisible();
 }
 
@@ -755,7 +759,11 @@ void QTextControl::redo()
 {
     Q_D(QTextControl);
     d->repaintSelection();
+    const int oldCursorPos = d->cursor.position();
     d->doc->redo(&d->cursor);
+        if (d->cursor.position() != oldCursorPos)
+        emit cursorPositionChanged();
+    emit microFocusChanged();
     ensureCursorVisible();
 }
 
@@ -1093,14 +1101,6 @@ void QTextControl::processEvent(QEvent *e, const QMatrix &matrix, QWidget *conte
                 }
             }
             break;
-        case QEvent::LayoutDirectionChange: {
-            if (contextWidget) {
-                QTextOption opt = document()->defaultTextOption();
-                opt.setTextDirection(contextWidget->layoutDirection());
-                document()->setDefaultTextOption(opt);
-            }
-        }
-            // FALL THROUGH
         default:
             break;
     }

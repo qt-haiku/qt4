@@ -385,12 +385,12 @@ void QGraphicsWidget::setGeometry(const QRectF &rect)
         if (wd->inSetPos) {
             //set the new pos
             d->geom.moveTopLeft(pos());
+            emit geometryChanged();
             return;
         }
     }
     QSizeF oldSize = size();
     QGraphicsLayoutItem::setGeometry(newGeom);
-    emit geometryChanged();
     // Send resize event
     bool resized = newGeom.size() != oldSize;
     if (resized) {
@@ -403,6 +403,7 @@ void QGraphicsWidget::setGeometry(const QRectF &rect)
             emit heightChanged();
         QApplication::sendEvent(this, &re);
     }
+    emit geometryChanged();
 }
 
 /*!
@@ -1096,13 +1097,7 @@ QVariant QGraphicsWidget::itemChange(GraphicsItemChange change, const QVariant &
         }
         break;
     case ItemPositionHasChanged:
-        if (!d->inSetGeometry) {
-            d->inSetPos = 1;
-            // Ensure setGeometry is called (avoid recursion when setPos is
-            // called from within setGeometry).
-            setGeometry(QRectF(pos(), size()));
-            d->inSetPos = 0 ;
-        }
+        d->setGeometryFromSetPos();
         break;
     case ItemParentChange: {
         // Deliver ParentAboutToChange.

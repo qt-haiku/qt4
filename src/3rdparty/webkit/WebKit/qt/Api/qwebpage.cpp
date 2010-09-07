@@ -51,6 +51,7 @@
 #include "EditorClientQt.h"
 #include "SecurityOrigin.h"
 #include "Settings.h"
+#include "TiledBackingStore.h"
 #include "Page.h"
 #include "Pasteboard.h"
 #include "FrameLoader.h"
@@ -231,6 +232,8 @@ public:
     virtual QObject* pluginParent() const;
 
     virtual QStyle* style() const;
+
+    virtual bool viewResizesToContentsEnabled() const { return false; }
 
     QWidget* view;
 };
@@ -452,6 +455,9 @@ QWebPagePrivate::QWebPagePrivate(QWebPage *qq)
     WebCore::InitializeLoggingChannelsIfNecessary();
     JSC::initializeThreading();
     WebCore::SecurityOrigin::setLocalLoadPolicy(WebCore::SecurityOrigin::AllowLocalLoadsForLocalAndSubstituteData);
+#if QT_VERSION < QT_VERSION_CHECK(4, 7, 0)
+    WebCore::Font::setCodePath(WebCore::Font::Complex);
+#endif
 
     chromeClient = new ChromeClientQt(q);
     contextMenuClient = new ContextMenuClientQt();
@@ -765,7 +771,7 @@ void QWebPagePrivate::timerEvent(QTimerEvent *ev)
     if (timerId == tripleClickTimer.timerId())
         tripleClickTimer.stop();
     else
-        q->QObject::timerEvent(ev);
+        q->timerEvent(ev);
 }
 
 void QWebPagePrivate::mouseMoveEvent(QGraphicsSceneMouseEvent* ev)
@@ -1174,7 +1180,7 @@ void QWebPagePrivate::dragEnterEvent(QGraphicsSceneDragDropEvent* ev)
     Qt::DropAction action = dragOpToDropAction(page->dragController()->dragEntered(&dragData));
     ev->setDropAction(action);
     if (action != Qt::IgnoreAction)
-        ev->accept();
+        ev->acceptProposedAction();
 #endif
 }
 
@@ -1187,7 +1193,7 @@ void QWebPagePrivate::dragEnterEvent(QDragEnterEvent* ev)
     ev->setDropAction(action);
     // We must accept this event in order to receive the drag move events that are sent
     // while the drag and drop action is in progress.
-    ev->accept();
+    ev->acceptProposedAction();
 #endif
 }
 
@@ -1217,7 +1223,7 @@ void QWebPagePrivate::dragMoveEvent(QGraphicsSceneDragDropEvent* ev)
     Qt::DropAction action = dragOpToDropAction(page->dragController()->dragUpdated(&dragData));
     ev->setDropAction(action);
     if (action != Qt::IgnoreAction)
-        ev->accept();
+        ev->acceptProposedAction();
 #endif
 }
 
@@ -1231,7 +1237,7 @@ void QWebPagePrivate::dragMoveEvent(QDragMoveEvent* ev)
     ev->setDropAction(action);
     // We must accept this event in order to receive the drag move events that are sent
     // while the drag and drop action is in progress.
-    ev->accept();
+    ev->acceptProposedAction();
 #endif
 }
 
@@ -1241,7 +1247,7 @@ void QWebPagePrivate::dropEvent(QGraphicsSceneDragDropEvent* ev)
     DragData dragData(ev->mimeData(), ev->pos().toPoint(),
             QCursor::pos(), dropActionToDragOp(ev->possibleActions()));
     if (page->dragController()->performDrag(&dragData))
-        ev->accept();
+        ev->acceptProposedAction();
 #endif
 }
 
@@ -1253,7 +1259,7 @@ void QWebPagePrivate::dropEvent(QDropEvent* ev)
     DragData dragData(ev->mimeData(), ev->pos(), QCursor::pos(),
                       dropActionToDragOp(Qt::DropAction(ev->dropAction())));
     if (page->dragController()->performDrag(&dragData))
-        ev->accept();
+        ev->acceptProposedAction();
 #endif
 }
 
@@ -1294,6 +1300,9 @@ void QWebPagePrivate::inputMethodEvent(QInputMethodEvent *ev)
 {
     WebCore::Frame *frame = page->focusController()->focusedOrMainFrame();
     WebCore::Editor *editor = frame->editor();
+#if QT_VERSION >= 0x040600
+    QInputMethodEvent::Attribute selection(QInputMethodEvent::Selection, 0, 0, QVariant());
+#endif
 
     if (!editor->canEdit()) {
         ev->ignore();
@@ -1310,6 +1319,7 @@ void QWebPagePrivate::inputMethodEvent(QInputMethodEvent *ev)
         renderTextControl = toRenderTextControl(renderer);
 
     Vector<CompositionUnderline> underlines;
+    bool hasSelection = false;
 
     for (int i = 0; i < ev->attributes().size(); ++i) {
         const QInputMethodEvent::Attribute& a = ev->attributes().at(i);
@@ -1333,10 +1343,8 @@ void QWebPagePrivate::inputMethodEvent(QInputMethodEvent *ev)
         }
 #if QT_VERSION >= 0x040600
         case QInputMethodEvent::Selection: {
-            if (renderTextControl) {
-                renderTextControl->setSelectionStart(qMin(a.start, (a.start + a.length)));
-                renderTextControl->setSelectionEnd(qMax(a.start, (a.start + a.length)));
-            }
+            selection = a;
+            hasSelection = true;
             break;
         }
 #endif
@@ -1345,12 +1353,36 @@ void QWebPagePrivate::inputMethodEvent(QInputMethodEvent *ev)
 
     if (!ev->commitString().isEmpty())
         editor->confirmComposition(ev->commitString());
-    else if (!ev->preeditString().isEmpty()) {
+    else {
+        // 1. empty preedit with a selection attribute, and start/end of 0 cancels composition
+        // 2. empty preedit with a selection attribute, and start/end of non-0 updates selection of current preedit text
+        // 3. populated preedit with a selection attribute, and start/end of 0 or non-0 updates selection of supplied preedit text
+        // 4. otherwise event is updating supplied pre-edit text
         QString preedit = ev->preeditString();
-        editor->setComposition(preedit, underlines, preedit.length(), 0);
+#if QT_VERSION >= 0x040600
+        if (hasSelection) {
+            QString text = (renderTextControl) ? QString(renderTextControl->text()) : QString();
+            if (preedit.isEmpty() && selection.start + selection.length > 0)
+                preedit = text;
+            editor->setComposition(preedit, underlines,
+                                   (selection.length < 0) ? selection.start + selection.length : selection.start,
+                                   (selection.length < 0) ? selection.start : selection.start + selection.length);
+        } else
+#endif
+            editor->setComposition(preedit, underlines, preedit.length(), 0);
     }
+
     ev->accept();
 }
+
+#ifndef QT_NO_PROPERTIES
+typedef struct {
+    const char* name;
+    double deferredRepaintDelay;
+    double initialDeferredRepaintDelayDuringLoading;
+    double maxDeferredRepaintDelayDuringLoading;
+    double deferredRepaintDelayIncrementDuringLoading;
+} QRepaintThrottlingPreset;
 
 void QWebPagePrivate::dynamicPropertyChangeEvent(QDynamicPropertyChangeEvent* event)
 {
@@ -1369,8 +1401,79 @@ void QWebPagePrivate::dynamicPropertyChangeEvent(QDynamicPropertyChangeEvent* ev
     } else if (event->propertyName() == "_q_HTMLTokenizerTimeDelay") {
         double timeDelay = q->property("_q_HTMLTokenizerTimeDelay").toDouble();
         q->handle()->page->setCustomHTMLTokenizerTimeDelay(timeDelay);
+    } else if (event->propertyName() == "_q_RepaintThrottlingDeferredRepaintDelay") {
+        double p = q->property("_q_RepaintThrottlingDeferredRepaintDelay").toDouble();
+        FrameView::setRepaintThrottlingDeferredRepaintDelay(p);
+    } else if (event->propertyName() == "_q_RepaintThrottlingnInitialDeferredRepaintDelayDuringLoading") {
+        double p = q->property("_q_RepaintThrottlingnInitialDeferredRepaintDelayDuringLoading").toDouble();
+        FrameView::setRepaintThrottlingnInitialDeferredRepaintDelayDuringLoading(p);
+    } else if (event->propertyName() == "_q_RepaintThrottlingMaxDeferredRepaintDelayDuringLoading") {
+        double p = q->property("_q_RepaintThrottlingMaxDeferredRepaintDelayDuringLoading").toDouble();
+        FrameView::setRepaintThrottlingMaxDeferredRepaintDelayDuringLoading(p);
+    } else if (event->propertyName() == "_q_RepaintThrottlingDeferredRepaintDelayIncrementDuringLoading") {
+        double p = q->property("_q_RepaintThrottlingDeferredRepaintDelayIncrementDuringLoading").toDouble();
+        FrameView::setRepaintThrottlingDeferredRepaintDelayIncrementDuringLoading(p);
+    } else if (event->propertyName() == "_q_RepaintThrottlingPreset") {
+        static const QRepaintThrottlingPreset presets[] = {
+            {   "NoThrottling",     0,      0,      0,      0 },
+            {   "Legacy",       0.025,      0,    2.5,    0.5 },
+            {   "Minimal",       0.01,      0,      1,    0.2 },
+            {   "Medium",       0.025,      1,      5,    0.5 },
+            {   "Heavy",          0.1,      2,     10,      1 }
+        };
+
+        QString p = q->property("_q_RepaintThrottlingPreset").toString();
+        for(int i = 0; i < sizeof(presets) / sizeof(presets[0]); i++) {
+            if(p == presets[i].name) {
+                FrameView::setRepaintThrottlingDeferredRepaintDelay(
+                        presets[i].deferredRepaintDelay);
+                FrameView::setRepaintThrottlingnInitialDeferredRepaintDelayDuringLoading(
+                        presets[i].initialDeferredRepaintDelayDuringLoading);
+                FrameView::setRepaintThrottlingMaxDeferredRepaintDelayDuringLoading(
+                        presets[i].maxDeferredRepaintDelayDuringLoading);
+                FrameView::setRepaintThrottlingDeferredRepaintDelayIncrementDuringLoading(
+                        presets[i].deferredRepaintDelayIncrementDuringLoading);
+                break;
+            }
+        }
     }
+#if ENABLE(TILED_BACKING_STORE)
+    else if (event->propertyName() == "_q_TiledBackingStoreTileSize") {
+        WebCore::Frame* frame = QWebFramePrivate::core(q->mainFrame());
+        if (!frame->tiledBackingStore())
+            return;
+        QSize tileSize = q->property("_q_TiledBackingStoreTileSize").toSize();
+        frame->tiledBackingStore()->setTileSize(tileSize);
+    } else if (event->propertyName() == "_q_TiledBackingStoreTileCreationDelay") {
+        WebCore::Frame* frame = QWebFramePrivate::core(q->mainFrame());
+        if (!frame->tiledBackingStore())
+            return;
+        int tileCreationDelay = q->property("_q_TiledBackingStoreTileCreationDelay").toInt();
+        frame->tiledBackingStore()->setTileCreationDelay(static_cast<double>(tileCreationDelay) / 1000.);
+    } else if (event->propertyName() == "_q_TiledBackingStoreKeepAreaMultiplier") {
+        WebCore::Frame* frame = QWebFramePrivate::core(q->mainFrame());
+        if (!frame->tiledBackingStore())
+            return;
+        FloatSize keepMultiplier;
+        FloatSize coverMultiplier;
+        frame->tiledBackingStore()->getKeepAndCoverAreaMultipliers(keepMultiplier, coverMultiplier);
+        QSizeF qSize = q->property("_q_TiledBackingStoreKeepAreaMultiplier").toSizeF();
+        keepMultiplier = FloatSize(qSize.width(), qSize.height());
+        frame->tiledBackingStore()->setKeepAndCoverAreaMultipliers(keepMultiplier, coverMultiplier);
+    } else if (event->propertyName() == "_q_TiledBackingStoreCoverAreaMultiplier") {
+        WebCore::Frame* frame = QWebFramePrivate::core(q->mainFrame());
+        if (!frame->tiledBackingStore())
+            return;
+        FloatSize keepMultiplier;
+        FloatSize coverMultiplier;
+        frame->tiledBackingStore()->getKeepAndCoverAreaMultipliers(keepMultiplier, coverMultiplier);
+        QSizeF qSize = q->property("_q_TiledBackingStoreCoverAreaMultiplier").toSizeF();
+        coverMultiplier = FloatSize(qSize.width(), qSize.height());
+        frame->tiledBackingStore()->setKeepAndCoverAreaMultipliers(keepMultiplier, coverMultiplier);
+    }
+#endif
 }
+#endif
 
 void QWebPagePrivate::shortcutOverrideEvent(QKeyEvent* event)
 {
@@ -1518,7 +1621,7 @@ QVariant QWebPage::inputMethodQuery(Qt::InputMethodQuery property) const
                     RefPtr<Range> range = editor->compositionRange();
                     return QVariant(renderTextControl->selectionEnd() - TextIterator::rangeLength(range.get()));
                 }
-                return QVariant(renderTextControl->selectionEnd());
+                return QVariant(frame->selection()->extent().offsetInContainerNode());
             }
             return QVariant();
         }
@@ -1550,7 +1653,7 @@ QVariant QWebPage::inputMethodQuery(Qt::InputMethodQuery property) const
                     RefPtr<Range> range = editor->compositionRange();
                     return QVariant(renderTextControl->selectionStart() - TextIterator::rangeLength(range.get()));
                 }
-                return QVariant(renderTextControl->selectionStart());
+                return QVariant(frame->selection()->base().offsetInContainerNode());
             }
             return QVariant();
         }
@@ -1692,6 +1795,7 @@ InspectorController* QWebPagePrivate::inspectorController()
     \value Back Navigate back in the history of navigated links.
     \value Forward Navigate forward in the history of navigated links.
     \value Stop Stop loading the current page.
+    \value StopScheduledPageRefresh Stop all pending page refresh/redirect requests.
     \value Reload Reload the current page.
     \value ReloadAndBypassCache Reload the current page, but do not use any local cache. (Added in Qt 4.6)
     \value Cut Cut the content currently selected into the clipboard.
@@ -2097,6 +2201,15 @@ static void openNewWindow(const QUrl& url, WebCore::Frame* frame)
     }
 }
 
+static void collectChildFrames(QWebFrame* frame, QList<QWebFrame*>& list)
+{
+    list << frame->childFrames();
+    QListIterator<QWebFrame*> it(frame->childFrames());
+    while (it.hasNext()) {
+        collectChildFrames(it.next(), list);
+    }
+}
+
 /*!
     This function can be called to trigger the specified \a action.
     It is also called by QtWebKit if the user triggers the action, for example
@@ -2191,6 +2304,16 @@ void QWebPage::triggerAction(WebAction action, bool)
                 d->page->inspectorController()->inspect(d->hitTestResult.d->innerNonSharedNode.get());
             }
 #endif
+            break;
+        }
+        case StopScheduledPageRefresh: {
+            QWebFrame* topFrame = mainFrame();
+            topFrame->d->frame->redirectScheduler()->cancel();
+            QList<QWebFrame*> childFrames;
+            collectChildFrames(topFrame, childFrames);
+            QListIterator<QWebFrame*> it(childFrames);
+            while (it.hasNext())
+                it.next()->d->frame->redirectScheduler()->cancel();
             break;
         }
         default:
@@ -2735,9 +2858,11 @@ bool QWebPage::event(QEvent *ev)
         d->touchEvent(static_cast<QTouchEvent*>(ev));
         break;
 #endif
+#ifndef QT_NO_PROPERTIES
     case QEvent::DynamicPropertyChange:
         d->dynamicPropertyChangeEvent(static_cast<QDynamicPropertyChangeEvent*>(ev));
         break;
+#endif
     default:
         return QObject::event(ev);
     }
@@ -3190,6 +3315,14 @@ bool QWebPage::findText(const QString &subString, FindFlags options)
         } else
             return d->page->markAllMatchesForText(subString, caseSensitivity, true, 0);
     } else {
+        if (subString.isEmpty()) {
+            d->page->mainFrame()->selection()->clear();
+            Frame* frame = d->page->mainFrame()->tree()->firstChild();
+            while (frame) {
+                frame->selection()->clear();
+                frame = frame->tree()->traverseNextWithWrap(false);
+            }
+        }
         ::FindDirection direction = ::FindDirectionForward;
         if (options & FindBackward)
             direction = ::FindDirectionBackward;
@@ -3329,11 +3462,36 @@ QString QWebPage::userAgentForUrl(const QUrl&) const
 #elif defined Q_WS_X11
         "X11"
 #elif defined Q_OS_SYMBIAN
-        "SymbianOS"
+        "Symbian"
 #else
         "Unknown"
 #endif
     );
+
+#if defined Q_OS_SYMBIAN
+        QSysInfo::SymbianVersion symbianVersion = QSysInfo::symbianVersion();
+        switch (symbianVersion) {
+        case QSysInfo::SV_9_2:
+            firstPartTemp += QString::fromLatin1("OS/9.2");
+            break;
+        case QSysInfo::SV_9_3:
+            firstPartTemp += QString::fromLatin1("OS/9.3");
+            break;                
+        case QSysInfo::SV_9_4:
+            firstPartTemp += QString::fromLatin1("OS/9.4");
+            break;
+        case QSysInfo::SV_SF_2:
+            firstPartTemp += QString::fromLatin1("/2");
+            break;
+        case QSysInfo::SV_SF_3:
+            firstPartTemp += QString::fromLatin1("/3");
+            break;
+        case QSysInfo::SV_SF_4:
+            firstPartTemp += QString::fromLatin1("/4");
+        default:
+            break;
+        }
+#endif
 
         firstPartTemp += QString::fromLatin1("; ");
 
@@ -3459,50 +3617,21 @@ QString QWebPage::userAgentForUrl(const QUrl&) const
 #elif defined Q_OS_ULTRIX
         firstPartTemp += QString::fromLatin1("DEC Ultrix");
 #elif defined Q_OS_SYMBIAN
-        firstPartTemp += QString::fromLatin1("SymbianOS");
-        QSysInfo::SymbianVersion symbianVersion = QSysInfo::symbianVersion();
-        switch (symbianVersion) {
-        case QSysInfo::SV_9_2:
-            firstPartTemp += QString::fromLatin1("/9.2");
-            break;
-        case QSysInfo::SV_9_3:
-            firstPartTemp += QString::fromLatin1("/9.3");
-            break;
-        case QSysInfo::SV_9_4:
-            firstPartTemp += QString::fromLatin1("/9.4");
-            break;
-        case QSysInfo::SV_SF_2:
-            firstPartTemp += QString::fromLatin1("^2");
-            break;
-        case QSysInfo::SV_SF_3:
-            firstPartTemp += QString::fromLatin1("^3");
-            break;
-        case QSysInfo::SV_SF_4:
-            firstPartTemp += QString::fromLatin1("^4");
-            break;
-        default:
-            firstPartTemp += QString::fromLatin1("/Unknown");
-        }
-
-#if defined Q_WS_S60
         firstPartTemp += QLatin1Char(' ');
-        firstPartTemp += QString::fromLatin1("Series60");
         QSysInfo::S60Version s60Version = QSysInfo::s60Version();
         switch (s60Version) {
         case QSysInfo::SV_S60_3_1:
-            firstPartTemp += QString::fromLatin1("/3.1");
+            firstPartTemp += QString::fromLatin1("Series60/3.1");
             break;
         case QSysInfo::SV_S60_3_2:
-            firstPartTemp += QString::fromLatin1("/3.2");
+            firstPartTemp += QString::fromLatin1("Series60/3.2");
             break;
         case QSysInfo::SV_S60_5_0:
-            firstPartTemp += QString::fromLatin1("/5.0");
+            firstPartTemp += QString::fromLatin1("Series60/5.0");
             break;
         default:
-            firstPartTemp += QString::fromLatin1("/Unknown");
+            break;
         }
-#endif
-
 #elif defined Q_OS_UNIX
         firstPartTemp += QString::fromLatin1("UNIX BSD/SYSV system");
 #elif defined Q_OS_UNIXWARE
@@ -3532,8 +3661,8 @@ QString QWebPage::userAgentForUrl(const QUrl&) const
 
         QString thirdPartTemp;
         thirdPartTemp.reserve(150);
-#if defined(Q_WS_S60) || defined(Q_WS_MAEMO_5)
-        thirdPartTemp + QLatin1String(" Mobile Safari/");
+#if defined(Q_OS_SYMBIAN) || defined(Q_WS_MAEMO_5)
+        thirdPartTemp += QLatin1String(" Mobile Safari/");
 #else
         thirdPartTemp += QLatin1String(" Safari/");
 #endif
@@ -3551,7 +3680,7 @@ QString QWebPage::userAgentForUrl(const QUrl&) const
         languageName = d->client->ownerWidget()->locale().name();
     else
         languageName = QLocale().name();
-    languageName[2] = QLatin1Char('-');
+    languageName.replace(QLatin1Char('_'), QLatin1Char('-'));
 
     // Application name/version
     QString appName = QCoreApplication::applicationName();

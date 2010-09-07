@@ -47,8 +47,14 @@
 #include <QtDeclarative/qdeclarativecomponent.h>
 #include <private/qdeclarativeloader_p.h>
 #include "testhttpserver.h"
+#include "../../../shared/util.h"
 
 #define SERVER_PORT 14450
+
+#ifdef Q_OS_SYMBIAN
+// In Symbian OS test data is located in applications private dir
+#define SRCDIR "."
+#endif
 
 inline QUrl TEST_FILE(const QString &filename)
 {
@@ -78,6 +84,7 @@ private slots:
     void clear();
     void urlToComponent();
     void componentToUrl();
+    void anchoredLoader();
     void sizeLoaderToItem();
     void sizeItemToLoader();
     void noResize();
@@ -104,13 +111,14 @@ tst_QDeclarativeLoader::tst_QDeclarativeLoader()
 void tst_QDeclarativeLoader::url()
 {
     QDeclarativeComponent component(&engine);
-    component.setData(QByteArray("import Qt 4.7\nLoader { source: \"Rect120x60.qml\" }"), TEST_FILE(""));
+    component.setData(QByteArray("import Qt 4.7\nLoader { property int did_load: 0; onLoaded: did_load=123; source: \"Rect120x60.qml\" }"), TEST_FILE(""));
     QDeclarativeLoader *loader = qobject_cast<QDeclarativeLoader*>(component.create());
     QVERIFY(loader != 0);
     QVERIFY(loader->item());
     QVERIFY(loader->source() == QUrl::fromLocalFile(SRCDIR "/data/Rect120x60.qml"));
     QCOMPARE(loader->progress(), 1.0);
     QCOMPARE(loader->status(), QDeclarativeLoader::Ready);
+    QCOMPARE(loader->property("did_load").toInt(), 123);
     QCOMPARE(static_cast<QGraphicsItem*>(loader)->children().count(), 1);
 
     delete loader;
@@ -169,9 +177,7 @@ void tst_QDeclarativeLoader::clear()
         QCOMPARE(loader->progress(), 1.0);
         QCOMPARE(static_cast<QGraphicsItem*>(loader)->children().count(), 1);
 
-        QTest::qWait(500);
-
-        QVERIFY(loader->item() == 0);
+        QTRY_VERIFY(loader->item() == 0);
         QCOMPARE(loader->progress(), 0.0);
         QCOMPARE(loader->status(), QDeclarativeLoader::Null);
         QCOMPARE(static_cast<QGraphicsItem*>(loader)->children().count(), 0);
@@ -232,8 +238,8 @@ void tst_QDeclarativeLoader::urlToComponent()
                 "}" )
             , TEST_FILE(""));
     QDeclarativeLoader *loader = qobject_cast<QDeclarativeLoader*>(component.create());
-    QTest::qWait(500);
-    QVERIFY(loader != 0);
+    QTest::qWait(200);
+    QTRY_VERIFY(loader != 0);
     QVERIFY(loader->item());
     QCOMPARE(loader->progress(), 1.0);
     QCOMPARE(static_cast<QGraphicsItem*>(loader)->children().count(), 1);
@@ -263,6 +269,27 @@ void tst_QDeclarativeLoader::componentToUrl()
     QCOMPARE(loader->height(), 60.0);
 
     delete item;
+}
+
+void tst_QDeclarativeLoader::anchoredLoader()
+{
+    QDeclarativeComponent component(&engine, TEST_FILE("/AnchoredLoader.qml"));
+    QDeclarativeItem *rootItem = qobject_cast<QDeclarativeItem*>(component.create());
+    QVERIFY(rootItem != 0);
+    QDeclarativeItem *loader = rootItem->findChild<QDeclarativeItem*>("loader");
+    QDeclarativeItem *sourceElement = rootItem->findChild<QDeclarativeItem*>("sourceElement");
+
+    QVERIFY(loader != 0);
+    QVERIFY(sourceElement != 0);
+
+    QCOMPARE(rootItem->width(), 300.0);
+    QCOMPARE(rootItem->height(), 200.0);
+
+    QCOMPARE(loader->width(), 300.0);
+    QCOMPARE(loader->height(), 200.0);
+
+    QCOMPARE(sourceElement->width(), 300.0);
+    QCOMPARE(sourceElement->height(), 200.0);
 }
 
 void tst_QDeclarativeLoader::sizeLoaderToItem()
@@ -427,7 +454,7 @@ void tst_QDeclarativeLoader::networkRequestUrl()
     server.serveDirectory(SRCDIR "/data");
 
     QDeclarativeComponent component(&engine);
-    component.setData(QByteArray("import Qt 4.7\nLoader { source: \"http://127.0.0.1:14450/Rect120x60.qml\" }"), QUrl::fromLocalFile(SRCDIR "/dummy.qml"));
+    component.setData(QByteArray("import Qt 4.7\nLoader { property int did_load : 0; source: \"http://127.0.0.1:14450/Rect120x60.qml\"; onLoaded: did_load=123 }"), QUrl::fromLocalFile(SRCDIR "/dummy.qml"));
     if (component.isError())
         qDebug() << component.errors();
     QDeclarativeLoader *loader = qobject_cast<QDeclarativeLoader*>(component.create());
@@ -437,6 +464,7 @@ void tst_QDeclarativeLoader::networkRequestUrl()
 
     QVERIFY(loader->item());
     QCOMPARE(loader->progress(), 1.0);
+    QCOMPARE(loader->property("did_load").toInt(), 123);
     QCOMPARE(static_cast<QGraphicsItem*>(loader)->children().count(), 1);
 
     delete loader;
@@ -483,7 +511,7 @@ void tst_QDeclarativeLoader::failNetworkRequest()
     QTest::ignoreMessage(QtWarningMsg, "<Unknown File>: Network error for URL http://127.0.0.1:14450/IDontExist.qml");
 
     QDeclarativeComponent component(&engine);
-    component.setData(QByteArray("import Qt 4.7\nLoader { source: \"http://127.0.0.1:14450/IDontExist.qml\" }"), QUrl::fromLocalFile("http://127.0.0.1:14450/dummy.qml"));
+    component.setData(QByteArray("import Qt 4.7\nLoader { property int did_load: 123; source: \"http://127.0.0.1:14450/IDontExist.qml\"; onLoaded: did_load=456 }"), QUrl::fromLocalFile("http://127.0.0.1:14450/dummy.qml"));
     QDeclarativeLoader *loader = qobject_cast<QDeclarativeLoader*>(component.create());
     QVERIFY(loader != 0);
 
@@ -491,6 +519,7 @@ void tst_QDeclarativeLoader::failNetworkRequest()
 
     QVERIFY(loader->item() == 0);
     QCOMPARE(loader->progress(), 0.0);
+    QCOMPARE(loader->property("did_load").toInt(), 123);
     QCOMPARE(static_cast<QGraphicsItem*>(loader)->children().count(), 0);
 
     delete loader;

@@ -57,6 +57,11 @@
 
 #include "../../../shared/util.h"
 
+#ifdef Q_OS_SYMBIAN
+// In Symbian OS test data is located in applications private dir
+#define SRCDIR "."
+#endif
+
 class tst_QDeclarativePathView : public QObject
 {
     Q_OBJECT
@@ -445,6 +450,20 @@ void tst_QDeclarativePathView::pathMoved()
     pathview->setOffset(0.0);
     QCOMPARE(firstItem->pos() + offset, start);
 
+    // Change delegate size
+    pathview->setOffset(0.1);
+    pathview->setOffset(0.0);
+    canvas->rootObject()->setProperty("delegateWidth", 30);
+    QCOMPARE(firstItem->width(), 30.0);
+    offset.setX(firstItem->width()/2);
+    QTRY_COMPARE(firstItem->pos() + offset, start);
+
+    // Change delegate scale
+    pathview->setOffset(0.1);
+    pathview->setOffset(0.0);
+    canvas->rootObject()->setProperty("delegateScale", 1.2);
+    QTRY_COMPARE(firstItem->pos() + offset, start);
+
     delete canvas;
 }
 
@@ -760,7 +779,7 @@ T *tst_QDeclarativePathView::findItem(QGraphicsObject *parent, const QString &ob
         //qDebug() << "try" << item;
         if (mo.cast(item) && (objectName.isEmpty() || item->objectName() == objectName)) {
             if (index != -1) {
-                QDeclarativeExpression e(qmlContext(item), "index", item);
+                QDeclarativeExpression e(qmlContext(item), item, "index");
                 if (e.evaluate().toInt() == index)
                     return static_cast<T*>(item);
             } else {

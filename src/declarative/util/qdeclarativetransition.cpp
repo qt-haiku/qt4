@@ -53,10 +53,50 @@ QT_BEGIN_NAMESPACE
 
 /*!
     \qmlclass Transition QDeclarativeTransition
+    \ingroup qml-animation-transition
     \since 4.7
     \brief The Transition element defines animated transitions that occur on state changes.
 
-    \sa {qmlstates}{States}, {state-transitions}{Transitions}, {QtDeclarative}
+    A Transition defines the animations to be applied when a \l State change occurs.
+
+    For example, the following \l Rectangle has two states: the default state, and
+    an added "moved" state. In the "moved state, the rectangle's position changes 
+    to (50, 50).  The added Transition specifies that when the rectangle
+    changes between the default and the "moved" state, any changes
+    to the \c x and \c y properties should be animated, using an \c Easing.InOutQuad.
+
+    \snippet doc/src/snippets/declarative/transition.qml 0
+
+    Notice the example does not require \l{PropertyAnimation::}{to} and 
+    \l{PropertyAnimation::}{from} values for the NumberAnimation. As a convenience,
+    these properties are automatically set to the values of \c x and \c y before
+    and after the state change; the \c from values are provided by
+    the current values of \c x and \c y, and the \c to values are provided by
+    the PropertyChanges object. If you wish, you can provide \l{PropertyAnimation::}{to} and 
+    \l{PropertyAnimation::}{from} values anyway to override the default values.
+
+    By default, a Transition's animations are applied for any state change in the 
+    parent item. The  Transition \l {Transition::}{from} and \l {Transition::}{to} 
+    values can be set to restrict the animations to only be applied when changing 
+    from one particular state to another.
+
+    To define multiple transitions, specify \l Item::transitions as a list:
+
+    \qml
+    Item {
+        ...
+        transitions: [
+            Transition { ... },
+            Transition { ... }
+        ]
+    }
+    \endqml
+
+    If a state change has a Transition that matches the same property as a
+    \l Behavior, the Transition animation overrides the \l Behavior for that
+    state change.
+
+    \sa {QML Animation}, {declarative/animation/states}{states example}, {qmlstates}{States}, {QtDeclarative}
 */
 
 /*!
@@ -171,18 +211,31 @@ void QDeclarativeTransition::prepare(QDeclarativeStateOperation::ActionList &act
 /*!
     \qmlproperty string Transition::from
     \qmlproperty string Transition::to
-    These properties are selectors indicating which state changes should trigger the transition.
 
-    from is used in conjunction with to to determine when a transition should
-    be applied. By default from and to are both "*" (any state). In the following example,
-    the transition is applied when changing from state1 to state2.
-    \code
-    Transition {
-        from: "state1"
-        to: "state2"
-        ...
+    These properties indicate the state changes that trigger the transition.
+
+    The default values for these properties is "*" (that is, any state).
+
+    For example, the following transition has not set the \c to and \c from
+    properties, so the animation is always applied when changing between
+    the two states (i.e. when the mouse is pressed and released).
+
+    \snippet doc/src/snippets/declarative/transition-from-to.qml 0
+
+    If the transition was changed to this:
+
+    \qml
+        transitions: Transition { 
+            to: "brighter"
+            ColorAnimation { duration: 1000 }
+        }
     }
-    \endcode
+    \endqml
+
+    The animation would only be applied when changing from the default state to
+    the "brighter" state (i.e. when the mouse is pressed, but not on release).
+
+    \sa reversible
 */
 QString QDeclarativeTransition::fromState() const
 {
@@ -205,6 +258,24 @@ void QDeclarativeTransition::setFromState(const QString &f)
     This property holds whether the transition should be automatically reversed when the conditions that triggered this transition are reversed.
 
     The default value is false.
+
+    By default, transitions run in parallel and are applied to all state
+    changes if the \l from and \l to states have not been set. In this
+    situation, the transition is automatically applied when a state change
+    is reversed, and it is not necessary to set this property to reverse
+    the transition.
+
+    However, if a SequentialAnimation is used, or if the \l from or \l to 
+    properties have been set, this property will need to be set to reverse
+    a transition when a state change is reverted. For example, the following
+    transition applies a sequential animation when the mouse is pressed,
+    and reverses the sequence of the animation when the mouse is released:
+
+    \snippet doc/src/snippets/declarative/transition-reversible.qml 0
+
+    If the transition did not set the \c to and \c reversible values, then 
+    on the mouse release, the transition would play the PropertyAnimation
+    before the ColorAnimation instead of reversing the sequence.
 */
 bool QDeclarativeTransition::reversible() const
 {
@@ -241,12 +312,27 @@ void QDeclarativeTransition::setToState(const QString &t)
 /*!
     \qmlproperty list<Animation> Transition::animations
     \default
+
     This property holds a list of the animations to be run for this transition.
 
+    \qml
+    Transition {
+        PropertyAnimation { ... }
+        NumberAnimation { ... }
+    }
+    \endqml
+
     The top-level animations are run in parallel. To run them sequentially,
-    you can create a single SequentialAnimation which contains all the animations,
-    and assign that to animations the animations property.
-    \default
+    define them within a SequentialAnimation:
+
+    \qml
+    Transition {
+        SequentialAnimation {
+            PropertyAnimation { ... }
+            NumberAnimation { ... }
+        }
+    }
+    \endqml
 */
 QDeclarativeListProperty<QDeclarativeAbstractAnimation> QDeclarativeTransition::animations()
 {

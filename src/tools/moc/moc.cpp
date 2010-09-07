@@ -727,6 +727,7 @@ void Moc::parse()
                 error("Class declarations lacks Q_OBJECT macro.");
 
             checkSuperClasses(&def);
+            checkProperties(&def);
 
             classList += def;
             knownQObjectClasses.insert(def.classname);
@@ -1208,6 +1209,12 @@ bool Moc::until(Token target) {
         default: break;
         }
     }
+
+    //when searching commas within the default argument, we should take care of template depth (anglecount)
+    // unfortunatelly, we do not have enough semantic information to know if '<' is the operator< or
+    // the beginning of a template type. so we just use heuristics.
+    int possible = -1;
+
     while (index < symbols.size()) {
         Token t = symbols.at(index++).token;
         switch (t) {
@@ -1226,8 +1233,16 @@ bool Moc::until(Token target) {
             && braceCount <= 0
             && brackCount <= 0
             && parenCount <= 0
-            && (target != RANGLE || angleCount <= 0))
+            && (target != RANGLE || angleCount <= 0)) {
+            if (target != COMMA || angleCount <= 0)
+                return true;
+            possible = index;
+        }
+
+        if (target == COMMA && t == EQ && possible != -1) {
+            index = possible;
             return true;
+        }
 
         if (braceCount < 0 || brackCount < 0 || parenCount < 0
             || (target == RANGLE && angleCount < 0)) {
@@ -1235,6 +1250,12 @@ bool Moc::until(Token target) {
             break;
         }
     }
+
+    if(target == COMMA && angleCount != 0 && possible != -1) {
+        index = possible;
+        return true;
+    }
+
     return false;
 }
 
@@ -1291,6 +1312,63 @@ void Moc::checkSuperClasses(ClassDef *def)
         }
     }
 }
+
+void Moc::checkProperties(ClassDef *cdef)
+{
+    //
+    // specify get function, for compatibiliy we accept functions
+    // returning pointers, or const char * for QByteArray.
+    //
+    for (int i = 0; i < cdef->propertyList.count(); ++i) {
+        PropertyDef &p = cdef->propertyList[i];
+        if (p.read.isEmpty())
+            continue;
+        for (int j = 0; j < cdef->publicList.count(); ++j) {
+            const FunctionDef &f = cdef->publicList.at(j);
+            if (f.name != p.read)
+                continue;
+            if (!f.isConst) // get  functions must be const
+                continue;
+            if (f.arguments.size()) // and must not take any arguments
+                continue;
+            PropertyDef::Specification spec = PropertyDef::ValueSpec;
+            QByteArray tmp = f.normalizedType;
+            if (p.type == "QByteArray" && tmp == "const char *")
+                tmp = "QByteArray";
+            if (tmp.left(6) == "const ")
+                tmp = tmp.mid(6);
+            if (p.type != tmp && tmp.endsWith('*')) {
+                tmp.chop(1);
+                spec = PropertyDef::PointerSpec;
+            } else if (f.type.name.endsWith('&')) { // raw type, not normalized type
+                spec = PropertyDef::ReferenceSpec;
+            }
+            if (p.type != tmp)
+                continue;
+            p.gspec = spec;
+            break;
+        }
+        if(!p.notify.isEmpty()) {
+            int notifyId = -1;
+            for (int j = 0; j < cdef->signalList.count(); ++j) {
+                const FunctionDef &f = cdef->signalList.at(j);
+                if(f.name != p.notify) {
+                    continue;
+                } else {
+                    notifyId = j /* Signal indexes start from 0 */;
+                    break;
+                }
+            }
+            p.notifyId = notifyId;
+            if (notifyId == -1) {
+                QByteArray msg = "NOTIFY signal '" + p.notify + "' of property '" + p.name
+                        + "' does not exist in class " + cdef->classname + ".";
+                error(msg.constData());
+            }
+        }
+    }
+}
+
 
 
 QT_END_NAMESPACE

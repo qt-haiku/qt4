@@ -352,7 +352,7 @@ void QWidgetBackingStore::beginPaint(QRegion &toClean, QWidget *widget, QWindowS
     // Always flush repainted areas.
     dirtyOnScreen += toClean;
 
-#ifdef Q_WS_QWS
+#if defined(Q_WS_QWS) && !defined(Q_BACKINGSTORE_SUBSURFACES)
     toClean.translate(tlwOffset);
 #endif
 
@@ -909,7 +909,7 @@ void QWidgetPrivate::moveRect(const QRect &rect, int dx, int dy)
     QWidgetPrivate *pd = pw->d_func();
     QRect clipR(pd->clipRect());
 #ifdef Q_WS_QWS
-    QWidgetBackingStore *wbs = x->backingStore;
+    QWidgetBackingStore *wbs = x->backingStore.data();
     QWSWindowSurface *surface = static_cast<QWSWindowSurface*>(wbs->windowSurface);
     clipR = clipR.intersected(surface->clipRegion().translated(-toplevelOffset).boundingRect());
 #endif
@@ -939,7 +939,7 @@ void QWidgetPrivate::moveRect(const QRect &rect, int dx, int dy)
         invalidateBuffer((newRect & clipR).translated(-data.crect.topLeft()));
     } else {
 
-        QWidgetBackingStore *wbs = x->backingStore;
+        QWidgetBackingStore *wbs = x->backingStore.data();
         QRegion childExpose(newRect & clipR);
 
         if (sourceRect.isValid() && wbs->bltRect(sourceRect, dx, dy, pw))
@@ -982,7 +982,7 @@ void QWidgetPrivate::scrollRect(const QRect &rect, int dx, int dy)
     if (x->inTopLevelResize)
         return;
 
-    QWidgetBackingStore *wbs = x->backingStore;
+    QWidgetBackingStore *wbs = x->backingStore.data();
     if (!wbs)
         return;
 
@@ -1294,7 +1294,12 @@ void QWidgetBackingStore::sync()
 #ifdef Q_BACKINGSTORE_SUBSURFACES
         QWindowSurface *subSurface = w->windowSurface();
         BeginPaintInfo beginPaintInfo;
-        beginPaint(toBePainted, w, subSurface, &beginPaintInfo, false);
+
+        QPoint off = w->mapTo(tlw, QPoint());
+        toBePainted.translate(off);
+        beginPaint(toBePainted, w, subSurface, &beginPaintInfo, true);
+        toBePainted.translate(-off);
+
         if (beginPaintInfo.nothingToPaint)
             continue;
 

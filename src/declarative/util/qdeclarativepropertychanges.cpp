@@ -61,36 +61,34 @@ QT_BEGIN_NAMESPACE
 
 /*!
     \qmlclass PropertyChanges QDeclarativePropertyChanges
+    \ingroup qml-state-elements
     \since 4.7
-    \brief The PropertyChanges element describes new property values for a state.
+    \brief The PropertyChanges element describes new property bindings or values for a state.
 
-    PropertyChanges provides a state change that modifies the properties of an item.
+    PropertyChanges is used to define the property values or bindings in a 
+    \l State. This enables an item's property values to be changed when it
+    \l {QML States}{changes between states}.
 
-    Here is a property change that modifies the text and color of a Text element
-    when it is clicked:
+    To create a PropertyChanges object, specify the \l target item whose 
+    properties are to be modified, and define the new property values or
+    bindings. For example:
     
-    \qml
-    Text {
-        id: myText
-        width: 100; height: 100
-        text: "Hello"
-        color: "blue"
+    \snippet doc/src/snippets/declarative/propertychanges.qml import 
+    \codeline
+    \snippet doc/src/snippets/declarative/propertychanges.qml 0
 
-        states: State {
-            name: "myState"
+    When the mouse is pressed, the \l Rectangle changes to the \e resized
+    state. In this state, the PropertyChanges object sets the rectangle's 
+    color to blue and the \c height value to that of \c container.height.
 
-            PropertyChanges {
-                target: myText
-                text: "Goodbye"
-                color: "red"
-            }
-        }
-
-        MouseArea { anchors.fill: parent; onClicked: myText.state = 'myState' }
-    }
-    \endqml
-    
-    State-specific script for signal handlers can also be specified:
+    Note this automatically binds \c rect.height to \c container.height 
+    in the \e resized state. If a property binding should not be
+    established, and the height should just be set to the value of
+    \c container.height at the time of the state change, set the \l explicit
+    property to \c true.
+   
+    A PropertyChanges object can also override the default signal handler
+    for an object to implement a signal handler specific to the new state:
 
     \qml
     PropertyChanges {
@@ -99,38 +97,33 @@ QT_BEGIN_NAMESPACE
     }
     \endqml
 
-    You can reset a property in a state change by assigning \c undefined. In the following
-    example we reset \c theText's width when we enter state1. This will give the text its
-    natural width (which is the whole string on one line).
+    \note PropertyChanges can be used to change anchor margins, but not other anchor
+    values; use AnchorChanges for this instead. Similarly, to change an \l Item's
+    \l {Item::}{parent} value, use ParentChanges instead.
 
-    \qml
-    import Qt 4.7
 
-    Rectangle {
-        width: 640
-        height: 480
-        Text {
-            id: theText
-            width: 50
-            wrapMode: Text.WordWrap
-            text: "a text string that is longer than 50 pixels"
-        }
+    \section2 Resetting property values
 
-        states: State {
-            name: "state1"
-            PropertyChanges {
-                target: theText
-                width: undefined
-            }
-        }
-    }
-    \endqml
+    The \c undefined value can be used to reset the property value for a state.
+    In the following example, when \c theText changes to the \e widerText
+    state, its \c width property is reset, giving the text its natural width
+    and displaying the whole string on a single line.
 
-    Anchor margins should be changed with PropertyChanges, but other anchor changes or changes to
-    an Item's parent should be done using the associated change elements
-    (ParentChange and AnchorChanges, respectively).
+    \snippet doc/src/snippets/declarative/propertychanges.qml reset
 
-    \sa {qmlstate}{States}, QtDeclarative
+
+    \section2 Immediate property changes in transitions
+
+    When \l Transitions are used to animate state changes, they animate 
+    properties from their values in the current state to those defined in the
+    new state (as defined by PropertyChanges objects). However, 
+    it is sometimes desirable to set a property value \e immediately during a 
+    \l Transition, without animation; in these cases, the PropertyAction 
+    element can be used to force an immediate property change.
+
+    See the PropertyAction documentation for more details.
+
+    \sa {declarative/animation/states}{states example}, {qmlstate}{States}, QtDeclarative
 */
 
 /*!
@@ -321,7 +314,7 @@ void QDeclarativePropertyChangesPrivate::decode()
 
         QDeclarativeProperty prop = property(name);      //### better way to check for signal property?
         if (prop.type() & QDeclarativeProperty::SignalProperty) {
-            QDeclarativeExpression *expression = new QDeclarativeExpression(qmlContext(q), data.toString(), object);
+            QDeclarativeExpression *expression = new QDeclarativeExpression(qmlContext(q), object, data.toString());
             QDeclarativeData *ddata = QDeclarativeData::get(q);
             if (ddata && ddata->outerContext && !ddata->outerContext->url.isEmpty())
                 expression->setSourceLocation(ddata->outerContext->url.toString(), ddata->lineNumber);
@@ -330,7 +323,7 @@ void QDeclarativePropertyChangesPrivate::decode()
             handler->expression = expression;
             signalReplacements << handler;
         } else if (isScript) {
-            QDeclarativeExpression *expression = new QDeclarativeExpression(qmlContext(q), data.toString(), object);
+            QDeclarativeExpression *expression = new QDeclarativeExpression(qmlContext(q), object, data.toString());
             QDeclarativeData *ddata = QDeclarativeData::get(q);
             if (ddata && ddata->outerContext && !ddata->outerContext->url.isEmpty())
                 expression->setSourceLocation(ddata->outerContext->url.toString(), ddata->lineNumber);
@@ -381,12 +374,12 @@ void QDeclarativePropertyChanges::setObject(QObject *o)
 
 /*!
     \qmlproperty bool PropertyChanges::restoreEntryValues
-    
-    Whether or not the previous values should be restored when
-    leaving the state. By default, restoreEntryValues is true.
 
-    By setting restoreEntryValues to false, you can create a temporary state
-    that has permanent effects on property values.
+    This property holds whether the previous values should be restored when
+    leaving the state. 
+
+    The default value is \c true. Setting this value to \c false creates a
+    temporary state that has permanent effects on property values.
 */
 bool QDeclarativePropertyChanges::restoreEntryValues() const
 {
@@ -485,8 +478,8 @@ QDeclarativePropertyChanges::ActionList QDeclarativePropertyChanges::actions()
     If explicit is set to true, any potential bindings will be interpreted as
     once-off assignments that occur when the state is entered.
 
-    In the following example, the addition of explicit prevents myItem.width from
-    being bound to parent.width. Instead, it is assigned the value of parent.width
+    In the following example, the addition of explicit prevents \c myItem.width from
+    being bound to \c parent.width. Instead, it is assigned the value of \c parent.width
     at the time of the state change.
     \qml
     PropertyChanges {

@@ -152,7 +152,10 @@ QStyleOptionMenuItem QComboMenuDelegate::getStyleOption(const QStyleOptionViewIt
         menuOption.icon = qvariant_cast<QPixmap>(variant);
         break;
     }
-
+    if (qVariantCanConvert<QBrush>(index.data(Qt::BackgroundRole))) {
+        menuOption.palette.setBrush(QPalette::All, QPalette::Background,
+                                    qvariant_cast<QBrush>(index.data(Qt::BackgroundRole)));
+    }
     menuOption.text = index.model()->data(index, Qt::DisplayRole).toString()
                            .replace(QLatin1Char('&'), QLatin1String("&&"));
     menuOption.tabWidth = 0;
@@ -701,6 +704,11 @@ void QComboBoxPrivateContainer::hideEvent(QHideEvent *)
 {
     emit resetButton();
     combo->update();
+    // QGraphicsScenePrivate::removePopup closes the combo box popup, it hides it non-explicitly.
+    // Hiding/showing the QComboBox after this will unexpectedly show the popup as well.
+    // Re-hiding the popup container makes sure it is explicitly hidden.
+    if (QGraphicsProxyWidget *proxy = graphicsProxyWidget())
+        proxy->hide();
 }
 
 void QComboBoxPrivateContainer::mousePressEvent(QMouseEvent *e)
@@ -902,7 +910,7 @@ QComboBox::QComboBox(bool rw, QWidget *parent, const char *name)
     interaction. The highlighted() signal is emitted when the user
     highlights an item in the combobox popup list. All three signals
     exist in two versions, one with a QString argument and one with an
-    \c int argument. If the user selectes or highlights a pixmap, only
+    \c int argument. If the user selects or highlights a pixmap, only
     the \c int signals are emitted. Whenever the text of an editable
     combobox is changed the editTextChanged() signal is emitted.
 

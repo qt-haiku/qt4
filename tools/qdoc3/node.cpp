@@ -44,6 +44,8 @@
 */
 
 #include "node.h"
+#include "tree.h"
+#include "codemarker.h"
 #include <qdebug.h>
 
 QT_BEGIN_NAMESPACE
@@ -101,6 +103,7 @@ Node::Node(Type type, InnerNode *parent, const QString& name)
 {
     if (par)
         par->addChild(this);
+    //uuid = QUuid::createUuid();
 }
 
 /*!
@@ -154,6 +157,67 @@ void Node::setLink(LinkType linkType, const QString &link, const QString &desc)
 }
 
 /*!
+  Returns a string representing the access specifier.
+ */
+QString Node::accessString() const
+{
+    switch (acc) {
+    case Protected:
+        return "protected";
+    case Private:
+        return "private";
+    case Public:
+    default:
+        break;
+    }
+    return "public";
+}
+
+/*!
+  Extract a class name from the type \a string and return it.
+ */
+QString Node::extractClassName(const QString &string) const
+{
+    QString result;
+    for (int i=0; i<=string.size(); ++i) {
+        QChar ch;
+        if (i != string.size())
+            ch = string.at(i);
+
+        QChar lower = ch.toLower();
+        if ((lower >= QLatin1Char('a') && lower <= QLatin1Char('z')) ||
+            ch.digitValue() >= 0 ||
+            ch == QLatin1Char('_') ||
+            ch == QLatin1Char(':')) {
+            result += ch;
+        }
+        else if (!result.isEmpty()) {
+            if (result != QLatin1String("const"))
+                return result;
+            result.clear();
+        }
+    }
+    return result;
+}
+
+/*!
+  Returns a string representing the access specifier.
+ */
+QString RelatedClass::accessString() const
+{
+    switch (access) {
+    case Node::Protected:
+        return "protected";
+    case Node::Private:
+        return "private";
+    case Node::Public:
+    default:
+        break;
+    }
+    return "public";
+}
+
+/*!
  */
 Node::Status Node::inheritedStatus() const
 {
@@ -164,6 +228,11 @@ Node::Status Node::inheritedStatus() const
 }
 
 /*!
+  Returns the thread safeness value for whatever this node
+  represents. But if this node has a parent and the thread
+  safeness value of the parent is the same as the thread
+  safeness value of this node, what is returned is the
+  value \c{UnspecifiedSafeness}. Why?
  */
 Node::ThreadSafeness Node::threadSafeness() const
 {
@@ -173,6 +242,9 @@ Node::ThreadSafeness Node::threadSafeness() const
 }
 
 /*!
+  If this node has a parent, the parent's thread safeness
+  value is returned. Otherwise, this node's thread safeness
+  value is returned. Why?
  */
 Node::ThreadSafeness Node::inheritedThreadSafeness() const
 {
@@ -182,6 +254,9 @@ Node::ThreadSafeness Node::inheritedThreadSafeness() const
 }
 
 /*!
+  Returns the sanitized file name without the path.
+  If the the file is an html file, the html suffix
+  is removed. Why?
  */
 QString Node::fileBase() const
 {
@@ -195,10 +270,47 @@ QString Node::fileBase() const
 }
 
 /*!
+  Returns this node's Universally Unique IDentifier.
+  If its UUID has not yet been created, it is created
+  first.
+ */
+QUuid Node::guid() const
+{
+    if (uuid.isNull())
+        uuid = QUuid::createUuid();
+    return uuid;
+}
+
+/*!
+  Composes a string to be used as an href attribute in DITA
+  XML. It is composed of the file name and the UUID separated
+  by a '#'. If this node is a class node, the file name is
+  taken from this node; if this node is a function node, the
+  file name is taken from the parent node of this node.
+ */
+QString Node::ditaXmlHref()
+{
+    QString href;
+    if ((type() == Function) ||
+        (type() == Property) ||
+        (type() == Variable)) {
+        href = parent()->fileBase();
+    }
+    else {
+        href = fileBase();
+    }
+    if (!href.endsWith(".xml"))
+        href += ".xml";
+    return href + "#" + guid();
+}
+
+/*!
   \class InnerNode
  */
 
 /*!
+  The inner node destructor deletes the children and removes
+  this node from its related nodes.
  */
 InnerNode::~InnerNode()
 {
@@ -215,7 +327,7 @@ InnerNode::~InnerNode()
 Node *InnerNode::findNode(const QString& name)
 {
     Node *node = childMap.value(name);
-    if (node)
+    if (node && node->subType() != QmlPropertyGroup)
         return node;
     if ((type() == Fake) && (subType() == QmlClass)) {
         for (int i=0; i<children.size(); ++i) {
@@ -342,6 +454,9 @@ void InnerNode::setOverload(const FunctionNode *func, bool overlode)
 }
 
 /*!
+  Mark all child nodes that have no documentation as having
+  private access and internal status. qdoc will then ignore
+  them for documentation purposes.
  */
 void InnerNode::makeUndocumentedChildrenInternal()
 {
@@ -537,11 +652,18 @@ NodeList InnerNode::overloads(const QString &funcName) const
 InnerNode::InnerNode(Type type, InnerNode *parent, const QString& name)
     : Node(type, parent, name)
 {
-    if (type == Class)
+    switch (type) {
+    case Class:
+    case Namespace:
         setPageType(ApiPage);
+        break;
+    default:
+        break;
+    }
 }
 
 /*!
+  Appends an \a include file to the list of include files.
  */
 void InnerNode::addInclude(const QString& include)
 {
@@ -549,6 +671,7 @@ void InnerNode::addInclude(const QString& include)
 }
 
 /*!
+  Sets the list of include files to \a includes.
  */
 void InnerNode::setIncludes(const QStringList& includes)
 {
@@ -624,7 +747,7 @@ void InnerNode::removeChild(Node *child)
 	QMap<QString, Node *>::Iterator prim =
 		primaryFunctionMap.find(child->name());
 	NodeList& secs = secondaryFunctionMap[child->name()];
-	if (*prim == child) {
+	if (prim != primaryFunctionMap.end() && *prim == child) {
 	    if (secs.isEmpty()) {
 		primaryFunctionMap.remove(child->name());
 	    }
@@ -636,12 +759,12 @@ void InnerNode::removeChild(Node *child)
 	    secs.removeAll(child);
 	}
         QMap<QString, Node *>::Iterator ent = childMap.find( child->name() );
-        if ( *ent == child )
+        if (ent != childMap.end() && *ent == child)
             childMap.erase( ent );
     }
     else {
 	QMap<QString, Node *>::Iterator ent = childMap.find(child->name());
-	if (*ent == child)
+	if (ent != childMap.end() && *ent == child)
 	    childMap.erase(ent);
     }
 }
@@ -728,6 +851,19 @@ bool LeafNode::isInnerNode() const
 LeafNode::LeafNode(Type type, InnerNode *parent, const QString& name)
     : Node(type, parent, name)
 {
+    switch (type) {
+    case Enum:
+    case Function:
+    case Typedef:
+    case Variable:
+    case QmlProperty:
+    case QmlSignal:
+    case QmlMethod:
+        setPageType(ApiPage);
+        break;
+    default:
+        break;
+    }
 }
 
 /*!
@@ -745,6 +881,7 @@ NamespaceNode::NamespaceNode(InnerNode *parent, const QString& name)
 
 /*!
   \class ClassNode
+  \brief This class represents a C++ class.
  */
 
 /*!
@@ -754,6 +891,7 @@ ClassNode::ClassNode(InnerNode *parent, const QString& name)
     : InnerNode(Class, parent, name)
 {
     hidden = false;
+    abstract = false;
     setPageType(ApiPage);
 }
 
@@ -763,8 +901,8 @@ void ClassNode::addBaseClass(Access access,
                              ClassNode *node,
                              const QString &dataTypeWithTemplateArgs)
 {
-    bas.append(RelatedClass(access, node, dataTypeWithTemplateArgs));
-    node->der.append(RelatedClass(access, this));
+    bases.append(RelatedClass(access, node, dataTypeWithTemplateArgs));
+    node->derived.append(RelatedClass(access, this));
 }
 
 /*!
@@ -772,16 +910,16 @@ void ClassNode::addBaseClass(Access access,
 void ClassNode::fixBaseClasses()
 {
     int i;
-
     i = 0;
-    while (i < bas.size()) {
-        ClassNode *baseClass = bas.at(i).node;
-        if (baseClass->access() == Node::Private) {
-            bas.removeAt(i);
-
-            const QList<RelatedClass> &basesBases = baseClass->baseClasses();
-            for (int j = basesBases.size() - 1; j >= 0; --j)
-                bas.insert(i, basesBases.at(j));
+    while (i < bases.size()) {
+        ClassNode* bc = bases.at(i).node;
+        if (bc->access() == Node::Private) {
+            RelatedClass rc = bases.at(i);
+            bases.removeAt(i);
+            ignoredBases.append(rc);
+            const QList<RelatedClass> &bb = bc->baseClasses();
+            for (int j = bb.size() - 1; j >= 0; --j)
+                bases.insert(i, bb.at(j));
         }
         else {
             ++i;
@@ -789,20 +927,28 @@ void ClassNode::fixBaseClasses()
     }
 
     i = 0;
-    while (i < der.size()) {
-        ClassNode *derivedClass = der.at(i).node;
-        if (derivedClass->access() == Node::Private) {
-            der.removeAt(i);
-
-            const QList<RelatedClass> &dersDers =
-                derivedClass->derivedClasses();
-            for (int j = dersDers.size() - 1; j >= 0; --j)
-                der.insert(i, dersDers.at(j));
+    while (i < derived.size()) {
+        ClassNode* dc = derived.at(i).node;
+        if (dc->access() == Node::Private) {
+            derived.removeAt(i);
+            const QList<RelatedClass> &dd = dc->derivedClasses();
+            for (int j = dd.size() - 1; j >= 0; --j)
+                derived.insert(i, dd.at(j));
         }
         else {
             ++i;
         }
     }
+}
+
+/*!
+  Search the child list to find the property node with the
+  specified \a name.
+ */
+const PropertyNode* ClassNode::findPropertyNode(const QString& name) const
+{
+    const Node* n = findNode(name,Node::Property);
+    return (n ? static_cast<const PropertyNode*>(n) : 0);
 }
 
 /*!
@@ -833,6 +979,14 @@ FakeNode::FakeNode(InnerNode *parent, const QString& name, SubType subtype)
     default:
         break;
     }
+}
+
+/*!
+  Returns the fake node's title. This is used for the page title.
+*/
+QString FakeNode::title() const
+{
+    return tle;
 }
 
 /*!
@@ -885,6 +1039,8 @@ QString FakeNode::subTitle() const
  */
 
 /*!
+  The constructor for the node representing an enum type
+  has a \a parent class and an enum type \a name.
  */
 EnumNode::EnumNode(InnerNode *parent, const QString& name)
     : LeafNode(Enum, parent, name), ft(0)
@@ -892,6 +1048,7 @@ EnumNode::EnumNode(InnerNode *parent, const QString& name)
 }
 
 /*!
+  Add \a item to the enum type's item list.
  */
 void EnumNode::addItem(const EnumItem& item)
 {
@@ -900,15 +1057,15 @@ void EnumNode::addItem(const EnumItem& item)
 }
 
 /*!
+  Returns the access level of the enumeration item named \a name.
+  Apparently it is private if it has been omitted by qdoc's
+  omitvalue command. Otherwise it is public.
  */
 Node::Access EnumNode::itemAccess(const QString &name) const
 {
-    if (doc().omitEnumItemNames().contains(name)) {
+    if (doc().omitEnumItemNames().contains(name))
         return Private;
-    }
-    else {
-        return Public;
-    }
+    return Public;
 }
 
 /*!
@@ -1043,6 +1200,19 @@ FunctionNode::FunctionNode(Type type, InnerNode *parent, const QString& name, bo
 }
 
 /*!
+  Sets the \a virtualness of this function. If the \a virtualness
+  is PureVirtual, and if the parent() is a ClassNode, set the parent's
+  \e abstract flag to true.
+ */
+void FunctionNode::setVirtualness(Virtualness virtualness)
+{
+    vir = virtualness;
+    if ((virtualness == PureVirtual) && parent() &&
+        (parent()->type() == Node::Class))
+        parent()->setAbstract(true);
+}
+
+/*!
  */
 void FunctionNode::setOverload(bool overlode)
 {
@@ -1135,6 +1305,24 @@ QStringList FunctionNode::parameterNames() const
 }
 
 /*!
+  Returns a raw list of parameters. If \a names is true, the
+  names are included. If \a values is true, the default values
+  are included, if any are present.
+ */
+QString FunctionNode::rawParameters(bool names, bool values) const
+{
+    QString raw;
+    foreach (const Parameter &parameter, parameters()) {
+        raw += parameter.leftType() + parameter.rightType();
+        if (names)
+            raw += parameter.name();
+        if (values)
+            raw += parameter.defaultValue();
+    }
+    return raw;
+}
+
+/*!
   Returns the list of reconstructed parameters. If \a values
   is true, the default values are included, if any are present.
  */
@@ -1184,21 +1372,39 @@ void FunctionNode::debug() const
 
 /*!
   \class PropertyNode
+
+  This class describes one instance of using the Q_PROPERTY macro.
  */
 
 /*!
+  The constructor sets the \a parent and the \a name, but
+  everything else is set to default values.
  */
 PropertyNode::PropertyNode(InnerNode *parent, const QString& name)
     : LeafNode(Property, parent, name),
       sto(Trool_Default),
       des(Trool_Default),
+      scr(Trool_Default),
+      wri(Trool_Default),
+      usr(Trool_Default),
+      cst(false),
+      fnl(false),
       overrides(0)
 {
+    // nothing.
 }
 
 /*!
+  Sets this property's \e {overridden from} property to
+  \a baseProperty, which indicates that this property
+  overrides \a baseProperty. To begin with, all the values
+  in this property are set to the corresponding values in
+  \a baseProperty.
+
+  We probably should ensure that the constant and final
+  attributes are not being overridden improperly.
  */
-void PropertyNode::setOverriddenFrom(const PropertyNode *baseProperty)
+void PropertyNode::setOverriddenFrom(const PropertyNode* baseProperty)
 {
     for (int i = 0; i < NumFunctionRoles; ++i) {
         if (funcs[i].isEmpty())
@@ -1208,6 +1414,12 @@ void PropertyNode::setOverriddenFrom(const PropertyNode *baseProperty)
         sto = baseProperty->sto;
     if (des == Trool_Default)
         des = baseProperty->des;
+    if (scr == Trool_Default)
+        scr = baseProperty->scr;
+    if (wri == Trool_Default)
+        wri = baseProperty->wri;
+    if (usr == Trool_Default)
+        usr = baseProperty->usr;
     overrides = baseProperty;
 }
 
@@ -1233,7 +1445,9 @@ QString PropertyNode::qualifiedDataType() const
     }
 }
 
-/*!
+/*! Converts the \a boolean value to an enum representation
+  of the boolean type, which includes an enum  value for the
+  \e {default value} of the item, i.e. true, false, or default.
  */
 PropertyNode::Trool PropertyNode::toTrool(bool boolean)
 {
@@ -1241,6 +1455,15 @@ PropertyNode::Trool PropertyNode::toTrool(bool boolean)
 }
 
 /*!
+  Converts the enum \a troolean back to a boolean value.
+  If \a troolean is neither the true enum value nor the
+  false enum value, the boolean value returned is
+  \a defaultValue.
+
+  Note that runtimeDesignabilityFunction() should be called
+  first. If that function returns the name of a function, it
+  means the function must be called at runtime to determine
+  whether the property is Designable.
  */
 bool PropertyNode::fromTrool(Trool troolean, bool defaultValue)
 {
@@ -1289,7 +1512,10 @@ QmlClassNode::QmlClassNode(InnerNode *parent,
                            const ClassNode* cn)
     : FakeNode(parent, name, QmlClass), cnode(cn)
 {
-    setTitle((qmlOnly ? "" : "QML ") + name + " Element");
+    if (name.startsWith(QLatin1String("QML:")))
+        setTitle((qmlOnly ? QLatin1String("") : QLatin1String("QML ")) + name.mid(4) + QLatin1String(" Element"));
+    else
+        setTitle((qmlOnly ? QLatin1String("") : QLatin1String("QML ")) + name + QLatin1String(" Element"));
 }
 
 /*!
@@ -1393,7 +1619,7 @@ QmlPropertyNode::QmlPropertyNode(QmlPropGroupNode *parent,
       des(Trool_Default),
       att(attached)
 {
-    // nothing.
+    setPageType(ApiPage);
 }
 
 /*!
@@ -1418,6 +1644,144 @@ bool QmlPropertyNode::fromTrool(Trool troolean, bool defaultValue)
         return defaultValue;
     }
 }
+
+static QString valueType(const QString& n)
+{
+    if (n == "QPoint")
+        return "QDeclarativePointValueType";
+    if (n == "QPointF")
+        return "QDeclarativePointFValueType";
+    if (n == "QSize")
+        return "QDeclarativeSizeValueType";
+    if (n == "QSizeF")
+        return "QDeclarativeSizeFValueType";
+    if (n == "QRect")
+        return "QDeclarativeRectValueType";
+    if (n == "QRectF")
+        return "QDeclarativeRectFValueType";
+    if (n == "QVector2D")
+        return "QDeclarativeVector2DValueType";
+    if (n == "QVector3D")
+        return "QDeclarativeVector3DValueType";
+    if (n == "QVector4D")
+        return "QDeclarativeVector4DValueType";
+    if (n == "QQuaternion")
+        return "QDeclarativeQuaternionValueType";
+    if (n == "QMatrix4x4")
+        return "QDeclarativeMatrix4x4ValueType";
+    if (n == "QEasingCurve")
+        return "QDeclarativeEasingValueType";
+    if (n == "QFont")
+        return "QDeclarativeFontValueType";
+    return QString();
+}
+
+/*!
+  Returns true if a QML property or attached property is
+  read-only. The algorithm for figuring this out is long
+  amd tedious and almost certainly will break. It currently
+  doesn't work for qmlproperty bool PropertyChanges::explicit,
+  because the tokenized gets confused on "explicit" .
+ */
+bool QmlPropertyNode::isWritable(const Tree* tree) const
+{
+    Node* n = parent();
+    while (n && n->subType() != Node::QmlClass)
+        n = n->parent();
+    if (n) {
+        const QmlClassNode* qcn = static_cast<const QmlClassNode*>(n);
+        const ClassNode* cn = qcn->classNode();
+        if (cn) {
+            QStringList dotSplit = name().split(QChar('.'));
+            const PropertyNode* pn = cn->findPropertyNode(dotSplit[0]);
+            if (pn) {
+                if (dotSplit.size() > 1) {
+                    QStringList path(extractClassName(pn->qualifiedDataType()));
+                    const Node* nn = tree->findNode(path,Class);
+                    if (nn) {
+                        const ClassNode* cn = static_cast<const ClassNode*>(nn);
+                        pn = cn->findPropertyNode(dotSplit[1]);
+                        if (pn) {
+                            return pn->isWritable();
+                        }
+                        else {
+                            const QList<RelatedClass>& bases = cn->baseClasses();
+                            if (!bases.isEmpty()) {
+                                for (int i=0; i<bases.size(); ++i) {
+                                    const ClassNode* cn = bases[i].node;
+                                    pn = cn->findPropertyNode(dotSplit[1]);
+                                    if (pn) {
+                                        return pn->isWritable();
+                                    }
+                                }
+                            }
+                            const QList<RelatedClass>& ignoredBases = cn->ignoredBaseClasses();
+                            if (!ignoredBases.isEmpty()) {
+                                for (int i=0; i<ignoredBases.size(); ++i) {
+                                    const ClassNode* cn = ignoredBases[i].node;
+                                    pn = cn->findPropertyNode(dotSplit[1]);
+                                    if (pn) {
+                                        return pn->isWritable();
+                                    }
+                                }
+                            }
+                            QString vt = valueType(cn->name());
+                            if (!vt.isEmpty()) {
+                                QStringList path(vt);
+                                const Node* vtn = tree->findNode(path,Class);
+                                if (vtn) {
+                                    const ClassNode* cn = static_cast<const ClassNode*>(vtn);
+                                    pn = cn->findPropertyNode(dotSplit[1]);
+                                    if (pn) {
+                                        return pn->isWritable();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                else {
+                    return pn->isWritable();
+                }
+            }
+            else {
+                const QList<RelatedClass>& bases = cn->baseClasses();
+                if (!bases.isEmpty()) {
+                    for (int i=0; i<bases.size(); ++i) {
+                        const ClassNode* cn = bases[i].node;
+                        pn = cn->findPropertyNode(dotSplit[0]);
+                        if (pn) {
+                            return pn->isWritable();
+                        }
+                    }
+                }
+                const QList<RelatedClass>& ignoredBases = cn->ignoredBaseClasses();
+                if (!ignoredBases.isEmpty()) {
+                    for (int i=0; i<ignoredBases.size(); ++i) {
+                        const ClassNode* cn = ignoredBases[i].node;
+                        pn = cn->findPropertyNode(dotSplit[0]);
+                        if (pn) {
+                            return pn->isWritable();
+                        }
+                    }
+                }
+                if (isAttached()) {
+                    QString classNameAttached = cn->name() + "Attached";
+                    QStringList path(classNameAttached);
+                    const Node* nn = tree->findNode(path,Class);
+                    const ClassNode* acn = static_cast<const ClassNode*>(nn);
+                    pn = acn->findPropertyNode(dotSplit[0]);
+                    if (pn) {
+                        return pn->isWritable();
+                    }
+                }
+            }
+        }
+    }
+    location().warning(tr("Can't determine read-only status of QML property %1; writable assumed.").arg(name()));
+    return true;
+}
+
 #endif
 
 QT_END_NAMESPACE

@@ -138,7 +138,8 @@ contains(QT_CONFIG, freetype) {
 	../3rdparty/freetype/src/base/ftinit.c \
 	../3rdparty/freetype/src/base/ftmm.c \
 	../3rdparty/freetype/src/base/fttype1.c \
-          ../3rdparty/freetype/src/base/ftbitmap.c\
+	../3rdparty/freetype/src/base/ftsynth.c \
+	../3rdparty/freetype/src/base/ftbitmap.c \
 	../3rdparty/freetype/src/bdf/bdf.c \
 	../3rdparty/freetype/src/cache/ftcache.c \
 	../3rdparty/freetype/src/cff/cff.c \
@@ -196,8 +197,6 @@ contains(QT_CONFIG, freetype) {
     # pull in the proper freetype2 include directory
     include($$QT_SOURCE_TREE/config.tests/unix/freetype/freetype.pri)
     LIBS_PRIVATE += -lfreetype
-} else {
-    DEFINES *= QT_NO_FREETYPE
 }
 
 contains(QT_CONFIG, fontconfig) {

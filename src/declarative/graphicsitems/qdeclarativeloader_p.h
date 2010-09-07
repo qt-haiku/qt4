@@ -51,7 +51,7 @@ QT_BEGIN_NAMESPACE
 QT_MODULE(Declarative)
 
 class QDeclarativeLoaderPrivate;
-class Q_DECLARATIVE_EXPORT QDeclarativeLoader : public QDeclarativeItem
+class Q_AUTOTEST_EXPORT QDeclarativeLoader : public QDeclarativeItem
 {
     Q_OBJECT
     Q_ENUMS(Status)
@@ -84,11 +84,14 @@ Q_SIGNALS:
     void sourceChanged();
     void statusChanged();
     void progressChanged();
+    void loaded();
 
 protected:
     void geometryChanged(const QRectF &newGeometry, const QRectF &oldGeometry);
     QVariant itemChange(GraphicsItemChange change, const QVariant &value);
     bool eventFilter(QObject *watched, QEvent *e);
+    void componentComplete();
+
 private:
     Q_DISABLE_COPY(QDeclarativeLoader)
     Q_DECLARE_PRIVATE_D(QGraphicsItem::d_ptr.data(), QDeclarativeLoader)

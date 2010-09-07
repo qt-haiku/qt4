@@ -70,6 +70,10 @@
 #include "qmessagebox.h"
 #include <QtGui/qgraphicsproxywidget.h>
 
+#ifdef QT_GRAPHICSSYSTEM_RUNTIME
+#include "private/qgraphicssystem_runtime_p.h"
+#endif
+
 #include "qinputcontext.h"
 #include "qkeymapper_p.h"
 
@@ -77,7 +81,7 @@
 #include <private/qt_x11_p.h>
 #endif
 
-#if defined(Q_WS_X11) || defined(Q_WS_S60)
+#if defined(Q_WS_X11) || defined(Q_OS_SYMBIAN)
 #include "qinputcontextfactory.h"
 #endif
 
@@ -142,7 +146,7 @@ static void initResources()
 
 QT_BEGIN_NAMESPACE
 
-Q_DECL_IMPORT extern void qt_call_post_routines();
+Q_CORE_EXPORT void qt_call_post_routines();
 
 int QApplicationPrivate::app_compile_version = 0x040000; //we don't know exactly, but it's at least 4.0.0
 
@@ -183,8 +187,10 @@ QApplicationPrivate::QApplicationPrivate(int &argc, char **argv, QApplication::T
     directPainters = 0;
 #endif
 
+#ifndef QT_NO_GESTURES
     gestureManager = 0;
     gestureWidget = 0;
+#endif // QT_NO_GESTURES
 
 #if defined(Q_WS_X11) || defined(Q_WS_WIN)
     move_cursor = 0;
@@ -442,6 +448,7 @@ QPalette *QApplicationPrivate::set_pal = 0;        // default palette set by pro
 
 QGraphicsSystem *QApplicationPrivate::graphics_system = 0; // default graphics system
 QString QApplicationPrivate::graphics_system_name;         // graphics system id - for delayed initialization
+bool QApplicationPrivate::runtime_graphics_system = false;
 
 Q_GLOBAL_STATIC(QMutex, applicationFontMutex)
 QFont *QApplicationPrivate::app_font = 0;        // default application font
@@ -467,7 +474,7 @@ int qt_antialiasing_threshold = -1;
 static int drag_time = 500;
 #ifdef Q_OS_SYMBIAN
 // The screens are a bit too small to for your thumb when using only 4 pixels drag distance.
-static int drag_distance = 8;
+static int drag_distance = 12;
 #else
 static int drag_distance = 4;
 #endif
@@ -666,7 +673,8 @@ void QApplicationPrivate::process_cmdline()
         \o  -geometry \e geometry, sets the client geometry of the first window
             that is shown.
         \o  -fn or \c -font \e font, defines the application font. The font
-            should be specified using an X logical font description.
+            should be specified using an X logical font description. Note that
+            this option is ignored when Qt is built with fontconfig support enabled.
         \o  -bg or \c -background \e color, sets the default background color
             and an application palette (light and dark shades are calculated).
         \o  -fg or \c -foreground \e color, sets the default foreground color.
@@ -774,6 +782,9 @@ void QApplicationPrivate::construct(
 
     qt_is_gui_used = (qt_appType != QApplication::Tty);
     process_cmdline();
+    // the environment variable has the lowest precedence of runtime graphicssystem switches
+    if (graphics_system_name.isEmpty())
+        graphics_system_name = QString::fromLocal8Bit(qgetenv("QT_GRAPHICSSYSTEM"));
     // Must be called before initialize()
     qt_init(this, qt_appType
 #ifdef Q_WS_X11
@@ -891,6 +902,7 @@ QApplication::QApplication(Display *dpy, int &argc, char **argv,
 #endif // Q_WS_X11
 
 extern void qInitDrawhelperAsm();
+extern void qInitImageConversions();
 extern int qRegisterGuiVariant();
 extern int qUnregisterGuiVariant();
 #ifndef QT_NO_STATEMACHINE
@@ -948,6 +960,8 @@ void QApplicationPrivate::initialize()
 
     // Set up which span functions should be used in raster engine...
     qInitDrawhelperAsm();
+    // and QImage conversion functions
+    qInitImageConversions();
 
 #ifndef QT_NO_WHEELEVENT
     QApplicationPrivate::wheel_scroll_lines = 3;
@@ -1041,6 +1055,18 @@ QApplication::~QApplication()
     QApplicationPrivate::is_app_closing = true;
     QApplicationPrivate::is_app_running = false;
 
+    // delete all widgets
+    if (QWidgetPrivate::allWidgets) {
+        QWidgetSet *mySet = QWidgetPrivate::allWidgets;
+        QWidgetPrivate::allWidgets = 0;
+        for (QWidgetSet::ConstIterator it = mySet->constBegin(); it != mySet->constEnd(); ++it) {
+            register QWidget *w = *it;
+            if (!w->parent())                        // window
+                w->destroy(true, true);
+        }
+        delete mySet;
+    }
+
     delete qt_desktopWidget;
     qt_desktopWidget = 0;
 
@@ -1060,18 +1086,6 @@ QApplication::~QApplication()
 
     delete QWidgetPrivate::mapper;
     QWidgetPrivate::mapper = 0;
-
-    // delete all widgets
-    if (QWidgetPrivate::allWidgets) {
-        QWidgetSet *mySet = QWidgetPrivate::allWidgets;
-        QWidgetPrivate::allWidgets = 0;
-        for (QWidgetSet::ConstIterator it = mySet->constBegin(); it != mySet->constEnd(); ++it) {
-            register QWidget *w = *it;
-            if (!w->parent())                        // window
-                w->destroy(true, true);
-        }
-        delete mySet;
-    }
 
     delete QApplicationPrivate::app_pal;
     QApplicationPrivate::app_pal = 0;
@@ -1554,10 +1568,18 @@ QStyle* QApplication::setStyle(const QString& style)
     on-screen widgets and QPixmaps. The available systems are \c{"native"},
     \c{"raster"} and \c{"opengl"}.
 
-    This function call overrides both the application commandline
-    \c{-graphicssystem} switch and the configure \c{-graphicssystem} switch.
+    There are several ways to set the graphics backend, in order of decreasing
+    precedence:
+    \list
+        \o the application commandline \c{-graphicssystem} switch
+        \o QApplication::setGraphicsSystem()
+        \o the QT_GRAPHICSSYSTEM environment variable
+        \o the Qt configure \c{-graphicssystem} switch
+    \endlist
+    If the highest precedence switch sets an invalid name, the error will be
+    ignored and the default backend will be used.
 
-    \warning This function must be called before the QApplication constructor
+    \warning This function is only effective before the QApplication constructor
     is called.
 
     \note The \c{"opengl"} option is currently experimental.
@@ -1565,7 +1587,14 @@ QStyle* QApplication::setStyle(const QString& style)
 
 void QApplication::setGraphicsSystem(const QString &system)
 {
-    QApplicationPrivate::graphics_system_name = system;
+#ifdef QT_GRAPHICSSYSTEM_RUNTIME
+    if (QApplicationPrivate::graphics_system_name == QLatin1String("runtime")) {
+        QRuntimeGraphicsSystem *r =
+                static_cast<QRuntimeGraphicsSystem *>(QApplicationPrivate::graphics_system);
+        r->setGraphicsSystem(system);
+    } else
+#endif
+        QApplicationPrivate::graphics_system_name = system;
 }
 
 /*!
@@ -2218,15 +2247,17 @@ void QApplication::closeAllWindows()
 {
     bool did_close = true;
     QWidget *w;
-    while((w = activeModalWidget()) && did_close) {
-        if(!w->isVisible())
+    while ((w = activeModalWidget()) && did_close) {
+        if (!w->isVisible() || w->data->is_closing)
             break;
         did_close = w->close();
     }
     QWidgetList list = QApplication::topLevelWidgets();
     for (int i = 0; did_close && i < list.size(); ++i) {
         w = list.at(i);
-        if (w->isVisible() && w->windowType() != Qt::Desktop) {
+        if (w->isVisible()
+            && w->windowType() != Qt::Desktop
+            && !w->data->is_closing) {
             did_close = w->close();
             list = QApplication::topLevelWidgets();
             i = -1;
@@ -2509,6 +2540,13 @@ void QApplication::setActiveWindow(QWidget* act)
         sendSpontaneousEvent(w, &activationChange);
     }
 
+#ifdef QT_MAC_USE_COCOA
+    // In case the user clicked on a child window, we need to
+    // reestablish the stacking order of the window so
+    // it pops in front of other child windows in cocoa:
+    qt_cocoaStackChildWindowOnTopOfOtherChildren(window);
+#endif
+
     for(int i = 0; i < toBeDeactivated.size(); ++i) {
         QWidget *w = toBeDeactivated.at(i);
         sendSpontaneousEvent(w, &windowDeactivate);
@@ -2743,7 +2781,7 @@ void QApplicationPrivate::dispatchEnterLeave(QWidget* enter, QWidget* leave) {
             qt_win_set_cursor(cursorWidget, true);
 #elif defined(Q_WS_X11)
             qt_x11_enforce_cursor(cursorWidget, true);
-#elif defined(Q_WS_S60)
+#elif defined(Q_OS_SYMBIAN)
             qt_symbian_set_cursor(cursorWidget, true);
 #endif
         }
@@ -3516,7 +3554,7 @@ int QApplication::startDragDistance()
 
 void QApplication::setLayoutDirection(Qt::LayoutDirection direction)
 {
-    if (layout_direction == direction)
+    if (layout_direction == direction || direction == Qt::LayoutDirectionAuto)
         return;
 
     layout_direction = direction;
@@ -3692,6 +3730,7 @@ bool QApplication::notify(QObject *receiver, QEvent *e)
 #endif // !QT_NO_WHEELEVENT || !QT_NO_TABLETEVENT
     }
 
+#ifndef QT_NO_GESTURES
     // walk through parents and check for gestures
     if (d->gestureManager) {
         switch (e->type()) {
@@ -3736,7 +3775,7 @@ bool QApplication::notify(QObject *receiver, QEvent *e)
             }
         }
     }
-
+#endif // QT_NO_GESTURES
 
     // User input and window activation makes tooltips sleep
     switch (e->type()) {
@@ -4241,6 +4280,7 @@ bool QApplication::notify(QObject *receiver, QEvent *e)
         res = d->notify_helper(receiver, e);
         break;
 
+#ifndef QT_NO_GESTURES
     case QEvent::NativeGesture:
     {
         // only propagate the first gesture event (after the GID_BEGIN)
@@ -4319,6 +4359,7 @@ bool QApplication::notify(QObject *receiver, QEvent *e)
         }
         break;
     }
+#endif // QT_NO_GESTURES
     default:
         res = d->notify_helper(receiver, e);
         break;
@@ -4656,7 +4697,7 @@ bool QApplicationPrivate::notify_helper(QObject *receiver, QEvent * e)
   Stubbed session management support
  *****************************************************************************/
 #ifndef QT_NO_SESSIONMANAGER
-#if defined(Q_WS_WIN) || defined(Q_WS_MAC) || defined(Q_WS_QWS)
+#if defined(Q_WS_WIN) || defined(Q_WS_MAC) || defined(Q_WS_QWS) || defined(Q_WS_HAIKU)
 
 #if defined(Q_OS_WINCE)
 HRESULT qt_CoCreateGuid(GUID* guid)
@@ -5260,6 +5301,7 @@ bool QApplication::keypadNavigationEnabled()
     \sa QCoreApplication::instance()
 */
 
+#ifndef QT_NO_IM
 // ************************************************************************
 // Input Method support
 // ************************************************************************
@@ -5268,18 +5310,21 @@ bool QApplication::keypadNavigationEnabled()
     This function replaces the QInputContext instance used by the application
     with \a inputContext.
 
+    Qt takes ownership of the given \a inputContext.
+
     \sa inputContext()
 */
 void QApplication::setInputContext(QInputContext *inputContext)
 {
-    Q_D(QApplication);
-    Q_UNUSED(d);// only static members being used.
+    if (inputContext == QApplicationPrivate::inputContext)
+        return;
     if (!inputContext) {
         qWarning("QApplication::setInputContext: called with 0 input context");
         return;
     }
-    delete d->inputContext;
-    d->inputContext = inputContext;
+    delete QApplicationPrivate::inputContext;
+    QApplicationPrivate::inputContext = inputContext;
+    QApplicationPrivate::inputContext->setParent(this);
 }
 
 /*!
@@ -5322,6 +5367,7 @@ QInputContext *QApplication::inputContext() const
 #endif
     return d->inputContext;
 }
+#endif // QT_NO_IM
 
 //Returns the current platform used by keyBindings
 uint QApplicationPrivate::currentPlatform(){
@@ -5749,13 +5795,17 @@ Q_GUI_EXPORT void qt_translateRawTouchEvent(QWidget *window,
     QApplicationPrivate::translateRawTouchEvent(window, deviceType, touchPoints);
 }
 
+#ifndef QT_NO_GESTURES
 QGestureManager* QGestureManager::instance()
 {
-    QApplicationPrivate *qAppPriv = QApplicationPrivate::instance();
-    if (!qAppPriv->gestureManager)
-        qAppPriv->gestureManager = new QGestureManager(qApp);
-    return qAppPriv->gestureManager;
+    if (QApplicationPrivate *qAppPriv = QApplicationPrivate::instance()) {
+        if (!qAppPriv->gestureManager)
+            qAppPriv->gestureManager = new QGestureManager(qApp);
+        return qAppPriv->gestureManager;
+    }
+    return 0;
 }
+#endif // QT_NO_GESTURES
 
 // These pixmaps approximate the images in the Windows User Interface Guidelines.
 

@@ -57,62 +57,113 @@
 
 QT_BEGIN_NAMESPACE
 
+extern Q_GUI_EXPORT bool qt_applefontsmoothing_enabled;
+
 class QTextDocumentWithImageResources : public QTextDocument {
     Q_OBJECT
 
 public:
-    QTextDocumentWithImageResources(QDeclarativeText *parent) :
-        QTextDocument(parent),
-        outstanding(0)
-    {
-    }
+    QTextDocumentWithImageResources(QDeclarativeText *parent);
+    virtual ~QTextDocumentWithImageResources();
 
+    void setText(const QString &);
     int resourcesLoading() const { return outstanding; }
 
 protected:
-    QVariant loadResource(int type, const QUrl &name)
-    {
-        QUrl url = qmlContext(parent())->resolvedUrl(name);
+    QVariant loadResource(int type, const QUrl &name);
 
-        if (type == QTextDocument::ImageResource) {
-            QPixmap pm;
-            QString errorString;
-            QDeclarativePixmapReply::Status status = QDeclarativePixmapCache::get(url, &pm, &errorString, 0, false, 0, 0);
-            if (status == QDeclarativePixmapReply::Ready)
-                return pm;
-            if (status == QDeclarativePixmapReply::Error) {
-                if (!errors.contains(url)) {
-                    errors.insert(url);
-                    qmlInfo(parent()) << errorString;
-                }
-            } else {
-                QDeclarativePixmapReply *reply = QDeclarativePixmapCache::request(qmlEngine(parent()), url);
-                connect(reply, SIGNAL(finished()), this, SLOT(requestFinished()));
+private slots:
+    void requestFinished();
+
+private:
+    QHash<QUrl, QDeclarativePixmap *> m_resources;
+
+    int outstanding;
+    static QSet<QUrl> errors;
+};
+
+QTextDocumentWithImageResources::QTextDocumentWithImageResources(QDeclarativeText *parent) 
+: QTextDocument(parent), outstanding(0)
+{
+}
+
+QTextDocumentWithImageResources::~QTextDocumentWithImageResources()
+{
+    if (!m_resources.isEmpty()) 
+        qDeleteAll(m_resources);
+}
+
+QVariant QTextDocumentWithImageResources::loadResource(int type, const QUrl &name)
+{
+    QDeclarativeContext *context = qmlContext(parent());
+    QUrl url = context->resolvedUrl(name);
+
+    if (type == QTextDocument::ImageResource) {
+        QHash<QUrl, QDeclarativePixmap *>::Iterator iter = m_resources.find(url);
+
+        if (iter == m_resources.end()) {
+            QDeclarativePixmap *p = new QDeclarativePixmap(context->engine(), url);
+            iter = m_resources.insert(name, p);
+
+            if (p->isLoading()) {
+                p->connectFinished(this, SLOT(requestFinished()));
                 outstanding++;
             }
         }
 
-        return QTextDocument::loadResource(type,url); // The *resolved* URL
+        QDeclarativePixmap *p = *iter;
+        if (p->isReady()) {
+            return p->pixmap();
+        } else if (p->isError()) {
+            if (!errors.contains(url)) {
+                errors.insert(url);
+                qmlInfo(parent()) << p->error();
+            }
+        }
     }
 
-private slots:
-    void requestFinished()
-    {
-        outstanding--;
-        if (outstanding == 0)
-            static_cast<QDeclarativeText*>(parent())->reloadWithResources();
+    return QTextDocument::loadResource(type,url); // The *resolved* URL
+}
+
+void QTextDocumentWithImageResources::requestFinished()
+{
+    outstanding--;
+    if (outstanding == 0) {
+        QDeclarativeText *textItem = static_cast<QDeclarativeText*>(parent());
+        QString text = textItem->text();
+#ifndef QT_NO_TEXTHTMLPARSER
+        setHtml(text);
+#else
+        setPlainText(text);
+#endif
+        QDeclarativeTextPrivate *d = QDeclarativeTextPrivate::get(textItem);
+        d->updateLayout();
+        d->markImgDirty();
+    }
+}
+
+void QTextDocumentWithImageResources::setText(const QString &text)
+{
+    if (!m_resources.isEmpty()) {
+        qWarning("CLEAR");
+        qDeleteAll(m_resources);
+        m_resources.clear();
+        outstanding = 0;
     }
 
-private:
-    int outstanding;
-    static QSet<QUrl> errors;
-};
+#ifndef QT_NO_TEXTHTMLPARSER
+    setHtml(text);
+#else
+    setPlainText(text);
+#endif
+}
 
 QSet<QUrl> QTextDocumentWithImageResources::errors;
 
 /*!
     \qmlclass Text QDeclarativeText
-  \since 4.7
+    \ingroup qml-basic-visual-elements
+    \since 4.7
     \brief The Text item allows you to add formatted text to a scene.
     \inherits Item
 
@@ -126,16 +177,18 @@ QSet<QUrl> QTextDocumentWithImageResources::errors;
     \image declarative-text.png
 
     If height and width are not explicitly set, Text will attempt to determine how
-    much room is needed and set it accordingly. Unless \c wrapMode is set, it will always
+    much room is needed and set it accordingly. Unless \l wrapMode is set, it will always
     prefer width to height (all text will be placed on a single line).
 
-    The \c elide property can alternatively be used to fit a single line of
+    The \l elide property can alternatively be used to fit a single line of
     plain text to a set width.
 
     Note that the \l{Supported HTML Subset} is limited. Also, if the text contains
     HTML img tags that load remote images, the text is reloaded.
 
     Text provides read-only text. For editable text, see \l TextEdit.
+
+    \sa {declarative/text/fonts}{Fonts example}
 */
 
 /*!
@@ -161,7 +214,7 @@ QSet<QUrl> QTextDocumentWithImageResources::errors;
 
     The \c elide property can alternatively be used to fit a line of plain text to a set width.
 
-    A QDeclarativeText object can be instantiated in Qml using the tag \c Text.
+    A QDeclarativeText object can be instantiated in QML using the tag \c Text.
 */
 QDeclarativeText::QDeclarativeText(QDeclarativeItem *parent)
   : QDeclarativeItem(*(new QDeclarativeTextPrivate), parent)
@@ -225,12 +278,6 @@ QDeclarativeTextPrivate::~QDeclarativeTextPrivate()
 */
 
 /*!
-    \qmlproperty bool Text::font.outline
-
-    Sets whether the font has an outline style.
-*/
-
-/*!
     \qmlproperty bool Text::font.strikeout
 
     Sets whether the font has a strikeout style.
@@ -257,8 +304,7 @@ QDeclarativeTextPrivate::~QDeclarativeTextPrivate()
     Sets the letter spacing for the font.
 
     Letter spacing changes the default spacing between individual letters in the font.
-    A value of 100 will keep the spacing unchanged; a value of 200 will enlarge the spacing after a character by
-    the width of the character itself.
+    A positive value increases the letter spacing by the corresponding pixels; a negative value decreases the spacing.
 */
 
 /*!
@@ -318,7 +364,7 @@ void QDeclarativeText::setText(const QString &n)
     if (d->richText) {
         if (isComponentComplete()) {
             d->ensureDoc();
-            d->doc->setHtml(n);
+            d->doc->setText(n);
         }
     }
 
@@ -437,6 +483,8 @@ void QDeclarativeText::setStyleColor(const QColor &color)
     \qml
     Text { font.pointSize: 18; text: "hello"; style: Text.Raised; styleColor: "gray" }
     \endqml
+
+    \sa style
  */
 QColor QDeclarativeText::styleColor() const
 {
@@ -473,6 +521,7 @@ void QDeclarativeText::setHAlign(HAlignment align)
         return;
 
     d->hAlign = align;
+    update();
     emit horizontalAlignmentChanged(align);
 }
 
@@ -489,6 +538,7 @@ void QDeclarativeText::setVAlign(VAlignment align)
         return;
 
     d->vAlign = align;
+    update();
     emit verticalAlignmentChanged(align);
 }
 
@@ -499,16 +549,11 @@ void QDeclarativeText::setVAlign(VAlignment align)
     wrap if an explicit width has been set.  wrapMode can be one of:
 
     \list
-    \o Text.NoWrap - no wrapping will be performed.
-    \o Text.WordWrap - wrapping is done on word boundaries. If the text cannot be
-    word-wrapped to the specified width it will be partially drawn outside of the item's bounds.
-    If this is undesirable then enable clipping on the item (Item::clip).
-    \o Text.WrapAnywhere - Text can be wrapped at any point on a line, even if it occurs in the middle of a word.
-    \o Text.WrapAtWordBoundaryOrAnywhere - If possible, wrapping occurs at a word boundary; otherwise it
-       will occur at the appropriate point on the line, even in the middle of a word.
+    \o Text.NoWrap (default) - no wrapping will be performed. If the text contains insufficient newlines, then \l paintedWidth will exceed a set width.
+    \o Text.WordWrap - wrapping is done on word boundaries only. If a word is too long, \l paintedWidth will exceed a set width.
+    \o Text.WrapAnywhere - wrapping is done at any point on a line, even if it occurs in the middle of a word.
+    \o Text.Wrap - if possible, wrapping occurs at a word boundary; otherwise it will occur at the appropriate point on the line, even in the middle of a word.
     \endlist
-
-    The default is Text.NoWrap.
 */
 QDeclarativeText::WrapMode QDeclarativeText::wrapMode() const
 {
@@ -538,13 +583,13 @@ void QDeclarativeText::setWrapMode(WrapMode mode)
     Supported text formats are:
     
     \list
-    \o Text.AutoText
+    \o Text.AutoText (default)
     \o Text.PlainText
     \o Text.RichText
     \o Text.StyledText
     \endlist
 
-    The default is Text.AutoText.  If the text format is Text.AutoText the text element
+    If the text format is \c Text.AutoText the text element
     will automatically determine whether the text should be treated as
     rich text.  This determination is made using Qt::mightBeRichText().
 
@@ -608,7 +653,7 @@ void QDeclarativeText::setTextFormat(TextFormat format)
     } else if (!wasRich && d->richText) {
         if (isComponentComplete()) {
             d->ensureDoc();
-            d->doc->setHtml(d->text);
+            d->doc->setText(d->text);
         }
         d->updateLayout();
         d->markImgDirty();
@@ -658,11 +703,54 @@ void QDeclarativeText::setElideMode(QDeclarativeText::TextElideMode mode)
     emit elideModeChanged(d->elideMode);
 }
 
+QRectF QDeclarativeText::boundingRect() const
+{
+    Q_D(const QDeclarativeText);
+
+    int w = width();
+    int h = height();
+
+    int x = 0;
+    int y = 0;
+
+    QSize size = d->cachedLayoutSize;
+    if (d->style != Normal)
+        size += QSize(2,2);
+
+    // Could include font max left/right bearings to either side of rectangle.
+
+    switch (d->hAlign) {
+    case AlignLeft:
+        x = 0;
+        break;
+    case AlignRight:
+        x = w - size.width();
+        break;
+    case AlignHCenter:
+        x = (w - size.width()) / 2;
+        break;
+    }
+
+    switch (d->vAlign) {
+    case AlignTop:
+        y = 0;
+        break;
+    case AlignBottom:
+        y = h - size.height();
+        break;
+    case AlignVCenter:
+        y = (h - size.height()) / 2;
+        break;
+    }
+
+    return QRectF(x,y,size.width(),size.height());
+}
+
 void QDeclarativeText::geometryChanged(const QRectF &newGeometry,
                               const QRectF &oldGeometry)
 {
     Q_D(QDeclarativeText);
-    if (newGeometry.width() != oldGeometry.width()) {
+    if (!d->internalWidthUpdate && newGeometry.width() != oldGeometry.width()) {
         if (d->wrapMode != QDeclarativeText::NoWrap || d->elideMode != QDeclarativeText::ElideNone) {
             //re-elide if needed
             if (d->singleline && d->elideMode != QDeclarativeText::ElideNone &&
@@ -708,6 +796,7 @@ void QDeclarativeTextPrivate::updateLayout()
     }
 }
 
+
 void QDeclarativeTextPrivate::updateSize()
 {
     Q_Q(QDeclarativeText);
@@ -715,6 +804,7 @@ void QDeclarativeTextPrivate::updateSize()
         QFontMetrics fm(font);
         if (text.isEmpty()) {
             q->setImplicitHeight(fm.height());
+            emit q->paintedSizeChanged();
             return;
         }
 
@@ -724,7 +814,10 @@ void QDeclarativeTextPrivate::updateSize()
         //setup instance of QTextLayout for all cases other than richtext
         if (!richText) {
             size = setupTextLayout(&layout);
-            cachedLayoutSize = size;
+            if (cachedLayoutSize != size) {
+                q->prepareGeometryChange();
+                cachedLayoutSize = size;
+            }
             dy -= size.height();
         } else {
             singleline = false; // richtext can't elide or be optimized for single-line case
@@ -738,7 +831,13 @@ void QDeclarativeTextPrivate::updateSize()
             else
                 doc->setTextWidth(doc->idealWidth()); // ### Text does not align if width is not set (QTextDoc bug)
             dy -= (int)doc->size().height();
-            cachedLayoutSize = doc->size().toSize();
+                q->prepareGeometryChange();
+            QSize dsize = doc->size().toSize();
+            if (dsize != cachedLayoutSize) {
+                q->prepareGeometryChange();
+                cachedLayoutSize = dsize;
+            }
+            size = QSize(int(doc->idealWidth()),dsize.height());
         }
         int yoff = 0;
 
@@ -751,12 +850,39 @@ void QDeclarativeTextPrivate::updateSize()
         q->setBaselineOffset(fm.ascent() + yoff);
 
         //### need to comfirm cost of always setting these for richText
-        q->setImplicitWidth(richText ? (int)doc->idealWidth() : size.width());
-        q->setImplicitHeight(richText ? (int)doc->size().height() : size.height());
+        internalWidthUpdate = true;
+        q->setImplicitWidth(size.width());
+        internalWidthUpdate = false;
+        q->setImplicitHeight(size.height());
+        emit q->paintedSizeChanged();
     } else {
         dirty = true;
     }
 }
+
+/*!
+    \qmlproperty real Text::paintedWidth
+
+    Returns the width of the text, including width past the width
+    which is covered due to insufficient wrapping if WrapMode is set.
+*/
+qreal QDeclarativeText::paintedWidth() const
+{
+    return implicitWidth();
+}
+
+/*!
+    \qmlproperty real Text::paintedHeight
+
+    Returns the height of the text, including height past the height
+    which is covered due to there being more text than fits in the set height.
+*/
+qreal QDeclarativeText::paintedHeight() const
+{
+    return implicitHeight();
+}
+
+
 
 // ### text layout handling should be profiled and optimized as needed
 // what about QStackTextEngine engine(tmp, d->font.font()); QTextLayout textLayout(&engine);
@@ -782,6 +908,8 @@ void QDeclarativeTextPrivate::drawOutline()
     ppm.drawPixmap(pos, imgCache);
     ppm.end();
 
+    if (imgCache.size() != img.size())
+        q_func()->prepareGeometryChange();
     imgCache = img;
 }
 
@@ -800,6 +928,8 @@ void QDeclarativeTextPrivate::drawOutline(int yOffset)
     ppm.drawPixmap(pos, imgCache);
     ppm.end();
 
+    if (imgCache.size() != img.size())
+        q_func()->prepareGeometryChange();
     imgCache = img;
 }
 
@@ -876,7 +1006,14 @@ QPixmap QDeclarativeTextPrivate::wrappedTextImage(bool drawStyle)
     QPixmap img(size);
     if (!size.isEmpty()) {
         img.fill(Qt::transparent);
+#ifdef Q_WS_MAC
+        bool oldSmooth = qt_applefontsmoothing_enabled;
+        qt_applefontsmoothing_enabled = false;
+#endif
         QPainter p(&img);
+#ifdef Q_WS_MAC
+        qt_applefontsmoothing_enabled = oldSmooth;
+#endif
         drawWrappedText(&p, QPointF(0,0), drawStyle);
     }
     return img;
@@ -899,7 +1036,14 @@ QPixmap QDeclarativeTextPrivate::richTextImage(bool drawStyle)
     //paint text
     QPixmap img(size);
     img.fill(Qt::transparent);
+#ifdef Q_WS_MAC
+    bool oldSmooth = qt_applefontsmoothing_enabled;
+    qt_applefontsmoothing_enabled = false;
+#endif
     QPainter p(&img);
+#ifdef Q_WS_MAC
+    qt_applefontsmoothing_enabled = oldSmooth;
+#endif
 
     QAbstractTextDocumentLayout::PaintContext context;
 
@@ -924,18 +1068,21 @@ void QDeclarativeTextPrivate::checkImgCache()
         return;
 
     bool empty = text.isEmpty();
+    QPixmap newImgCache;
     if (empty) {
-        imgCache = QPixmap();
         imgStyleCache = QPixmap();
     } else if (richText) {
-        imgCache = richTextImage(false);
+        newImgCache = richTextImage(false);
         if (style != QDeclarativeText::Normal)
             imgStyleCache = richTextImage(true); //### should use styleColor
     } else {
-        imgCache = wrappedTextImage(false);
+        newImgCache = wrappedTextImage(false);
         if (style != QDeclarativeText::Normal)
             imgStyleCache = wrappedTextImage(true); //### should use styleColor
     }
+    if (imgCache.size() != newImgCache.size())
+        q_func()->prepareGeometryChange();
+    imgCache = newImgCache;
     if (!empty)
         switch (style) {
         case QDeclarativeText::Outline:
@@ -963,16 +1110,6 @@ void QDeclarativeTextPrivate::ensureDoc()
     }
 }
 
-void QDeclarativeText::reloadWithResources()
-{
-    Q_D(QDeclarativeText);
-    if (!d->richText)
-        return;
-    d->doc->setHtml(d->text);
-    d->updateLayout();
-    d->markImgDirty();
-}
-
 /*!
     Returns the number of resources (images) that are being loaded asynchronously.
 */
@@ -981,6 +1118,15 @@ int QDeclarativeText::resourcesLoading() const
     Q_D(const QDeclarativeText);
     return d->doc ? d->doc->resourcesLoading() : 0;
 }
+
+/*!
+  \qmlproperty bool Text::clip
+  This property holds whether the text is clipped.
+
+  Note that if the text does not fit in the bounding rectangle it will be abruptly chopped.
+
+  If you want to display potentially long text in a limited space, you probably want to use \c elide instead.
+*/
 
 void QDeclarativeText::paint(QPainter *p, const QStyleOptionGraphicsItem *, QWidget *)
 {
@@ -996,72 +1142,29 @@ void QDeclarativeText::paint(QPainter *p, const QStyleOptionGraphicsItem *, QWid
         if (d->smooth)
             p->setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform, d->smooth);
 
-        int w = width();
-        int h = height();
-
-        int x = 0;
-        int y = 0;
-
-        switch (d->hAlign) {
-        case AlignLeft:
-            x = 0;
-            break;
-        case AlignRight:
-            x = w - d->imgCache.width();
-            break;
-        case AlignHCenter:
-            x = (w - d->imgCache.width()) / 2;
-            break;
-        }
-
-        switch (d->vAlign) {
-        case AlignTop:
-            y = 0;
-            break;
-        case AlignBottom:
-            y = h - d->imgCache.height();
-            break;
-        case AlignVCenter:
-            y = (h - d->imgCache.height()) / 2;
-            break;
-        }
+        QRect br = boundingRect().toRect();
 
         bool needClip = clip() && (d->imgCache.width() > width() ||
                                    d->imgCache.height() > height());
 
-        if (needClip) {
-            p->save();
-            p->setClipRect(boundingRect(), Qt::IntersectClip);
-        }
-        p->drawPixmap(x, y, d->imgCache);
         if (needClip)
-            p->restore();
+            p->drawPixmap(0, 0, width(), height(), d->imgCache, -br.x(), -br.y(), width(), height());
+        else
+            p->drawPixmap(br.x(), br.y(), d->imgCache);
 
         if (d->smooth) {
             p->setRenderHint(QPainter::Antialiasing, oldAA);
             p->setRenderHint(QPainter::SmoothPixmapTransform, oldSmooth);
         }
     } else {
-        int h = height();
-        int y = 0;
+        qreal y = boundingRect().y();
 
-        switch (d->vAlign) {
-        case AlignTop:
-            y = 0;
-            break;
-        case AlignBottom:
-            y = h - d->cachedLayoutSize.height();
-            break;
-        case AlignVCenter:
-            y = (h - d->cachedLayoutSize.height()) / 2;
-            break;
-        }
         bool needClip = !clip() && (d->cachedLayoutSize.width() > width() ||
                                     d->cachedLayoutSize.height() > height());
 
         if (needClip) {
             p->save();
-            p->setClipRect(boundingRect(), Qt::IntersectClip);
+            p->setClipRect(0, 0, width(), height(), Qt::IntersectClip);
         }
         if (d->richText) {
             QAbstractTextDocumentLayout::PaintContext context;
@@ -1098,7 +1201,7 @@ void QDeclarativeText::componentComplete()
     if (d->dirty) {
         if (d->richText) {
             d->ensureDoc();
-            d->doc->setHtml(d->text);
+            d->doc->setText(d->text);
         }
         d->updateLayout();
         d->dirty = false;
@@ -1128,7 +1231,7 @@ void QDeclarativeText::mousePressEvent(QGraphicsSceneMouseEvent *event)
 }
 
 /*!
-    \qmlsignal Text::linkActivated(link)
+    \qmlsignal Text::onLinkActivated(link)
 
     This handler is called when the user clicks on a link embedded in the text.
 */

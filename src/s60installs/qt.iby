@@ -20,6 +20,7 @@ file=ABI_DIR\BUILD_DIR\phonon.dll            SHARED_LIB_DIR\phonon.dll
 file=ABI_DIR\BUILD_DIR\QtMultimedia.dll      SHARED_LIB_DIR\QtMultimedia.dll
 file=ABI_DIR\BUILD_DIR\QtXmlPatterns.dll     SHARED_LIB_DIR\QtXmlPatterns.dll
 file=ABI_DIR\BUILD_DIR\QtDeclarative.dll     SHARED_LIB_DIR\QtDeclarative.dll
+file=ABI_DIR\BUILD_DIR\QtOpenGL.dll          SHARED_LIB_DIR\QtOpenGL.dll
 
 // imageformats
 file=ABI_DIR\BUILD_DIR\qgif.dll              SHARED_LIB_DIR\qgif.dll
@@ -50,6 +51,7 @@ file=ABI_DIR\BUILD_DIR\qaudio.dll            SHARED_LIB_DIR\qaudio.dll
 
 // graphicssystems
 file=ABI_DIR\BUILD_DIR\qvggraphicssystem.dll SHARED_LIB_DIR\qvggraphicssystem.dll
+file=ABI_DIR\BUILD_DIR\qglgraphicssystem.dll SHARED_LIB_DIR\qglgraphicssystem.dll
 
 // S60 version compatibility plugins for 5.0 (3.1 and 3.2 devices are never likely to have this in ROM,
 // so don't bother including those plugins
@@ -74,12 +76,28 @@ data=\epoc32\data\z\resource\qt\plugins\codecs\qtwcodecs.qtplugin          resou
 // iconengines stubs
 data=\epoc32\data\z\resource\qt\plugins\iconengines\qsvgicon.qtplugin      resource\qt\plugins\iconengines\qsvgicon.qtplugin
 
+// qml import plugins
+file=ABI_DIR\BUILD_DIR\qmlwebkitplugin.dll      SHARED_LIB_DIR\qmlwebkitplugin.dll
+file=ABI_DIR\BUILD_DIR\qmlfolderlistmodelplugin.dll      SHARED_LIB_DIR\qmlfolderlistmodelplugin.dll
+file=ABI_DIR\BUILD_DIR\qmlgesturesplugin.dll      SHARED_LIB_DIR\qmlgesturesplugin.dll
+file=ABI_DIR\BUILD_DIR\qmlparticlesplugin.dll      SHARED_LIB_DIR\qmlparticlesplugin.dll
+
+data=\epoc32\data\z\resource\qt\imports\QtWebKit\qmlwebkitplugin.qtplugin    resource\qt\imports\QtWebKit\qmlwebkitplugin.qtplugin
+data=\epoc32\data\z\resource\qt\imports\Qt\labs\folderlistmodel\qmlfolderlistmodelplugin.qtplugin    resource\qt\imports\Qt\labs\folderlistmodel\qmlfolderlistmodelplugin.qtplugin
+data=\epoc32\data\z\resource\qt\imports\Qt\labs\gestures\qmlgesturesplugin.qtplugin    resource\qt\imports\Qt\labs\gestures\qmlgesturesplugin.qtplugin
+data=\epoc32\data\z\resource\qt\imports\Qt\labs\particles\qmlparticlesplugin.qtplugin    resource\qt\imports\Qt\labs\particles\qmlparticlesplugin.qtplugin
+
+data=\epoc32\data\z\resource\qt\imports\QtWebKit\qmldir    resource\qt\imports\QtWebKit\qmldir
+data=\epoc32\data\z\resource\qt\imports\Qt\labs\folderlistmodel\qmldir    resource\qt\imports\Qt\labs\folderlistmodel\qmldir
+data=\epoc32\data\z\resource\qt\imports\Qt\labs\gestures\qmldir    resource\qt\imports\Qt\labs\gestures\qmldir
+data=\epoc32\data\z\resource\qt\imports\Qt\labs\particles\qmldir    resource\qt\imports\Qt\labs\particles\qmldir
 
 // QtMultimedia audio backend
 data=\epoc32\data\qt\qtlibspluginstubs\qaudio.qtplugin resource\qt\plugins\audio\qaudio.qtplugin
 
 // graphicssystems
 data=\epoc32\data\z\resource\qt\plugins\graphicssystems\qvggraphicssystem.qtplugin      resource\qt\plugins\graphicssystems\qvggraphicssystem.qtplugin
+data=\epoc32\data\z\resource\qt\plugins\graphicssystems\qglgraphicssystem.qtplugin      resource\qt\plugins\graphicssystems\qglgraphicssystem.qtplugin
 
 // Stub sis file
 data=ZSYSTEM\install\qt_stub.sis    System\Install\qt_stub.sis

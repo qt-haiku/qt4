@@ -46,6 +46,7 @@
 #include <private/qfiledialog_p.h>
 #include <qapplication.h>
 #include <private/qapplication_p.h>
+#include <qdesktopservices.h>
 #include <qglobal.h>
 #include <qregexp.h>
 #include <qbuffer.h>
@@ -72,6 +73,106 @@ extern QStringList qt_make_filter_list(const QString &filter);
 
 const int maxNameLen = 1023;
 const int maxMultiLen = 65535;
+
+class PanelLooper : public BLooper {
+public:
+							PanelLooper();
+	virtual					~PanelLooper();
+	virtual	void			MessageReceived(BMessage* message);
+
+	int						Wait(BFilePanel *panel);
+	
+	QString					GetFilename();
+	QStringList				GetFilenames();
+		
+private:
+	int 					state;
+	QString					filename;
+	QStringList				filenames;
+	entry_ref				fRef;	
+};
+
+
+PanelLooper::PanelLooper() : BLooper("PanelLooper"), state(B_CANCEL) { }
+PanelLooper::~PanelLooper() { }
+
+int
+PanelLooper::Wait(BFilePanel *panel)
+{
+    QEventLoop::ProcessEventsFlags flags;
+    flags |= QEventLoop::WaitForMoreEvents;
+    while(panel->IsShowing()) {
+    	QCoreApplication::processEvents(flags);
+    	snooze(250);
+    }	
+    return state;
+}
+
+QString
+PanelLooper::GetFilename()
+{
+	return filename;
+}
+
+QStringList
+PanelLooper::GetFilenames()
+{
+	return filenames;
+}
+
+void
+PanelLooper::MessageReceived(BMessage* message)
+{
+	switch (message->what) {
+		case B_SAVE_REQUESTED:
+			{
+				entry_ref ref;
+				const char *name;
+				message->FindRef("directory", &ref);
+				BDirectory  dir(&ref);
+				BPath path(&dir, NULL, false);
+				message->FindString("name", &name);
+				path.Append(name);
+				filename = QString::fromUtf8(path.Path());
+				filenames.append(filename);
+								
+				state = B_OK;
+			}
+			break;
+		case B_REFS_RECEIVED:
+			{
+				uint32 type;
+       			int32 count;				
+       			
+				message->GetInfo("refs", &type, &count);
+       			if ( type != B_REF_TYPE || count <= 0)
+           			return;				
+
+				for ( long i = --count; i >= 0; i-- ) {
+           			if ( message->FindRef("refs", i, &fRef) == B_OK ) {
+						BPath path(&fRef);
+				    	filename = QString::fromUtf8(path.Path());
+				    	filenames.append(filename);   				
+           			}
+				}
+								    	
+		    	state = B_OK;
+			}
+			break;
+		case B_CANCEL:
+			{
+				if(state!=B_OK) {
+					state = B_CANCEL;
+					filename.clear();
+					filenames.clear();
+				}
+			}
+			break;
+		default:
+			break;
+	}
+}
+
 
 // Returns the wildcard part of a filter.
 static QString qt_haiku_extract_filter(const QString &rawFilter)
@@ -129,7 +230,7 @@ static QString qt_haiku_selected_filter(const QString &filter, int idx)
 QString qt_haiku_get_open_file_name(const QFileDialogArgs &args,
                                   QString *initialDirectory,
                                   QString *selectedFilter)
-{
+{	
     QString result;
 
 	QString title = args.caption;
@@ -145,8 +246,8 @@ QString qt_haiku_get_open_file_name(const QFileDialogArgs &args,
             isel = fi.fileName();
     }
 
-    if (!fi.exists())
-        *initialDirectory = QDir::homePath();
+    if (!fi.exists() || *initialDirectory==QDir::homePath())
+        *initialDirectory = QDesktopServices::storageLocation(QDesktopServices::HomeLocation);
 
 /*    int selFilIdx = 0;
 
@@ -156,7 +257,11 @@ QString qt_haiku_get_open_file_name(const QFileDialogArgs &args,
         idx = filterLst.indexOf(*selectedFilter);
     }*/
 
+	PanelLooper *looper = new PanelLooper();
+	looper->Run();	
+
     BFilePanel *openpanel = new BFilePanel(B_OPEN_PANEL,NULL,NULL,0,false,NULL,NULL,true,true);
+    openpanel->SetTarget(BMessenger(looper));    
 	if(!title.isEmpty()) {
 		openpanel->Window()->SetTitle((title.toUtf8()).data());
 	}      
@@ -164,21 +269,13 @@ QString qt_haiku_get_open_file_name(const QFileDialogArgs &args,
     openpanel->SetPanelDirectory(dirpath.data());    
     openpanel->Show();
     
-    QEventLoop::ProcessEventsFlags flags;
-    flags |= QEventLoop::WaitForMoreEvents;
-    while(openpanel->IsShowing()) {
-    	QCoreApplication::processEvents(flags);
-    	snooze(100);
-    }
-    
-    openpanel->Rewind();
-    entry_ref ref;
-    if(openpanel->GetNextSelectedRef(&ref)==B_OK) {
-    	BPath p(&ref);
-    	result = QString::fromUtf8(p.Path());
-    }
-    
+	looper->Wait(openpanel);
+	result = looper->GetFilename();
+	
 	delete openpanel;
+
+	looper->Lock();
+	looper->Quit();	
 
     if (result.isEmpty())
         return result;
@@ -207,9 +304,9 @@ QString qt_haiku_get_save_file_name(const QFileDialogArgs &args,
         if (isel.isEmpty())
             isel = fi.fileName();
     }
-
-    if (!fi.exists())
-        *initialDirectory = QDir::homePath();
+	
+    if (!fi.exists() || *initialDirectory==QDir::homePath())
+        *initialDirectory = QDesktopServices::storageLocation(QDesktopServices::HomeLocation);
 /*
     int selFilIdx = 0;
 
@@ -230,8 +327,12 @@ QString qt_haiku_get_save_file_name(const QFileDialogArgs &args,
             defaultSaveExt.clear();
         }
     }*/
+    
+	PanelLooper *looper = new PanelLooper();
+	looper->Run();	    
 
     BFilePanel *savepanel = new BFilePanel(B_SAVE_PANEL,NULL,NULL,0,false,NULL,NULL,true,true);
+    savepanel->SetTarget(BMessenger(looper));    
 	if(!title.isEmpty()) {
 		savepanel->Window()->SetTitle((title.toUtf8()).data());
 	}     
@@ -240,25 +341,14 @@ QString qt_haiku_get_save_file_name(const QFileDialogArgs &args,
 	savepanel->SetSaveText((isel.toUtf8()).data());
     savepanel->Show();
     
-    QEventLoop::ProcessEventsFlags flags;
-    flags |= QEventLoop::WaitForMoreEvents;
-    while(savepanel->IsShowing()) {
-    	QCoreApplication::processEvents(flags);
-    	snooze(100);
-    }
-    
-    BView* background = savepanel->Window()->ChildAt(0);
-	BTextControl *textControl = (BTextControl*)(background->FindView("text view"));
-	if(textControl) {
-		entry_ref dir;
-		savepanel->GetPanelDirectory(&dir);
-		BPath cur_dir_path(&dir);
-		cur_dir_path.Append(textControl->Text());		
-		result = QString(QString::fromUtf8(cur_dir_path.Path()));
-	}
+	looper->Wait(savepanel);
+	result = looper->GetFilename();	
 	
 	delete savepanel;
-
+	
+	looper->Lock();
+	looper->Quit();	
+	
     if (result.isEmpty())
         return result;
 
@@ -288,8 +378,8 @@ QStringList qt_haiku_get_open_file_names(const QFileDialogArgs &args,
             isel = fi.fileName();
     }
 
-    if (!fi.exists())
-        *initialDirectory = QDir::homePath();
+    if (!fi.exists() || *initialDirectory==QDir::homePath())
+        *initialDirectory = QDesktopServices::storageLocation(QDesktopServices::HomeLocation);
 
     int selFilIdx = 0;
 
@@ -298,8 +388,12 @@ QStringList qt_haiku_get_open_file_names(const QFileDialogArgs &args,
         QStringList filterLst = qt_haiku_make_filters_list(args.filter);
         idx = filterLst.indexOf(*selectedFilter);
     }*/
+    
+	PanelLooper *looper = new PanelLooper();
+	looper->Run();    
 
     BFilePanel *openpanel = new BFilePanel(B_OPEN_PANEL,NULL,NULL,0,true,NULL,NULL,true,true);
+    openpanel->SetTarget(BMessenger(looper));
 	if(!title.isEmpty()) {
 		openpanel->Window()->SetTitle((title.toUtf8()).data());
 	}    
@@ -307,22 +401,13 @@ QStringList qt_haiku_get_open_file_names(const QFileDialogArgs &args,
     openpanel->SetPanelDirectory(dirpath.data());
     openpanel->Show();
     
-    QEventLoop::ProcessEventsFlags flags;
-    flags |= QEventLoop::WaitForMoreEvents;
-    while(openpanel->IsShowing()) {
-    	QCoreApplication::processEvents(flags);
-    	snooze(100);
-    }
-    
-    openpanel->Rewind();
-    entry_ref ref;
-    while(openpanel->GetNextSelectedRef(&ref)==B_OK) {
-    	BPath p(&ref);
-    	result.append(QString::fromUtf8(p.Path()));
-    }
+	looper->Wait(openpanel);
+	result = looper->GetFilenames();
 
 	delete openpanel;
-	    
+
+	looper->Lock();
+	looper->Quit();		    
 
     if (!result.isEmpty()) {
         *initialDirectory = fi.path();    // only save the path if there is a result
@@ -348,7 +433,11 @@ QString qt_haiku_get_existing_directory(const QFileDialogArgs &args)
     
     QString title = args.caption;
     
+	PanelLooper *looper = new PanelLooper();
+	looper->Run();	
+	    
 	BFilePanel *dirpanel = new BFilePanel(B_OPEN_PANEL, NULL, NULL,	B_DIRECTORY_NODE, true, NULL, NULL, true, true);	
+ 	dirpanel->SetTarget(BMessenger(looper));  	
 	dirpanel->SetButtonLabel(B_DEFAULT_BUTTON, "Select");
 	if(!title.isEmpty()) {
 		dirpanel->Window()->SetTitle((title.toUtf8()).data());
@@ -359,20 +448,13 @@ QString qt_haiku_get_existing_directory(const QFileDialogArgs &args)
 	dirpanel->SetRefFilter(filter);   
 	dirpanel->Show();
 	
-    QEventLoop::ProcessEventsFlags flags;
-    flags |= QEventLoop::WaitForMoreEvents;
-    while(dirpanel->IsShowing()) {
-    	QCoreApplication::processEvents(flags);
-    	snooze(100);
-    }	
-
-	entry_ref ref;
-    if(dirpanel->GetNextSelectedRef(&ref)==B_OK) {
-    	BPath p(&ref);
-    	result = QString::fromUtf8(p.Path());
-    }   
-    
+	looper->Wait(dirpanel);
+	result = looper->GetFilename();
+	    
     delete dirpanel;
+    
+	looper->Lock();
+	looper->Quit();  
     
     return result;
 }

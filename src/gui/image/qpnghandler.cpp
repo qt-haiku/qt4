@@ -389,7 +389,7 @@ bool Q_INTERNAL_WIN_NO_THROW QPngHandlerPrivate::readPngHeader()
 
     while (num_text--) {
         QString key, value;
-#if defined(PNG_iTXt_SUPPORTED)
+#if defined(PNG_iTXt_SUPPORTED) && !defined(QT_NO_TEXTCODEC)
         if (text_ptr->lang) {
             QTextCodec *codec = QTextCodec::codecForName(text_ptr->lang);
             if (codec) {
@@ -892,13 +892,15 @@ QPngHandler::~QPngHandler()
 
 bool QPngHandler::canRead() const
 {
-    if (d->state == QPngHandlerPrivate::Ready) {
-        if (!canRead(device()))
-            return false;
+    if (d->state == QPngHandlerPrivate::Ready && !canRead(device()))
+        return false;
+
+    if (d->state != QPngHandlerPrivate::Error) {
         setFormat("png");
         return true;
     }
-    return d->state != QPngHandlerPrivate::Error;
+
+    return false;
 }
 
 bool QPngHandler::canRead(QIODevice *device)

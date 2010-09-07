@@ -48,6 +48,7 @@
 #include <private/qpaintengineex_p.h>
 #include <qvarlengtharray.h>
 #include <qmath.h>
+#include <private/qstylehelper_p.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -1018,7 +1019,9 @@ void qDrawItem(QPainter *p, Qt::GUIStyle gs,
                 ;
 #ifndef QT_NO_IMAGE_HEURISTIC_MASK
             } else {                                // color pixmap, no mask
-                QString k = QString::fromLatin1("$qt-drawitem-%1").arg(pm.cacheKey());
+                QString k = QLatin1Literal("$qt-drawitem")
+                              % HexString<qint64>(pm.cacheKey());
+
                 if (!QPixmapCache::find(k, pm)) {
                     pm = pm.createHeuristicMask();
                     pm.setMask((QBitmap&)pm);
@@ -1138,12 +1141,10 @@ void qDrawBorderPixmap(QPainter *painter, const QRect &targetRect, const QMargin
     yTarget.resize(rows + 1);
 
     bool oldAA = painter->testRenderHint(QPainter::Antialiasing);
-    bool oldSmooth = painter->testRenderHint(QPainter::SmoothPixmapTransform);
     if (painter->paintEngine()->type() != QPaintEngine::OpenGL
         && painter->paintEngine()->type() != QPaintEngine::OpenGL2
-        && (oldSmooth || oldAA) && painter->combinedTransform().type() != QTransform::TxNone) {
+        && oldAA && painter->combinedTransform().type() != QTransform::TxNone) {
         painter->setRenderHint(QPainter::Antialiasing, false);
-        painter->setRenderHint(QPainter::SmoothPixmapTransform, false);
     }
 
     xTarget[0] = targetRect.left();
@@ -1354,8 +1355,6 @@ void qDrawBorderPixmap(QPainter *painter, const QRect &targetRect, const QMargin
 
     if (oldAA)
         painter->setRenderHint(QPainter::Antialiasing, true);
-    if (oldSmooth)
-        painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
 }
 
 QT_END_NAMESPACE

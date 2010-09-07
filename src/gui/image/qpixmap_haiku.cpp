@@ -1,5 +1,23 @@
 #include "qpixmap.h"
 
+#include "qpixmap_raster_p.h"
+
+#include "qbitmap.h"
+#include "qimage.h"
+#include "qwidget.h"
+#include "qpainter.h"
+#include "qdatastream.h"
+#include "qbuffer.h"
+#include "qapplication.h"
+#include "qevent.h"
+#include "qfile.h"
+#include "qfileinfo.h"
+#include "qdatetime.h"
+#include "qpixmapcache.h"
+#include "qimagereader.h"
+#include "qimagewriter.h"
+#include "qdebug.h"
+
 #include <stdio.h>
 
 #include <View.h>
@@ -7,7 +25,60 @@
 #include <Screen.h>
 #include <Bitmap.h>
 
-QPixmap QPixmap::grabWindow(WId winId, int x, int y, int w, int h )
+BBitmap *
+QPixmap::toHaikuBitmap() const
+{
+	BBitmap *bitmap = NULL;
+	
+    if (isNull())
+        return 0;
+    
+    if (data->classId() == QPixmapData::RasterClass) {
+        QRasterPixmapData* d = static_cast<QRasterPixmapData*>(data.data());
+        int w = d->image.width();
+        int h = d->image.height();
+
+        const QImage image = d->image.convertToFormat(QImage::Format_ARGB32);
+        int bytes_per_line = w * 4;        
+        
+        bitmap = new BBitmap(BRect(0,0,w-1,h-1), B_RGBA32);
+        uchar *pixels = (uchar *)bitmap->Bits();
+
+        for (int y=0; y<h; ++y)
+            memcpy(pixels + y * bytes_per_line, image.scanLine(y), bytes_per_line);
+	
+	} else {
+    
+        QPixmapData *data = new QRasterPixmapData(depth() == 1 ?
+                                                  QPixmapData::BitmapType : QPixmapData::PixmapType);
+        data->fromImage(toImage(), Qt::AutoColor);
+        return QPixmap(data).toHaikuBitmap();
+    }        	
+	return bitmap;
+}
+
+QPixmap
+QPixmap::fromHaikuBitmap(BBitmap *bmp)
+{
+	if(!bmp) 
+		return QPixmap();
+		
+	int w = bmp->Bounds().IntegerWidth() + 1;
+	int h = bmp->Bounds().IntegerHeight() + 1;
+	
+	QImage image(w,h,QImage::Format_ARGB32);
+
+	int bytes_per_line = w * 4;                        	
+    uchar *pixels = (uchar *)bmp->Bits();
+
+    for (int y=0; y<h; ++y)
+       memcpy( image.scanLine(y), pixels + y * bytes_per_line, bytes_per_line);
+    
+	return QPixmap::fromImage(image);
+}
+
+QPixmap 
+QPixmap::grabWindow(WId winId, int x, int y, int w, int h )
 {
     if (w == 0 || h == 0 || winId!=0)
         return QPixmap();

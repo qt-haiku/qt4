@@ -46,6 +46,11 @@
 #include <QtDeclarative/qdeclarativeview.h>
 #include <QtDeclarative/qdeclarativecontext.h>
 
+#ifdef Q_OS_SYMBIAN
+// In Symbian OS test data is located in applications private dir
+#define SRCDIR "."
+#endif
+
 class tst_QDeclarativeMouseArea: public QObject
 {
     Q_OBJECT
@@ -131,6 +136,17 @@ void tst_QDeclarativeMouseArea::dragProperties()
     QCOMPARE(xmaxSpy.count(),1);
     QCOMPARE(yminSpy.count(),1);
     QCOMPARE(ymaxSpy.count(),1);
+
+    // filterChildren
+    QSignalSpy filterChildrenSpy(drag, SIGNAL(filterChildrenChanged()));
+
+    drag->setFilterChildren(true);
+
+    QVERIFY(drag->filterChildren());
+    QCOMPARE(filterChildrenSpy.count(), 1);
+
+    drag->setFilterChildren(true);
+    QCOMPARE(filterChildrenSpy.count(), 1);
 
     delete canvas;
 }

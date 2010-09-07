@@ -51,7 +51,7 @@ QT_BEGIN_NAMESPACE
 QT_MODULE(Declarative)
 
 class QDeclarativePaintedItemPrivate;
-class Q_DECLARATIVE_EXPORT QDeclarativePaintedItem : public QDeclarativeItem
+class Q_AUTOTEST_EXPORT QDeclarativePaintedItem : public QDeclarativeItem
 {
     Q_OBJECT
 
@@ -93,6 +93,7 @@ protected:
                                 const QVariant &value);
 
     void setCacheFrozen(bool);
+    QRectF boundingRect() const;
 
 Q_SIGNALS:
     void fillColorChanged();

@@ -79,8 +79,25 @@
 #endif
 #include "private/qdeclarativeanchors_p.h"
 
+static QDeclarativePrivate::AutoParentResult qgraphicsobject_autoParent(QObject *obj, QObject *parent)
+{
+    QGraphicsObject* gobj = qobject_cast<QGraphicsObject*>(obj);
+    if (!gobj)
+        return QDeclarativePrivate::IncompatibleObject;
+
+    QGraphicsObject* gparent = qobject_cast<QGraphicsObject*>(parent);
+    if (!gparent)
+        return QDeclarativePrivate::IncompatibleParent;
+
+    gobj->setParentItem(gparent);
+    return QDeclarativePrivate::Parented;
+}
+
 void QDeclarativeItemModule::defineModule()
 {
+    QDeclarativePrivate::RegisterAutoParent autoparent = { 0, &qgraphicsobject_autoParent };
+    QDeclarativePrivate::qmlregister(QDeclarativePrivate::AutoParentRegistration, &autoparent);
+
 #ifdef QT_NO_MOVIE
     qmlRegisterTypeNotAvailable("Qt",4,7,"AnimatedImage",
         qApp->translate("QDeclarativeAnimatedImage","Qt was built without support for QMovie"));
@@ -112,9 +129,11 @@ void QDeclarativeItemModule::defineModule()
     qmlRegisterType<QDeclarativePathPercent>("Qt",4,7,"PathPercent");
     qmlRegisterType<QDeclarativePathQuad>("Qt",4,7,"PathQuad");
     qmlRegisterType<QDeclarativePathView>("Qt",4,7,"PathView");
+#ifndef QT_NO_VALIDATOR
     qmlRegisterType<QIntValidator>("Qt",4,7,"IntValidator");
     qmlRegisterType<QDoubleValidator>("Qt",4,7,"DoubleValidator");
     qmlRegisterType<QRegExpValidator>("Qt",4,7,"RegExpValidator");
+#endif
     qmlRegisterType<QDeclarativeRectangle>("Qt",4,7,"Rectangle");
     qmlRegisterType<QDeclarativeRepeater>("Qt",4,7,"Repeater");
     qmlRegisterType<QGraphicsRotation>("Qt",4,7,"Rotation");
@@ -123,7 +142,9 @@ void QDeclarativeItemModule::defineModule()
     qmlRegisterType<QGraphicsScale>("Qt",4,7,"Scale");
     qmlRegisterType<QDeclarativeText>("Qt",4,7,"Text");
     qmlRegisterType<QDeclarativeTextEdit>("Qt",4,7,"TextEdit");
+#ifndef QT_NO_LINEEDIT
     qmlRegisterType<QDeclarativeTextInput>("Qt",4,7,"TextInput");
+#endif
     qmlRegisterType<QDeclarativeViewSection>("Qt",4,7,"ViewSection");
     qmlRegisterType<QDeclarativeVisualDataModel>("Qt",4,7,"VisualDataModel");
     qmlRegisterType<QDeclarativeVisualItemModel>("Qt",4,7,"VisualItemModel");
@@ -138,9 +159,13 @@ void QDeclarativeItemModule::defineModule()
     qmlRegisterType<QDeclarativePathElement>();
     qmlRegisterType<QDeclarativeCurve>();
     qmlRegisterType<QDeclarativeScaleGrid>();
+#ifndef QT_NO_VALIDATOR
     qmlRegisterType<QValidator>();
+#endif
     qmlRegisterType<QDeclarativeVisualModel>();
+#ifndef QT_NO_ACTION
     qmlRegisterType<QAction>();
+#endif
     qmlRegisterType<QDeclarativePen>();
     qmlRegisterType<QDeclarativeFlickableVisibleArea>();
 #ifndef QT_NO_GRAPHICSEFFECT

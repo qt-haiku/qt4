@@ -39,6 +39,7 @@
 **
 ****************************************************************************/
 #include <qtest.h>
+#include <qsignalspy.h>
 #include <QtDeclarative/qdeclarativeengine.h>
 #include <QtDeclarative/qdeclarativecomponent.h>
 #include <QtDeclarative/qdeclarativeview.h>
@@ -48,6 +49,11 @@
 #include <private/qdeclarativeanimation_p.h>
 #include <private/qdeclarativeitem_p.h>
 #include "../../../shared/util.h"
+
+#ifdef Q_OS_SYMBIAN
+// In Symbian OS test data is located in applications private dir
+#define SRCDIR "."
+#endif
 
 class tst_qdeclarativebehaviors : public QObject
 {
@@ -72,6 +78,9 @@ private slots:
     void disabled();
     void dontStart();
     void startup();
+    void groupedPropertyCrash();
+    void runningTrue();
+    void sameValue();
 };
 
 void tst_qdeclarativebehaviors::simpleBehavior()
@@ -349,6 +358,58 @@ void tst_qdeclarativebehaviors::startup()
 
         delete rect;
     }
+}
+
+//QTBUG-10799
+void tst_qdeclarativebehaviors::groupedPropertyCrash()
+{
+    QDeclarativeEngine engine;
+    QDeclarativeComponent c(&engine, QUrl::fromLocalFile(SRCDIR "/data/groupedPropertyCrash.qml"));
+    QDeclarativeRectangle *rect = qobject_cast<QDeclarativeRectangle*>(c.create());
+    QVERIFY(rect);  //don't crash
+}
+
+//QTBUG-5491
+void tst_qdeclarativebehaviors::runningTrue()
+{
+    QDeclarativeEngine engine;
+    QDeclarativeComponent c(&engine, QUrl::fromLocalFile(SRCDIR "/data/runningTrue.qml"));
+    QDeclarativeRectangle *rect = qobject_cast<QDeclarativeRectangle*>(c.create());
+    QVERIFY(rect);
+
+    QDeclarativeAbstractAnimation *animation = rect->findChild<QDeclarativeAbstractAnimation*>("rotAnim");
+    QVERIFY(animation);
+
+    QSignalSpy runningSpy(animation, SIGNAL(runningChanged(bool)));
+    rect->setProperty("myValue", 180);
+    QTRY_VERIFY(runningSpy.count() > 0);
+}
+
+//QTBUG-12295
+void tst_qdeclarativebehaviors::sameValue()
+{
+    QDeclarativeEngine engine;
+    QDeclarativeComponent c(&engine, QUrl::fromLocalFile(SRCDIR "/data/qtbug12295.qml"));
+    QDeclarativeRectangle *rect = qobject_cast<QDeclarativeRectangle*>(c.create());
+    QVERIFY(rect);
+
+    QDeclarativeRectangle *target = rect->findChild<QDeclarativeRectangle*>("myRect");
+    QVERIFY(target);
+
+    target->setX(100);
+    QCOMPARE(target->x(), qreal(100));
+
+    target->setProperty("x", 0);
+    QTRY_VERIFY(target->x() != qreal(0) && target->x() != qreal(100));
+    QTRY_VERIFY(target->x() == qreal(0));   //make sure Behavior has finished.
+
+    target->setX(100);
+    QCOMPARE(target->x(), qreal(100));
+
+    //this is the main point of the test -- the behavior needs to be triggered again
+    //even though we set 0 twice in a row.
+    target->setProperty("x", 0);
+    QTRY_VERIFY(target->x() != qreal(0) && target->x() != qreal(100));
 }
 
 QTEST_MAIN(tst_qdeclarativebehaviors)

@@ -70,11 +70,13 @@ public:
 /*!
     \qmlclass Flipable QDeclarativeFlipable
     \since 4.7
+    \ingroup qml-basic-interaction-elements
+
     \brief The Flipable item provides a surface that can be flipped.
     \inherits Item
 
     Flipable is an item that can be visibly "flipped" between its front and
-    back sides. It is used together with Rotation and State/Transition to
+    back sides. It is used together with \l Rotation and \l {State}/\l {Transition} to
     produce a flipping effect.
 
     Here is a Flipable that flips whenever it is clicked:
@@ -83,10 +85,18 @@ public:
 
     \image flipable.gif
 
-    The Rotation element is used to specify the angle and axis of the flip,
-    and the State defines the changes in angle which produce the flipping
-    effect. Finally, the Transition creates the animation that changes the
-    angle over one second.
+    The \l Rotation element is used to specify the angle and axis of the flip.
+    When \c flipped is \c true, the item changes to the "back" state, where
+    the angle is changed to 180 degrees to produce the flipping effect. 
+    Finally, the \l Transition creates the animation that changes the
+    angle over one second: when the item changes between its "back" and 
+    default states, the NumberAnimation animates the angle between
+    its old and new values.
+
+    See the \l {QML States} and \l {QML Animation} documentation for more
+    details on state changes and how animations work within transitions.
+    
+    \sa {declarative/ui-components/flipable}{Flipable example}
 */
 
 /*!

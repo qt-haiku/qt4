@@ -565,6 +565,7 @@ void CentralWidget::connectSignals()
             SIGNAL(highlighted(QString)));
         connect(viewer, SIGNAL(sourceChanged(QUrl)), this,
             SLOT(setTabTitle(QUrl)));
+        connect(viewer, SIGNAL(printRequested()), this, SLOT(print()));
     }
 }
 
@@ -1010,7 +1011,7 @@ CentralWidget::highlightSearchTerms()
             case QHelpSearchQuery::DEFAULT:
             case QHelpSearchQuery::ATLEAST:
                 foreach (QString term, query.wordList)
-                    terms.append(term.remove(QLatin1String("\"")));
+                    terms.append(term.remove(QLatin1Char('"')));
             }
         }
     }

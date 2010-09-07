@@ -84,6 +84,7 @@ void QDeclarativePen::setWidth(int w)
 
 /*!
     \qmlclass GradientStop QDeclarativeGradientStop
+    \ingroup qml-basic-visual-elements
   \since 4.7
     \brief The GradientStop item defines the color at a position in a Gradient
 
@@ -105,6 +106,7 @@ void QDeclarativeGradientStop::updateGradient()
 
 /*!
     \qmlclass Gradient QDeclarativeGradient
+    \ingroup qml-basic-visual-elements
   \since 4.7
     \brief The Gradient item defines a gradient fill.
 
@@ -114,11 +116,11 @@ void QDeclarativeGradientStop::updateGradient()
     rectangle with a gradient starting with red, blending to yellow at 1/3 of the
     size of the rectangle, and ending with Green:
 
-    \table
-    \row
-    \o \image gradient.png
-    \o \quotefile doc/src/snippets/declarative/gradient.qml
-    \endtable
+    \snippet doc/src/snippets/declarative/gradient.qml code
+
+    Note that this item is not a visual representation of a gradient. To display a
+    gradient use a visual item (like rectangle) which supports having a gradient set
+    on it for display.
 
     \sa GradientStop
 */
@@ -152,6 +154,7 @@ void QDeclarativeGradient::doUpdate()
 
 /*!
     \qmlclass Rectangle QDeclarativeRectangle
+    \ingroup qml-basic-visual-elements
   \since 4.7
     \brief The Rectangle item allows you to add rectangles to a scene.
     \inherits Item
@@ -160,6 +163,8 @@ void QDeclarativeGradient::doUpdate()
     You can also create rounded rectangles using the \l radius property.
 
     \qml
+    import Qt 4.7
+
     Rectangle {
         width: 100
         height: 100
@@ -202,8 +207,20 @@ void QDeclarativeRectangle::doUpdate()
 
     A width of 1 creates a thin line. For no line, use a width of 0 or a transparent color.
 
-    To keep the border smooth (rather than blurry), odd widths cause the rectangle to be painted at
-    a half-pixel offset;
+    If \c border.width is an odd number, the rectangle is painted at a half-pixel offset to retain
+    border smoothness. Also, the border is rendered evenly on either side of the 
+    rectangle's boundaries, and the spare pixel is rendered to the right and below the
+    rectangle (as documented for QRect rendering). This can cause unintended effects if 
+    \c border.width is 1 and the rectangle is \l{Item::clip}{clipped} by a parent item:
+   
+    \table
+    \row
+    \o \snippet doc/src/snippets/declarative/rect-border-width.qml 0
+    \o \image rect-border-width.png
+    \endtable
+
+    Here, the innermost rectangle's border is clipped on the bottom and right edges by its
+    parent. To avoid this, the border width can be set to two instead of one.
 */
 QDeclarativePen *QDeclarativeRectangle::border()
 {
@@ -380,7 +397,9 @@ void QDeclarativeRectangle::generateBorderedRect()
             key += d->pen->color().name() % QString::number(d->pen->color().alpha(), 16);
 
         if (!QPixmapCache::find(key, &d->rectImage)) {
-            d->rectImage = QPixmap(pw*2 + 3, pw*2 + 3);
+            // Adding 5 here makes qDrawBorderPixmap() paint correctly with smooth: true
+            // See QTBUG-7999 and QTBUG-10765 for more details.
+            d->rectImage = QPixmap(pw*2 + 5, pw*2 + 5);
             d->rectImage.fill(Qt::transparent);
             QPainter p(&(d->rectImage));
             p.setRenderHint(QPainter::Antialiasing);
@@ -430,6 +449,7 @@ void QDeclarativeRectangle::drawRect(QPainter &p)
             p.setRenderHint(QPainter::Antialiasing);
         if (d->pen && d->pen->isValid()) {
             QPen pn(QColor(d->pen->color()), d->pen->width());
+            pn.setJoinStyle(Qt::MiterJoin);
             p.setPen(pn);
         } else {
             p.setPen(Qt::NoPen);

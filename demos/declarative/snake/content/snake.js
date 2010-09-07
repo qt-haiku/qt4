@@ -35,8 +35,12 @@ function startNewGame()
     if (heartbeat.running) {
         endGame();
         startNewGameTimer.running = true;
+        state = "starting";
         return;
     }
+
+    state = "starting";
+
     numRows = numRowsAvailable;
     numColumns = numColumnsAvailable;
     board = new Array(numRows * numColumns);
@@ -54,7 +58,7 @@ function startNewGame()
         } else {
             if(linkComponent.status != Component.Ready) {
                 if(linkComponent.status == Component.Error) 
-                    console.log(linkComponent.errorsString());
+                    console.log(linkComponent.errorString());
                 else
                     console.log("Still loading linkComponent");
                 continue;//TODO: Better error handling?
@@ -79,7 +83,6 @@ function startNewGame()
     waitForCookie = 5;
     score = 0;
     startHeartbeatTimer.running = true;
-    heartbeat.running = true;
 }
 
 function endGame()
@@ -93,6 +96,7 @@ function endGame()
     }
     lastScore = score;
     highScores.saveScore(lastScore);
+    state = "";
 }
 
 function move() {
@@ -149,7 +153,7 @@ function move() {
         snake.push(newLink);
     } else {
         var lastLink = snake[snake.length-1];
-        board[lastLink.row * numColumns + lastLink.column] = Undefined;
+        board[lastLink.row * numColumns + lastLink.column] = undefined;
     }
 
     if (waitForCookie > 0) {
@@ -185,7 +189,7 @@ function move() {
 
 function isFree(row, column)
 {
-    return board[row * numColumns + column] == Undefined;
+    return board[row * numColumns + column] == undefined;
 }
 
 function isHead(row, column)
@@ -213,7 +217,7 @@ function moveSkull()
         --linksToDie;
         var link = snake.pop();
         link.dying = true;
-        board[link.row * numColumns + link.column] = Undefined;
+        board[link.row * numColumns + link.column] = undefined;
         if (score > 0)
             --score;
         if (snake.length == 0) {
@@ -294,7 +298,7 @@ function createCookie(value) {
 
     if(cookieComponent.status != Component.Ready) {
         if(cookieComponent.status == Component.Error)
-            console.log(cookieComponent.errorsString());
+            console.log(cookieComponent.errorString());
         else
             console.log("Still loading cookieComponent");
         return;//TODO: Better error handling?

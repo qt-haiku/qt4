@@ -54,13 +54,13 @@ QT_BEGIN_NAMESPACE
 QT_MODULE(Declarative)
 
 class QDeclarativeFontLoaderPrivate;
-class Q_DECLARATIVE_EXPORT QDeclarativeFontLoader : public QObject
+class Q_AUTOTEST_EXPORT QDeclarativeFontLoader : public QObject
 {
     Q_OBJECT
     Q_DECLARE_PRIVATE(QDeclarativeFontLoader)
     Q_ENUMS(Status)
 
-    Q_PROPERTY(QUrl source READ source WRITE setSource NOTIFY sourceChanged)
+    Q_PROPERTY(QUrl source READ source WRITE setSource)
     Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged)
     Q_PROPERTY(Status status READ status NOTIFY statusChanged)
 

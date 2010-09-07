@@ -873,8 +873,6 @@ void CanvasRenderingContext2D::setShadow(float width, float height, float blur, 
         return;
 
     RGBA32 rgba = makeRGBA32FromFloats(r, g, b, a); // default is transparent black
-    if (!state().m_shadowColor.isEmpty())
-        CSSParser::parseColor(rgba, state().m_shadowColor);
     c->setShadow(IntSize(width, -height), state().m_shadowBlur, Color(rgba), DeviceColorSpace);
 }
 
@@ -1217,7 +1215,7 @@ PassRefPtr<CanvasPattern> CanvasRenderingContext2D::createPattern(HTMLImageEleme
     if (!cachedImage || !image->cachedImage()->image())
         return CanvasPattern::create(Image::nullImage(), repeatX, repeatY, true);
 
-    bool originClean = !canvas()->document()->securityOrigin()->taintsCanvas(KURL(KURL(), cachedImage->url()));
+    bool originClean = !canvas()->document()->securityOrigin()->taintsCanvas(KURL(KURL(), cachedImage->url())) && cachedImage->image()->hasSingleSecurityOrigin();
     return CanvasPattern::create(cachedImage->image(), repeatX, repeatY, originClean);
 }
 
@@ -1280,14 +1278,30 @@ static PassRefPtr<ImageData> createEmptyImageData(const IntSize& size)
     return data.get();
 }
 
+PassRefPtr<ImageData> CanvasRenderingContext2D::createImageData(PassRefPtr<ImageData> imageData, ExceptionCode& ec) const
+{
+    if (!imageData) {
+        ec = NOT_SUPPORTED_ERR;
+        return 0;
+    }
+
+    IntSize size(imageData->width(), imageData->height());
+    return createEmptyImageData(size);
+}
+
 PassRefPtr<ImageData> CanvasRenderingContext2D::createImageData(float sw, float sh, ExceptionCode& ec) const
 {
     ec = 0;
+    if (!sw || !sh) {
+        ec = INDEX_SIZE_ERR;
+        return 0;
+    }
     if (!isfinite(sw) || !isfinite(sh)) {
         ec = NOT_SUPPORTED_ERR;
         return 0;
     }
-    FloatSize unscaledSize(sw, sh);
+
+    FloatSize unscaledSize(fabs(sw), fabs(sh));
     IntSize scaledSize = canvas()->convertLogicalToDevice(unscaledSize);
     if (scaledSize.width() < 1)
         scaledSize.setWidth(1);
@@ -1303,7 +1317,15 @@ PassRefPtr<ImageData> CanvasRenderingContext2D::getImageData(float sx, float sy,
         ec = SECURITY_ERR;
         return 0;
     }
-    
+    if (!sw || !sh) {
+        ec = INDEX_SIZE_ERR;
+        return 0;
+    }
+    if (!isfinite(sx) || !isfinite(sy) || !isfinite(sw) || !isfinite(sh)) {
+        ec = NOT_SUPPORTED_ERR;
+        return 0;
+    }
+
     FloatRect unscaledRect(sx, sy, sw, sh);
     IntRect scaledRect = canvas()->convertLogicalToDevice(unscaledRect);
     if (scaledRect.width() < 1)
@@ -1334,7 +1356,7 @@ void CanvasRenderingContext2D::putImageData(ImageData* data, float dx, float dy,
     }
     if (!isfinite(dx) || !isfinite(dy) || !isfinite(dirtyX) || 
         !isfinite(dirtyY) || !isfinite(dirtyWidth) || !isfinite(dirtyHeight)) {
-        ec = INDEX_SIZE_ERR;
+        ec = NOT_SUPPORTED_ERR;
         return;
     }
 

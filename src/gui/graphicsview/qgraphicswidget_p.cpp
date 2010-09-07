@@ -79,7 +79,8 @@ void QGraphicsWidgetPrivate::init(QGraphicsItem *parentItem, Qt::WindowFlags wFl
 
     resolveLayoutDirection();
     q->unsetWindowFrameMargins();
-    flags |= QGraphicsItem::ItemUsesExtendedStyleOption | QGraphicsItem::ItemSendsGeometryChanges;
+    flags |= QGraphicsItem::ItemUsesExtendedStyleOption;
+    flags |= QGraphicsItem::ItemSendsGeometryChanges;
     if (windowFlags & Qt::Window)
         flags |= QGraphicsItem::ItemIsPanel;
 }
@@ -760,7 +761,7 @@ void QGraphicsWidgetPrivate::fixFocusChainBeforeReparenting(QGraphicsWidget *new
 
     QGraphicsWidget *firstOld = 0;
     bool wasPreviousNew = true;
-    
+
     while (w != q) {
         bool isCurrentNew = q->isAncestorOf(w);
         if (isCurrentNew) {
@@ -795,7 +796,7 @@ void QGraphicsWidgetPrivate::fixFocusChainBeforeReparenting(QGraphicsWidget *new
         newScene = newParent->scene();
 
     if (oldScene && newScene != oldScene)
-        oldScene->d_func()->tabFocusFirst = firstOld;
+        oldScene->d_func()->tabFocusFirst = (firstOld && firstOld->scene() == oldScene) ? firstOld : 0;
 
     QGraphicsItem *topLevelItem = newParent ? newParent->topLevelItem() : 0;
     QGraphicsWidget *topLevel = 0;
@@ -877,6 +878,18 @@ void QGraphicsWidgetPrivate::resetHeight()
 {
     Q_Q(QGraphicsWidget);
     q->setGeometry(QRectF(q->x(), q->y(), width(), 0));
+}
+
+void QGraphicsWidgetPrivate::setGeometryFromSetPos()
+{
+    if (inSetGeometry)
+        return;
+    Q_Q(QGraphicsWidget);
+    inSetPos = 1;
+    // Ensure setGeometry is called (avoid recursion when setPos is
+    // called from within setGeometry).
+    q->setGeometry(QRectF(pos, q->size()));
+    inSetPos = 0 ;
 }
 
 QT_END_NAMESPACE

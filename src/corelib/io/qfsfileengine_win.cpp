@@ -1162,7 +1162,15 @@ bool QFSFileEnginePrivate::doStat() const
         if (filePath.isEmpty())
             return could_stat;
 
-        QString fname = filePath.endsWith(QLatin1String(".lnk")) ? readLink(filePath) : filePath;
+        QString fname;
+        if(filePath.endsWith(QLatin1String(".lnk"))) {
+            fname = readLink(filePath);
+            if(fname.isEmpty())
+                return could_stat;
+        }
+        else
+            fname = filePath;
+
         fname = fixIfRelativeUncPath(fname);
 
         UINT oldmode = SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);
@@ -1950,6 +1958,10 @@ uchar *QFSFileEnginePrivate::map(qint64 offset, qint64 size,
                 OPEN_EXISTING,
                 FILE_ATTRIBUTE_NORMAL,
                 NULL);
+        // Since this is a special case, we check if the return value was NULL and if so
+        // we change it to INVALID_HANDLE_VALUE to follow the logic inside this function.
+        if(0 == handle)
+            handle = INVALID_HANDLE_VALUE;
 #endif
 
         if (handle == INVALID_HANDLE_VALUE) {

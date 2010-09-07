@@ -825,9 +825,10 @@ QList<Section> CppCodeMarker::sections(const InnerNode *inner,
     return sections;
 }
 
-const Node *CppCodeMarker::resolveTarget(const QString &target,
-                                         const Tree *tree,
-                                         const Node *relative)
+const Node *CppCodeMarker::resolveTarget(const QString& target,
+                                         const Tree* tree,
+                                         const Node* relative,
+                                         const Node* self)
 {
     if (target.endsWith("()")) {
         const FunctionNode *func;
@@ -869,11 +870,13 @@ const Node *CppCodeMarker::resolveTarget(const QString &target,
     else {
         QStringList path = target.split("::");
         const Node *node;
+        int flags = Tree::SearchBaseClasses |
+            Tree::SearchEnumValues |
+            Tree::NonFunction;
         if ((node = tree->findNode(path,
                                    relative,
-                                   Tree::SearchBaseClasses |
-                                   Tree::SearchEnumValues |
-                                   Tree::NonFunction)))
+                                   flags,
+                                   self)))
             return node;
     }
     return 0;
@@ -1124,7 +1127,8 @@ QString CppCodeMarker::addMarkUp(const QString& protectedCode,
   Currently, it only handles QML property groups.
  */
 QList<Section> CppCodeMarker::qmlSections(const QmlClassNode* qmlClassNode,
-                                          SynopsisStyle style)
+                                          SynopsisStyle style,
+                                          const Tree* tree)
 {
     QList<Section> sections;
     if (qmlClassNode) {
@@ -1240,6 +1244,48 @@ QList<Section> CppCodeMarker::qmlSections(const QmlClassNode* qmlClassNode,
 	    append(sections,qmlattachedsignals);
 	    append(sections,qmlmethods);
 	    append(sections,qmlattachedmethods);
+        }
+        else {
+	    FastSection all(qmlClassNode,"","","member","members");
+
+	    QStack<const QmlClassNode*> stack;
+	    stack.push(qmlClassNode);
+
+	    while (!stack.isEmpty()) {
+	        const QmlClassNode* ancestorClass = stack.pop();
+
+	        NodeList::ConstIterator c = ancestorClass->childNodes().begin();
+	        while (c != ancestorClass->childNodes().end()) {
+                    //		    if ((*c)->access() != Node::Private)
+                    if ((*c)->subType() == Node::QmlPropertyGroup) {
+                        const QmlPropGroupNode* qpgn = static_cast<const QmlPropGroupNode*>(*c);
+                        NodeList::ConstIterator p = qpgn->childNodes().begin();
+                        while (p != qpgn->childNodes().end()) {
+                            if ((*p)->type() == Node::QmlProperty) {
+                                insert(all,*p,style,Okay);
+                            }
+                            ++p;
+                        }
+                    }
+                    else
+                        insert(all,*c,style,Okay);
+                    ++c;
+                }
+
+                if (!ancestorClass->links().empty()) {
+                    if (ancestorClass->links().contains(Node::InheritsLink)) {
+                        QPair<QString,QString> linkPair;
+                        linkPair = ancestorClass->links()[Node::InheritsLink];
+                        QStringList strList(linkPair.first);
+                        const Node* n = tree->findNode(strList,Node::Fake);
+                        if (n && n->subType() == Node::QmlClass) {
+                            const QmlClassNode* qcn = static_cast<const QmlClassNode*>(n);
+                            stack.prepend(qcn);
+                        }
+                    }
+                }
+	    }
+	    append(sections, all);
         }
     }
 

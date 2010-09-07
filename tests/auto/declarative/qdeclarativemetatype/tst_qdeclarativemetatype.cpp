@@ -54,6 +54,11 @@
 
 #include <private/qdeclarativemetatype_p.h>
 
+#ifdef Q_OS_SYMBIAN
+// In Symbian OS test data is located in applications private dir
+#define SRCDIR "."
+#endif
+
 class tst_qdeclarativemetatype : public QObject
 {
     Q_OBJECT
@@ -119,6 +124,7 @@ QML_DECLARE_TYPE(ValueInterceptorTestType);
 { \
     cpptype v = (value); cpptype v2 = (value); \
     QVERIFY(QDeclarativeMetaType::copy(QMetaType:: metatype, &v, 0)); \
+    QCOMPARE((cpptype)(v),(cpptype)(defaultvalue)); \
     QVERIFY(v == (defaultvalue)); \
     QVERIFY(QDeclarativeMetaType::copy(QMetaType:: metatype, &v, &v2)); \
     QVERIFY(v == (value)); \
@@ -268,7 +274,7 @@ void tst_qdeclarativemetatype::copy()
     QWidget widgetValue;
     COPY_TEST(QObject *, QObjectStar, &objectValue, 0);
     COPY_TEST(QWidget *, QWidgetStar, &widgetValue, 0);
-    COPY_TEST(qreal, QReal, 10.2, 0);
+    COPY_TEST(qreal, QReal, 10.5, 0);
 
     {
         QVariant tv = QVariant::fromValue(QVariant(10));

@@ -64,7 +64,7 @@
 #ifdef SNAP_FUNCTIONALITY_AVAILABLE
     #include <comms-infras/cs_mobility_apiext.h>
 #endif
-#ifdef OCC_FUNCTIONALITY_AVAILABLE
+#if defined(OCC_FUNCTIONALITY_AVAILABLE) && defined(SNAP_FUNCTIONALITY_AVAILABLE)
     #include <extendedconnpref.h>
 #endif
 
@@ -73,11 +73,12 @@ QT_BEGIN_NAMESPACE
 class ConnectionProgressNotifier;
 class SymbianEngine;
 
-class QNetworkSessionPrivateImpl : public QNetworkSessionPrivate, public CActive,
+typedef void (*TOpenCUnSetdefaultifFunction)();
+
+class QNetworkSessionPrivateImpl : public QNetworkSessionPrivate, public CActive
 #ifdef SNAP_FUNCTIONALITY_AVAILABLE
-                                   public MMobilityProtocolResp,
+                                 , public MMobilityProtocolResp
 #endif
-                                   public MConnectionMonitorObserver
 {
     Q_OBJECT
 public:
@@ -130,9 +131,11 @@ protected: // From CActive
     void RunL();
     void DoCancel();
     
-private: // MConnectionMonitorObserver
-    void EventL(const CConnMonEventBase& aEvent);
-    
+private Q_SLOTS:
+    void configurationStateChanged(TUint32 accessPointId, TUint32 connMonId, QNetworkSession::State newState);
+    void configurationRemoved(QNetworkConfigurationPrivatePointer config);
+    void configurationAdded(QNetworkConfigurationPrivatePointer config);
+
 private:
     TUint iapClientCount(TUint aIAPId) const;
     quint64 transferredData(TUint dataType) const;
@@ -153,10 +156,19 @@ private: // data
 
     QDateTime startTime;
 
+    RLibrary iOpenCLibrary;
+    TOpenCUnSetdefaultifFunction iDynamicUnSetdefaultif;
+
     mutable RSocketServ iSocketServ;
     mutable RConnection iConnection;
     mutable RConnectionMonitor iConnectionMonitor;
     ConnectionProgressNotifier* ipConnectionNotifier;
+    
+    bool iHandleStateNotificationsFromManager;
+    bool iFirstSync;
+    bool iStoppedByUser;
+    bool iClosedByUser;
+    
 #ifdef SNAP_FUNCTIONALITY_AVAILABLE    
     CActiveCommsMobilityApiExt* iMobility;
 #endif    
@@ -170,6 +182,8 @@ private: // data
     
     TUint32 iOldRoamingIap;
     TUint32 iNewRoamingIap;
+
+    bool isOpening;
 
     friend class ConnectionProgressNotifier;
 };

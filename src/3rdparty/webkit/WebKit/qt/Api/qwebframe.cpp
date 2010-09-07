@@ -275,8 +275,9 @@ void QWEBKIT_EXPORT qt_drt_evaluateScriptInIsolatedWorld(QWebFrame* qFrame, int 
         JSC::JSValue result = frame->script()->executeScriptInWorld(mainThreadNormalWorld(), script, true).jsValue();
 }
 
-static bool webframe_scrollOverflow(WebCore::Frame* frame, int dx, int dy, const QPoint& pos)
+bool QWEBKIT_EXPORT qtwebkit_webframe_scrollOverflow(QWebFrame* qFrame, int dx, int dy, const QPoint& pos)
 {
+    WebCore::Frame* frame = QWebFramePrivate::core(qFrame);
     if (!frame || !frame->document() || !frame->view() || !frame->eventHandler())
         return false;
 
@@ -299,17 +300,24 @@ static bool webframe_scrollOverflow(WebCore::Frame* frame, int dx, int dy, const
     bool scrolledHorizontal = false;
     bool scrolledVertical = false;
 
-    if (dx > 0)
-        scrolledHorizontal = renderLayer->scroll(ScrollRight, ScrollByPixel, dx);
-    else if (dx < 0)
-        scrolledHorizontal = renderLayer->scroll(ScrollLeft, ScrollByPixel, qAbs(dx));
+    do {
+        if (dx > 0)
+            scrolledHorizontal = renderLayer->scroll(ScrollRight, ScrollByPixel, dx);
+        else if (dx < 0)
+            scrolledHorizontal = renderLayer->scroll(ScrollLeft, ScrollByPixel, qAbs(dx));
 
-    if (dy > 0)
-        scrolledVertical = renderLayer->scroll(ScrollDown, ScrollByPixel, dy);
-    else if (dy < 0)
-        scrolledVertical = renderLayer->scroll(ScrollUp, ScrollByPixel, qAbs(dy));
+        if (dy > 0)
+            scrolledVertical = renderLayer->scroll(ScrollDown, ScrollByPixel, dy);
+        else if (dy < 0)
+            scrolledVertical = renderLayer->scroll(ScrollUp, ScrollByPixel, qAbs(dy));
 
-    return (scrolledHorizontal || scrolledVertical);
+        if (scrolledHorizontal || scrolledVertical)
+            return true;
+
+        renderLayer = renderLayer->parent();
+    } while (renderLayer);
+
+    return false;
 }
 
 
@@ -325,7 +333,7 @@ void QWEBKIT_EXPORT qtwebkit_webframe_scrollRecursively(QWebFrame* qFrame, int d
     if (!qFrame)
         return;
 
-    if (webframe_scrollOverflow(QWebFramePrivate::core(qFrame), dx, dy, pos))
+    if (qtwebkit_webframe_scrollOverflow(qFrame, dx, dy, pos))
         return;
 
     bool scrollHorizontal = false;
@@ -339,7 +347,7 @@ void QWEBKIT_EXPORT qtwebkit_webframe_scrollRecursively(QWebFrame* qFrame, int d
 
         if (dy > 0)  // scroll down
             scrollVertical = qFrame->scrollBarValue(Qt::Vertical) < qFrame->scrollBarMaximum(Qt::Vertical);
-            else if (dy < 0) //scroll up
+        else if (dy < 0) //scroll up
             scrollVertical = qFrame->scrollBarValue(Qt::Vertical) > qFrame->scrollBarMinimum(Qt::Vertical);
 
         if (scrollHorizontal || scrollVertical) {
@@ -951,6 +959,10 @@ void QWebFrame::load(const QNetworkRequest &req,
 
   The \a html is loaded immediately; external objects are loaded asynchronously.
 
+  If a script in the \a html runs longer than the default script timeout (currently 10 seconds),
+  for example due to being blocked by a modal JavaScript alert dialog, this method will return
+  as soon as possible after the timeout and any subsequent \a html will be loaded asynchronously.
+
   When using this method WebKit assumes that external resources such as JavaScript programs or style
   sheets are encoded in UTF-8 unless otherwise specified. For example, the encoding of an external
   script can be specified through the charset attribute of the HTML script tag. It is also possible
@@ -1423,8 +1435,8 @@ void QWebFrame::print(QPrinter *printer) const
     if (!painter.begin(printer))
         return;
 
-    const qreal zoomFactorX = printer->logicalDpiX() / qt_defaultDpi();
-    const qreal zoomFactorY = printer->logicalDpiY() / qt_defaultDpi();
+    const qreal zoomFactorX = (qreal)printer->logicalDpiX() / qt_defaultDpi();
+    const qreal zoomFactorY = (qreal)printer->logicalDpiY() / qt_defaultDpi();
 
     PrintContext printContext(d->frame);
     float pageHeight = 0;

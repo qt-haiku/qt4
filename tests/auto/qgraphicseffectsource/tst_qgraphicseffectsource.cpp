@@ -161,6 +161,7 @@ private slots:
     void draw();
     void update();
     void boundingRect();
+    void clippedBoundingRect();
     void deviceRect();
     void pixmap();
 
@@ -208,7 +209,7 @@ void tst_QGraphicsEffectSource::init()
 void tst_QGraphicsEffectSource::graphicsItem()
 {
     QVERIFY(effect->source());
-    QCOMPARE(effect->source()->graphicsItem(), item);
+    QCOMPARE(effect->source()->graphicsItem(), (const QGraphicsItem*)item);
 }
 
 void tst_QGraphicsEffectSource::styleOption()
@@ -236,7 +237,7 @@ void tst_QGraphicsEffectSource::isPixmap()
     CustomEffect *anotherEffect = new CustomEffect;
     pixmapItem->setGraphicsEffect(anotherEffect);
     QVERIFY(anotherEffect->source());
-    QCOMPARE(anotherEffect->source()->graphicsItem(), static_cast<QGraphicsItem *>(pixmapItem));
+    QCOMPARE(anotherEffect->source()->graphicsItem(), static_cast<const QGraphicsItem *>(pixmapItem));
     QVERIFY(anotherEffect->source()->isPixmap());
     delete pixmapItem;
 }
@@ -280,6 +281,20 @@ void tst_QGraphicsEffectSource::boundingRect()
     QTRY_COMPARE(effect->source()->boundingRect(Qt::LogicalCoordinates), itemBoundingRect);
     // Make sure default value is Qt::LogicalCoordinates.
     QTRY_COMPARE(effect->source()->boundingRect(), itemBoundingRect);
+}
+
+void tst_QGraphicsEffectSource::clippedBoundingRect()
+{
+    QRectF itemBoundingRect = item->boundingRect();
+    item->setFlag(QGraphicsItem::ItemClipsChildrenToShape);
+
+    QGraphicsRectItem *child = new QGraphicsRectItem(-1000, -1000, 2000, 2000);
+    child->setBrush(Qt::red);
+    child->setParentItem(item);
+
+    effect->storeDeviceDependentStuff = true;
+    effect->source()->update();
+    QTRY_COMPARE(effect->source()->boundingRect(Qt::LogicalCoordinates), itemBoundingRect);
 }
 
 void tst_QGraphicsEffectSource::deviceRect()

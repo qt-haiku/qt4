@@ -1663,8 +1663,11 @@ void QLineEdit::keyPressEvent(QKeyEvent *event)
     }
 #endif
     d->control->processKeyEvent(event);
-    if (event->isAccepted())
+    if (event->isAccepted()) {
+        if (layoutDirection() != d->control->layoutDirection())
+            setLayoutDirection(d->control->layoutDirection());
         d->control->setCursorBlinkPeriod(0);
+    }
 }
 
 /*!
@@ -1860,7 +1863,7 @@ void QLineEdit::paintEvent(QPaintEvent *)
     p.setClipRect(r);
 
     QFontMetrics fm = fontMetrics();
-    Qt::Alignment va = QStyle::visualAlignment(layoutDirection(), QFlag(d->alignment));
+    Qt::Alignment va = QStyle::visualAlignment(d->control->layoutDirection(), QFlag(d->alignment));
     switch (va & Qt::AlignVertical_Mask) {
      case Qt::AlignBottom:
          d->vscroll = r.y() + r.height() - fm.height() - d->verticalMargin;
@@ -1946,7 +1949,8 @@ void QLineEdit::paintEvent(QPaintEvent *)
     if (d->control->hasSelectedText() || (d->cursorVisible && !d->control->inputMask().isEmpty() && !d->control->isReadOnly())){
         flags |= QLineControl::DrawSelections;
         // Palette only used for selections/mask and may not be in sync
-        if(d->control->palette() != pal)
+        if (d->control->palette() != pal
+           || d->control->palette().currentColorGroup() != pal.currentColorGroup())
             d->control->setPalette(pal);
     }
 
@@ -2160,9 +2164,6 @@ void QLineEdit::changeEvent(QEvent *ev)
             d->control->setPasswordCharacter(style()->styleHint(QStyle::SH_LineEdit_PasswordCharacter, &opt, this));
         }
         update();
-        break;
-    case QEvent::LayoutDirectionChange:
-        d->control->setLayoutDirection(layoutDirection());
         break;
     default:
         break;

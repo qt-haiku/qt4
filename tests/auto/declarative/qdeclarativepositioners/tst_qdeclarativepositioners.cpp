@@ -46,7 +46,13 @@
 #include <private/qdeclarativepositioners_p.h>
 #include <private/qdeclarativetransition_p.h>
 #include <qdeclarativeexpression.h>
+#include <QtGui/qgraphicswidget.h>
 #include "../../../shared/util.h"
+
+#ifdef Q_OS_SYMBIAN
+// In Symbian OS test data is located in applications private dir
+#define SRCDIR "."
+#endif
 
 class tst_QDeclarativePositioners : public QObject
 {
@@ -70,7 +76,9 @@ private slots:
     void test_repeater();
     void test_flow();
     void test_flow_resize();
+    void test_flow_implicit_resize();
     void test_conflictinganchors();
+    void test_vertical_qgraphicswidget();
 private:
     QDeclarativeView *createView(const QString &filename);
 };
@@ -650,6 +658,28 @@ void tst_QDeclarativePositioners::test_flow_resize()
     delete canvas;
 }
 
+void tst_QDeclarativePositioners::test_flow_implicit_resize()
+{
+    QDeclarativeView *canvas = createView(SRCDIR "/data/flow-testimplicitsize.qml");
+    QVERIFY(canvas->rootObject() != 0);
+
+    QDeclarativeFlow *flow = canvas->rootObject()->findChild<QDeclarativeFlow*>("flow");
+    QVERIFY(flow != 0);
+
+    QCOMPARE(flow->width(), 100.0);
+    QCOMPARE(flow->height(), 120.0);
+
+    canvas->rootObject()->setProperty("leftToRight", true);
+    QCOMPARE(flow->width(), 220.0);
+    QCOMPARE(flow->height(), 50.0);
+
+    canvas->rootObject()->setProperty("leftToRight", false);
+    QCOMPARE(flow->width(), 100.0);
+    QCOMPARE(flow->height(), 120.0);
+
+    delete canvas;
+}
+
 QString warningMessage;
 
 void interceptWarnings(QtMsgType type, const char *msg)
@@ -687,7 +717,13 @@ void tst_QDeclarativePositioners::test_conflictinganchors()
     component.setData("import Qt 4.7\nColumn { Item { anchors.top: parent.top } }", QUrl::fromLocalFile(""));
     item = qobject_cast<QDeclarativeItem*>(component.create());
     QVERIFY(item);
-    QCOMPARE(warningMessage, QString("file::2:1: QML Column: Cannot specify top, bottom or verticalCenter anchors for items inside Column"));
+    QCOMPARE(warningMessage, QString("file::2:1: QML Column: Cannot specify top, bottom, verticalCenter, fill or centerIn anchors for items inside Column"));
+    warningMessage.clear();
+
+    component.setData("import Qt 4.7\nColumn { Item { anchors.centerIn: parent } }", QUrl::fromLocalFile(""));
+    item = qobject_cast<QDeclarativeItem*>(component.create());
+    QVERIFY(item);
+    QCOMPARE(warningMessage, QString("file::2:1: QML Column: Cannot specify top, bottom, verticalCenter, fill or centerIn anchors for items inside Column"));
     warningMessage.clear();
 
     component.setData("import Qt 4.7\nColumn { Item { anchors.left: parent.left } }", QUrl::fromLocalFile(""));
@@ -699,7 +735,13 @@ void tst_QDeclarativePositioners::test_conflictinganchors()
     component.setData("import Qt 4.7\nRow { Item { anchors.left: parent.left } }", QUrl::fromLocalFile(""));
     item = qobject_cast<QDeclarativeItem*>(component.create());
     QVERIFY(item);
-    QCOMPARE(warningMessage, QString("file::2:1: QML Row: Cannot specify left, right or horizontalCenter anchors for items inside Row"));
+    QCOMPARE(warningMessage, QString("file::2:1: QML Row: Cannot specify left, right, horizontalCenter, fill or centerIn anchors for items inside Row"));
+    warningMessage.clear();
+
+    component.setData("import Qt 4.7\nRow { Item { anchors.fill: parent } }", QUrl::fromLocalFile(""));
+    item = qobject_cast<QDeclarativeItem*>(component.create());
+    QVERIFY(item);
+    QCOMPARE(warningMessage, QString("file::2:1: QML Row: Cannot specify left, right, horizontalCenter, fill or centerIn anchors for items inside Row"));
     warningMessage.clear();
 
     component.setData("import Qt 4.7\nRow { Item { anchors.top: parent.top } }", QUrl::fromLocalFile(""));
@@ -714,10 +756,63 @@ void tst_QDeclarativePositioners::test_conflictinganchors()
     QCOMPARE(warningMessage, QString("file::2:1: QML Grid: Cannot specify anchors for items inside Grid"));
     warningMessage.clear();
 
+    component.setData("import Qt 4.7\nGrid { Item { anchors.centerIn: parent } }", QUrl::fromLocalFile(""));
+    item = qobject_cast<QDeclarativeItem*>(component.create());
+    QVERIFY(item);
+    QCOMPARE(warningMessage, QString("file::2:1: QML Grid: Cannot specify anchors for items inside Grid"));
+    warningMessage.clear();
+
     component.setData("import Qt 4.7\nFlow { Item { anchors.verticalCenter: parent.verticalCenter } }", QUrl::fromLocalFile(""));
     item = qobject_cast<QDeclarativeItem*>(component.create());
     QVERIFY(item);
     QCOMPARE(warningMessage, QString("file::2:1: QML Flow: Cannot specify anchors for items inside Flow"));
+
+    component.setData("import Qt 4.7\nFlow { Item { anchors.fill: parent } }", QUrl::fromLocalFile(""));
+    item = qobject_cast<QDeclarativeItem*>(component.create());
+    QVERIFY(item);
+    QCOMPARE(warningMessage, QString("file::2:1: QML Flow: Cannot specify anchors for items inside Flow"));
+}
+
+void tst_QDeclarativePositioners::test_vertical_qgraphicswidget()
+{
+    QDeclarativeView *canvas = createView(SRCDIR "/data/verticalqgraphicswidget.qml");
+
+    QGraphicsWidget *one = canvas->rootObject()->findChild<QGraphicsWidget*>("one");
+    QVERIFY(one != 0);
+
+    QGraphicsWidget *two = canvas->rootObject()->findChild<QGraphicsWidget*>("two");
+    QVERIFY(two != 0);
+
+    QGraphicsWidget *three = canvas->rootObject()->findChild<QGraphicsWidget*>("three");
+    QVERIFY(three != 0);
+
+    QCOMPARE(one->x(), 0.0);
+    QCOMPARE(one->y(), 0.0);
+    QCOMPARE(two->x(), 0.0);
+    QCOMPARE(two->y(), 50.0);
+    QCOMPARE(three->x(), 0.0);
+    QCOMPARE(three->y(), 60.0);
+
+    QDeclarativeItem *column = canvas->rootObject()->findChild<QDeclarativeItem*>("column");
+    QVERIFY(column);
+    QCOMPARE(column->height(), 80.0);
+    QCOMPARE(column->width(), 50.0);
+
+    two->resize(QSizeF(two->size().width(), 20.0));
+    QCOMPARE(three->x(), 0.0);
+    QCOMPARE(three->y(), 70.0);
+
+    two->setOpacity(0.0);
+    QCOMPARE(one->x(), 0.0);
+    QCOMPARE(one->y(), 0.0);
+    QCOMPARE(three->x(), 0.0);
+    QCOMPARE(three->y(), 50.0);
+
+    one->setVisible(false);
+    QCOMPARE(three->x(), 0.0);
+    QCOMPARE(three->y(), 0.0);
+
+    delete canvas;
 }
 
 QDeclarativeView *tst_QDeclarativePositioners::createView(const QString &filename)

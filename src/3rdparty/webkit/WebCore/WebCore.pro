@@ -25,6 +25,13 @@ symbian: {
     webkitbackup.sources = ../WebKit/qt/symbian/backup_registration.xml
     webkitbackup.path = /private/10202D56/import/packages/$$replace(TARGET.UID3, 0x,)
 
+    contains(QT_CONFIG, declarative) {
+         declarativeImport.sources = $$QT_BUILD_TREE/imports/QtWebKit/qmlwebkitplugin$${QT_LIBINFIX}.dll
+         declarativeImport.sources += ../WebKit/qt/declarative/qmldir
+         declarativeImport.path = c:$$QT_IMPORTS_BASE_DIR/QtWebKit
+         DEPLOYMENT += declarativeImport
+    }
+
     DEPLOYMENT += webkitlibs webkitbackup
 
     # Need to guarantee that these come before system includes of /epoc32/include
@@ -74,7 +81,8 @@ CONFIG(QTDIR_build) {
     !static: DEFINES += QT_MAKEDLL
     symbian: TARGET =$$TARGET$${QT_LIBINFIX}
 }
-include($$PWD/../WebKit/qt/qtwebkit_version.pri)
+moduleFile=$$PWD/../WebKit/qt/qt_webkit_version.pri
+include($$moduleFile)
 VERSION = $${QT_WEBKIT_MAJOR_VERSION}.$${QT_WEBKIT_MINOR_VERSION}.$${QT_WEBKIT_PATCH_VERSION}
 
 unix {
@@ -102,15 +110,23 @@ win32-msvc2005|win32-msvc2008:{
 }
 
 # Pick up 3rdparty libraries from INCLUDE/LIB just like with MSVC
-win32-g++ {
+win32-g++* {
     TMPPATH            = $$quote($$(INCLUDE))
     QMAKE_INCDIR_POST += $$split(TMPPATH,";")
     TMPPATH            = $$quote($$(LIB))
     QMAKE_LIBDIR_POST += $$split(TMPPATH,";")
 }
 
-# Assume that symbian OS always comes with sqlite
-symbian:!CONFIG(QTDIR_build): CONFIG += system-sqlite
+symbian {
+    !CONFIG(QTDIR_build) {
+        # Test if symbian OS comes with sqlite
+        exists($${EPOCROOT}epoc32/release/armv5/lib/sqlite3.dso):CONFIG *= system-sqlite
+    } else:!symbian-abld:!symbian-sbsv2 {
+        # When bundled with Qt, all Symbian build systems extract their own sqlite files if
+        # necessary, but on non-mmp based ones we need to specify this ourselves.
+        include($$QT_SOURCE_TREE/src/plugins/sqldrivers/sqlite_symbian/sqlite_symbian.pri)
+    }
+}
 
 
 
@@ -125,7 +141,7 @@ maemo5|symbian|embedded {
     DEFINES += ENABLE_FAST_MOBILE_SCROLLING=1
 }
 
-maemo5 {
+maemo5|symbian {
     DEFINES += WTF_USE_QT_MOBILE_THEME=1
 }
 
@@ -159,7 +175,7 @@ defineTest(addExtraCompiler) {
 
     for(file,input) {
         base = $$basename(file)
-        base ~= s/\..+//
+        base ~= s/\\..+//
         newfile=$$replace(outputRule,\\$\\{QMAKE_FILE_BASE\\},$$base)
         SOURCES += $$newfile
     }
@@ -2165,7 +2181,7 @@ contains(DEFINES, ENABLE_NETSCAPE_PLUGIN_API=1) {
             mac {
                 SOURCES += \
                     plugins/mac/PluginPackageMac.cpp \
-                    plugins/mac/PluginViewMac.cpp
+                    plugins/mac/PluginViewMac.mm
                 OBJECTIVE_SOURCES += \
                     platform/text/mac/StringImplMac.mm \
                     platform/mac/WebCoreNSStringExtras.mm
@@ -2495,8 +2511,12 @@ contains(DEFINES, ENABLE_QT_BEARER=1) {
     SOURCES += \
         platform/network/qt/NetworkStateNotifierQt.cpp
 
-    CONFIG += mobility
-    MOBILITY += bearer
+    # Bearer management is part of Qt 4.7, so don't accidentially
+    # pull in Qt Mobility when building against >= 4.7
+    !greaterThan(QT_MINOR_VERSION, 6) {
+        CONFIG += mobility
+        MOBILITY += bearer
+    }
 }
 
 contains(DEFINES, ENABLE_SVG=1) {
@@ -2846,18 +2866,36 @@ HEADERS += $$WEBKIT_API_HEADERS
 
     !symbian {
         headers.files = $$WEBKIT_INSTALL_HEADERS
-        headers.path = $$[QT_INSTALL_HEADERS]/QtWebKit
-        target.path = $$[QT_INSTALL_LIBS]
 
-        INSTALLS += target headers
+        !isEmpty(INSTALL_HEADERS): headers.path = $$INSTALL_HEADERS/QtWebKit
+        else: headers.path = $$[QT_INSTALL_HEADERS]/QtWebKit
+
+        !isEmpty(INSTALL_LIBS): target.path = $$INSTALL_LIBS
+        else: target.path = $$[QT_INSTALL_LIBS]
+
+        modfile.files = $$moduleFile
+        modfile.path = $$[QMAKE_MKSPECS]/modules
+
+        INSTALLS += target headers modfile
     } else {
         # INSTALLS is not implemented in qmake's s60 generators, copy headers manually
         inst_headers.commands = $$QMAKE_COPY ${QMAKE_FILE_NAME} ${QMAKE_FILE_OUT}
         inst_headers.input = WEBKIT_INSTALL_HEADERS
-        inst_headers.output = $$[QT_INSTALL_HEADERS]/QtWebKit/${QMAKE_FILE_BASE}${QMAKE_FILE_EXT}
+        inst_headers.CONFIG = no_clean
+
+        !isEmpty(INSTALL_HEADERS): inst_headers.output = $$INSTALL_HEADERS/QtWebKit/${QMAKE_FILE_BASE}${QMAKE_FILE_EXT}
+        else: inst_headers.output = $$[QT_INSTALL_HEADERS]/QtWebKit/${QMAKE_FILE_BASE}${QMAKE_FILE_EXT}
+
         QMAKE_EXTRA_COMPILERS += inst_headers
 
-        install.depends += compiler_inst_headers_make_all
+        inst_modfile.commands = $$inst_headers.commands
+        inst_modfile.input = moduleFile
+        inst_modfile.output = $$[QMAKE_MKSPECS]/modules
+        inst_modfile.CONFIG = no_clean
+
+        QMAKE_EXTRA_COMPILERS += inst_modfile
+
+        install.depends += compiler_inst_headers_make_all compiler_inst_modfile_make_all
         QMAKE_EXTRA_TARGETS += install
     }
 
@@ -2875,7 +2913,7 @@ HEADERS += $$WEBKIT_API_HEADERS
         QMAKE_PKGCONFIG_LIBDIR = $$target.path
         QMAKE_PKGCONFIG_INCDIR = $$headers.path
         QMAKE_PKGCONFIG_DESTDIR = pkgconfig
-        lib_replace.match = $$DESTDIR
+        lib_replace.match = $$re_escape($$DESTDIR)
         lib_replace.replace = $$[QT_INSTALL_LIBS]
         QMAKE_PKGCONFIG_INSTALL_REPLACE += lib_replace
     }
@@ -2909,7 +2947,7 @@ CONFIG(QTDIR_build) {
     CONFIG += no_debug_info
 }
 
-!win32-g++:win32:contains(QMAKE_HOST.arch, x86_64):{
+win32:!win32-g++*:contains(QMAKE_HOST.arch, x86_64):{
     asm_compiler.commands = ml64 /c
     asm_compiler.commands +=  /Fo ${QMAKE_FILE_OUT} ${QMAKE_FILE_IN}
     asm_compiler.output = ${QMAKE_VAR_OBJECTS_DIR}${QMAKE_FILE_BASE}$${first(QMAKE_EXT_OBJ)}

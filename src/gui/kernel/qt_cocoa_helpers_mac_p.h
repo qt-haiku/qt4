@@ -73,6 +73,9 @@
 **
 ****************************************************************************/
 
+#ifndef QT_COCOA_HELPERS_MAC_P_H
+#define QT_COCOA_HELPERS_MAC_P_H
+
 //
 //  W A R N I N G
 //  -------------
@@ -145,6 +148,7 @@ void qt_cocoaChangeOverrideCursor(const QCursor &cursor);
 // These methods exists only for supporting unified mode.
 void macDrawRectOnTop(void * /*OSWindowRef */ window);
 void macSyncDrawingOnFirstInvocation(void * /*OSWindowRef */window);
+void qt_cocoaStackChildWindowOnTopOfOtherChildren(QWidget *widget);
 #endif
 void qt_mac_menu_collapseSeparators(void * /*NSMenu */ menu, bool collapse);
 bool qt_dispatchKeyEvent(void * /*NSEvent * */ keyEvent, QWidget *widgetToGetEvent);
@@ -216,3 +220,5 @@ bool qt_cocoaPostMessage(id target, SEL selector);
 void qt_mac_post_retranslateAppMenu();
 
 QT_END_NAMESPACE
+
+#endif // QT_COCOA_HELPERS_MAC_P_H

@@ -49,6 +49,24 @@
 #include <private/qdeclarativestategroup_p.h>
 #include <private/qdeclarativeitem_p.h>
 
+#ifdef Q_OS_SYMBIAN
+// In Symbian OS test data is located in applications private dir
+#define SRCDIR "."
+#endif
+
+class MyAttached : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(int foo READ foo WRITE setFoo)
+public:
+    MyAttached(QObject *parent) : QObject(parent), m_foo(13) {}
+
+    int foo() const { return m_foo; }
+    void setFoo(int f) { m_foo = f; }
+
+private:
+    int m_foo;
+};
 
 class MyRect : public QDeclarativeRectangle
 {
@@ -61,6 +79,10 @@ public:
     
     int propertyWithNotify() const { return m_prop; }
     void setPropertyWithNotify(int i) { m_prop = i; emit oddlyNamedNotifySignal(); }
+
+    static MyAttached *qmlAttachedProperties(QObject *o) {
+        return new MyAttached(o);
+    }
 Q_SIGNALS:
     void didSomething();
     void oddlyNamedNotifySignal();
@@ -69,6 +91,8 @@ private:
     int m_prop;
 };
 
+QML_DECLARE_TYPE(MyRect)
+QML_DECLARE_TYPEINFO(MyRect, QML_HAS_ATTACHED_PROPERTIES)
 
 class tst_qdeclarativestates : public QObject
 {
@@ -83,6 +107,7 @@ private slots:
     void initTestCase();
 
     void basicChanges();
+    void attachedPropertyChanges();
     void basicExtension();
     void basicBinding();
     void signalOverride();
@@ -96,6 +121,7 @@ private slots:
     void anchorChanges4();
     void anchorChanges5();
     void anchorChangesCrash();
+    void anchorRewindBug();
     void script();
     void restoreEntryValues();
     void explicitChanges();
@@ -112,6 +138,8 @@ private slots:
     void whenOrdering();
     void urlResolution();
     void unnamedWhen();
+    void returnToBase();
+    void extendsBug();
 };
 
 void tst_qdeclarativestates::initTestCase()
@@ -217,6 +245,27 @@ void tst_qdeclarativestates::basicChanges()
         rect->setPropertyWithNotify(100);
         QCOMPARE(rect->color(), QColor(Qt::blue));
     }
+}
+
+void tst_qdeclarativestates::attachedPropertyChanges()
+{
+    QDeclarativeEngine engine;
+
+    QDeclarativeComponent component(&engine, SRCDIR "/data/attachedPropertyChanges.qml");
+    QVERIFY(component.isReady());
+
+    QDeclarativeItem *item = qobject_cast<QDeclarativeItem*>(component.create());
+    QVERIFY(item != 0);
+    QCOMPARE(item->width(), 50.0);
+
+    // Ensure attached property has been changed
+    QObject *attObj = qmlAttachedPropertiesObject<MyRect>(item, false);
+    QVERIFY(attObj);
+
+    MyAttached *att = qobject_cast<MyAttached*>(attObj);
+    QVERIFY(att);
+
+    QCOMPARE(att->foo(), 1);
 }
 
 void tst_qdeclarativestates::basicExtension()
@@ -760,6 +809,40 @@ void tst_qdeclarativestates::anchorChangesCrash()
     delete rect;
 }
 
+// QTBUG-12273
+void tst_qdeclarativestates::anchorRewindBug()
+{
+    QDeclarativeEngine engine;
+
+    QDeclarativeComponent rectComponent(&engine, SRCDIR "/data/anchorRewindBug.qml");
+    QDeclarativeRectangle *rect = qobject_cast<QDeclarativeRectangle*>(rectComponent.create());
+    QVERIFY(rect != 0);
+
+    QDeclarativeItem * column = rect->findChild<QDeclarativeItem*>("column");
+
+    QVERIFY(column != 0);
+    QVERIFY(!QDeclarativeItemPrivate::get(column)->heightValid);
+    QVERIFY(!QDeclarativeItemPrivate::get(column)->widthValid);
+    QCOMPARE(column->height(), 200.0);
+    QDeclarativeItemPrivate::get(rect)->setState("reanchored");
+
+    // column height and width should stay implicit
+    // and column's implicit resizing should still work
+    QVERIFY(!QDeclarativeItemPrivate::get(column)->heightValid);
+    QVERIFY(!QDeclarativeItemPrivate::get(column)->widthValid);
+    QCOMPARE(column->height(), 100.0);
+
+    QDeclarativeItemPrivate::get(rect)->setState("");
+
+    // column height and width should stay implicit
+    // and column's implicit resizing should still work
+    QVERIFY(!QDeclarativeItemPrivate::get(column)->heightValid);
+    QVERIFY(!QDeclarativeItemPrivate::get(column)->widthValid);
+    QCOMPARE(column->height(), 200.0);
+
+    delete rect;
+}
+
 void tst_qdeclarativestates::script()
 {
     QDeclarativeEngine engine;
@@ -840,7 +923,7 @@ void tst_qdeclarativestates::propertyErrors()
     QCOMPARE(rect->color(),QColor("red"));
 
     QTest::ignoreMessage(QtWarningMsg, fullDataPath("/data/propertyErrors.qml") + ":8:9: QML PropertyChanges: Cannot assign to non-existent property \"colr\"");
-    QTest::ignoreMessage(QtWarningMsg, fullDataPath("/data/propertyErrors.qml") + ":8:9: QML PropertyChanges: Cannot assign to read-only property \"wantsFocus\"");
+    QTest::ignoreMessage(QtWarningMsg, fullDataPath("/data/propertyErrors.qml") + ":8:9: QML PropertyChanges: Cannot assign to read-only property \"activeFocus\"");
     QDeclarativeItemPrivate::get(rect)->setState("blue");
 }
 
@@ -1083,6 +1166,41 @@ void tst_qdeclarativestates::unnamedWhen()
     rect->setProperty("triggerState", false);
     QCOMPARE(rectPrivate->state(), QLatin1String(""));
     QCOMPARE(rect->property("stateString").toString(), QLatin1String(""));
+}
+
+void tst_qdeclarativestates::returnToBase()
+{
+    QDeclarativeEngine engine;
+
+    QDeclarativeComponent c(&engine, SRCDIR "/data/returnToBase.qml");
+    QDeclarativeRectangle *rect = qobject_cast<QDeclarativeRectangle*>(c.create());
+    QVERIFY(rect != 0);
+    QDeclarativeItemPrivate *rectPrivate = QDeclarativeItemPrivate::get(rect);
+
+    QCOMPARE(rectPrivate->state(), QLatin1String(""));
+    QCOMPARE(rect->property("stateString").toString(), QLatin1String(""));
+    rect->setProperty("triggerState", true);
+    QCOMPARE(rectPrivate->state(), QLatin1String("anonymousState1"));
+    QCOMPARE(rect->property("stateString").toString(), QLatin1String("inState"));
+    rect->setProperty("triggerState", false);
+    QCOMPARE(rectPrivate->state(), QLatin1String(""));
+    QCOMPARE(rect->property("stateString").toString(), QLatin1String("originalState"));
+}
+
+//QTBUG-12559
+void tst_qdeclarativestates::extendsBug()
+{
+    QDeclarativeEngine engine;
+
+    QDeclarativeComponent c(&engine, SRCDIR "/data/extendsBug.qml");
+    QDeclarativeRectangle *rect = qobject_cast<QDeclarativeRectangle*>(c.create());
+    QVERIFY(rect != 0);
+    QDeclarativeItemPrivate *rectPrivate = QDeclarativeItemPrivate::get(rect);
+    QDeclarativeRectangle *greenRect = rect->findChild<QDeclarativeRectangle*>("greenRect");
+
+    rectPrivate->setState("b");
+    QCOMPARE(greenRect->x(), qreal(100));
+    QCOMPARE(greenRect->y(), qreal(100));
 }
 
 QTEST_MAIN(tst_qdeclarativestates)

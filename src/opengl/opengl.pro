@@ -5,23 +5,24 @@ DEFINES   += QT_BUILD_OPENGL_LIB
 DEFINES   += QT_NO_USING_NAMESPACE
 win32-msvc*|win32-icc:QMAKE_LFLAGS += /BASE:0x63000000
 solaris-cc*:QMAKE_CXXFLAGS_RELEASE -= -O2
+irix-cc*:QMAKE_CXXFLAGS += -no_prelink -ptused
 
 unix:QMAKE_PKGCONFIG_REQUIRES = QtCore QtGui
 
 include(../qbase.pri)
 
-!win32:!embedded:!mac:CONFIG	   += x11
+!win32:!embedded:!mac:!symbian:CONFIG	   += x11
 contains(QT_CONFIG, opengl):CONFIG += opengl
 contains(QT_CONFIG, opengles1):CONFIG += opengles1
 contains(QT_CONFIG, opengles2):CONFIG += opengles2
 contains(QT_CONFIG, egl):CONFIG += egl
 
 HEADERS += qgl.h \
-	   qgl_p.h \
-	   qglcolormap.h \
-	   qglpixelbuffer.h \
+           qgl_p.h \
+           qglcolormap.h \
+           qglpixelbuffer.h \
            qglpixelbuffer_p.h \
-	   qglframebufferobject.h  \
+           qglframebufferobject.h  \
            qglframebufferobject_p.h  \
            qglextensions_p.h \
            qglpaintdevice_p.h \
@@ -29,9 +30,9 @@ HEADERS += qgl.h \
 
 
 SOURCES	+= qgl.cpp \
-	   qglcolormap.cpp \
-	   qglpixelbuffer.cpp \
-	   qglframebufferobject.cpp \
+           qglcolormap.cpp \
+           qglpixelbuffer.cpp \
+           qglframebufferobject.cpp \
            qglextensions.cpp \
            qglpaintdevice.cpp \
            qglbuffer.cpp \
@@ -118,7 +119,7 @@ mac {
 win32:!wince*: {
     DEFINES += QT_NO_EGL
     SOURCES += qgl_win.cpp \
-	       qglpixelbuffer_win.cpp
+	           qglpixelbuffer_win.cpp
 }
 wince*: {
     SOURCES += qgl_wince.cpp \
@@ -144,6 +145,16 @@ embedded {
     } else {
        DEFINES *= QT_NO_FREETYPE
     }
+}
+
+symbian {
+    SOURCES += qgl_symbian.cpp \
+               qglpixelbuffer_egl.cpp \
+               qgl_egl.cpp
+
+    HEADERS += qgl_egl_p.h
+
+    symbian:TARGET.UID3 = 0x2002131A
 }
 
 INCLUDEPATH += ../3rdparty/harfbuzz/src

@@ -44,6 +44,8 @@
 #include "private/qgesture_p.h"
 #include "private/qgesturemanager_p.h"
 
+#ifndef QT_NO_GESTURES
+
 QT_BEGIN_NAMESPACE
 
 /*!
@@ -59,6 +61,9 @@ QT_BEGIN_NAMESPACE
    Developers that only need to provide gesture recognition for standard gestures do not
    need to use this class directly. Instances will be created behind the scenes by the
    framework.
+
+   For an overview of gesture handling in Qt and information on using gestures
+   in your applications, see the \l{Gestures Programming} document.
 
    \section1 Recognizing Gestures
 
@@ -231,3 +236,5 @@ void QGestureRecognizer::unregisterRecognizer(Qt::GestureType type)
 }
 
 QT_END_NAMESPACE
+
+#endif // QT_NO_GESTURES

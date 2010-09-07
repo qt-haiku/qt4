@@ -46,12 +46,14 @@
 
 #include <QGraphicsSceneMouseEvent>
 
+#include <float.h>
+
 QT_BEGIN_NAMESPACE
 static const int PressAndHoldDelay = 800;
 
 QDeclarativeDrag::QDeclarativeDrag(QObject *parent)
-: QObject(parent), _target(0), _axis(XandYAxis), _xmin(0), _xmax(0), _ymin(0), _ymax(0),
-_active(false)
+: QObject(parent), _target(0), _axis(XandYAxis), _xmin(-FLT_MAX), _xmax(FLT_MAX), _ymin(-FLT_MAX), _ymax(FLT_MAX),
+_active(false), _filterChildren(false)
 {
 }
 
@@ -158,37 +160,54 @@ void QDeclarativeDrag::setActive(bool drag)
     emit activeChanged();
 }
 
+bool QDeclarativeDrag::filterChildren() const
+{
+    return _filterChildren;
+}
+
+void QDeclarativeDrag::setFilterChildren(bool filter)
+{
+    if (_filterChildren == filter)
+        return;
+    _filterChildren = filter;
+    emit filterChildrenChanged();
+}
+
 QDeclarativeMouseAreaPrivate::~QDeclarativeMouseAreaPrivate()
 {
     delete drag;
 }
 
-
 /*!
     \qmlclass MouseArea QDeclarativeMouseArea
+    \ingroup qml-basic-interaction-elements
     \since 4.7
     \brief The MouseArea item enables simple mouse handling.
     \inherits Item
 
     A MouseArea is typically used in conjunction with a visible item,
     where the MouseArea effectively 'proxies' mouse handling for that
-    item. For example, we can put a MouseArea in a Rectangle that changes
-    the Rectangle color to red when clicked:
-    \snippet doc/src/snippets/declarative/mouseregion.qml 0
+    item. For example, we can put a MouseArea in a \l Rectangle that changes
+    the \l Rectangle color to red when clicked:
+
+    \snippet doc/src/snippets/declarative/mousearea.qml import
+    \codeline
+    \snippet doc/src/snippets/declarative/mousearea.qml intro
 
     Many MouseArea signals pass a \l {MouseEvent}{mouse} parameter that contains
     additional information about the mouse event, such as the position, button,
     and any key modifiers.
 
-    Below we have the previous
-    example extended so as to give a different color when you right click.
-    \snippet doc/src/snippets/declarative/mouseregion.qml 1
+    Here is an extension of the previous example that produces a different
+    color when the area is right clicked:
+
+    \snippet doc/src/snippets/declarative/mousearea.qml intro-extended
 
     For basic key handling, see the \l {Keys}{Keys attached property}.
 
     MouseArea is an invisible item: it is never painted.
 
-    \sa MouseEvent
+    \sa MouseEvent, {declarative/touchinteraction/mousearea}{MouseArea example}
 */
 
 /*!
@@ -238,7 +257,7 @@ QDeclarativeMouseAreaPrivate::~QDeclarativeMouseAreaPrivate()
     releasing is also considered a click).
 
     The \l {MouseEvent}{mouse} parameter provides information about the click, including the x and y
-    position of the release of the click, and whether the click wasHeld.
+    position of the release of the click, and whether the click was held.
 
     The \e accepted property of the MouseEvent parameter is ignored in this handler.
 */
@@ -262,7 +281,7 @@ QDeclarativeMouseAreaPrivate::~QDeclarativeMouseAreaPrivate()
 
     This handler is called when there is a release.
     The \l {MouseEvent}{mouse} parameter provides information about the click, including the x and y
-    position of the release of the click, and whether the click wasHeld.
+    position of the release of the click, and whether the click was held.
 
     The \e accepted property of the MouseEvent parameter is ignored in this handler.
 */
@@ -282,7 +301,7 @@ QDeclarativeMouseAreaPrivate::~QDeclarativeMouseAreaPrivate()
 
     This handler is called when there is a double-click (a press followed by a release followed by a press).
     The \l {MouseEvent}{mouse} parameter provides information about the click, including the x and y
-    position of the release of the click, and whether the click wasHeld.
+    position of the release of the click, and whether the click was held.
 
     The \e accepted property of the MouseEvent parameter is ignored in this handler.
 */
@@ -290,23 +309,23 @@ QDeclarativeMouseAreaPrivate::~QDeclarativeMouseAreaPrivate()
 /*!
     \qmlsignal MouseArea::onCanceled()
 
-    This handler is called when the mouse events are canceled, either because the event was not accepted or
-    another element stole the mouse event handling. This signal is for advanced users, it's useful in case there
-    is more than one mouse areas handling input, or when there is a mouse area inside a flickable. In the latter
-    case, if you do some logic on pressed and then start dragging, the flickable will steal the mouse handling
-    from the mouse area. In these cases, to reset the logic when there is no mouse handling anymore, you should
-    use onCanceled, in addition to onReleased.
+    This handler is called when mouse events have been canceled, either because an event was not accepted, or
+    because another element stole the mouse event handling. This signal is for advanced use: it is useful when
+    there is more than one MouseArea that is handling input, or when there is a MouseArea inside a \l Flickable. In the latter
+    case, if you execute some logic on the pressed signal and then start dragging, the \l Flickable will steal the mouse handling
+    from the MouseArea. In these cases, to reset the logic when the MouseArea has lost the mouse handling to the
+    \l Flickable, \c onCanceled should be used in addition to onReleased.
 */
 
 /*!
     \internal
     \class QDeclarativeMouseArea
-    \brief The QDeclarativeMouseArea class provides a simple mouse handling abstraction for use within Qml.
+    \brief The QDeclarativeMouseArea class provides a simple mouse handling abstraction for use within QML.
 
     All QDeclarativeItem derived classes can do mouse handling but the QDeclarativeMouseArea class exposes mouse
     handling data as properties and tracks flicking and dragging of the mouse.
 
-    A QDeclarativeMouseArea object can be instantiated in Qml using the tag \l MouseArea.
+    A QDeclarativeMouseArea object can be instantiated in QML using the tag \l MouseArea.
  */
 QDeclarativeMouseArea::QDeclarativeMouseArea(QDeclarativeItem *parent)
   : QDeclarativeItem(*(new QDeclarativeMouseAreaPrivate), parent)
@@ -328,10 +347,10 @@ QDeclarativeMouseArea::~QDeclarativeMouseArea()
     while a button is pressed, and will remain valid as long as the button is held
     even if the mouse is moved outside the area.
 
-    If hoverEnabled is true then these properties will be valid:
+    If hoverEnabled is true then these properties will be valid when:
     \list
-        \i when no button is pressed, but the mouse is within the MouseArea (containsMouse is true).
-        \i if a button is pressed and held, even if it has since moved out of the area.
+        \i no button is pressed, but the mouse is within the MouseArea (containsMouse is true).
+        \i a button is pressed and held, even if it has since moved out of the area.
     \endlist
 
     The coordinates are relative to the MouseArea.
@@ -378,18 +397,7 @@ void QDeclarativeMouseArea::setEnabled(bool a)
     \endlist
 
     The code below displays "right" when the right mouse buttons is pressed:
-    \code
-    Text {
-        text: mr.pressedButtons & Qt.RightButton ? "right" : ""
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        MouseArea {
-            id: mr
-            acceptedButtons: Qt.LeftButton | Qt.RightButton
-            anchors.fill: parent
-        }
-    }
-    \endcode
+    \snippet doc/src/snippets/declarative/mousearea.qml mousebuttons
 
     \sa acceptedButtons
 */
@@ -403,6 +411,7 @@ void QDeclarativeMouseArea::mousePressEvent(QGraphicsSceneMouseEvent *event)
 {
     Q_D(QDeclarativeMouseArea);
     d->moved = false;
+    d->stealMouse = false;
     if (!d->absorb)
         QDeclarativeItem::mousePressEvent(event);
     else {
@@ -417,7 +426,7 @@ void QDeclarativeMouseArea::mousePressEvent(QGraphicsSceneMouseEvent *event)
         setHovered(true);
         d->startScene = event->scenePos();
         // we should only start timer if pressAndHold is connected to.
-        if (d->isConnected("pressAndHold(QDeclarativeMouseEvent*)"))
+        if (d->isPressAndHoldConnected())
             d->pressAndHoldTimer.start(PressAndHoldDelay, this);
         setKeepMouseGrab(false);
         event->setAccepted(setPressed(true));
@@ -450,7 +459,7 @@ void QDeclarativeMouseArea::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 
         QPointF startLocalPos;
         QPointF curLocalPos;
-        if (drag()->target()->parent()) {
+        if (drag()->target()->parentItem()) {
             startLocalPos = drag()->target()->parentItem()->mapFromScene(d->startScene);
             curLocalPos = drag()->target()->parentItem()->mapFromScene(event->scenePos());
         } else {
@@ -461,8 +470,10 @@ void QDeclarativeMouseArea::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
         const int dragThreshold = QApplication::startDragDistance();
         qreal dx = qAbs(curLocalPos.x() - startLocalPos.x());
         qreal dy = qAbs(curLocalPos.y() - startLocalPos.y());
-        if ((d->dragX && !(dx < dragThreshold)) || (d->dragY && !(dy < dragThreshold)))
+        if ((d->dragX && !(dx < dragThreshold)) || (d->dragY && !(dy < dragThreshold))) {
             d->drag->setActive(true);
+            d->stealMouse = true;
+        }
         if (!keepMouseGrab()) {
             if ((!d->dragY && dy < dragThreshold && d->dragX && dx > dragThreshold)
                 || (!d->dragX && dx < dragThreshold && d->dragY && dy > dragThreshold)
@@ -500,6 +511,7 @@ void QDeclarativeMouseArea::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 void QDeclarativeMouseArea::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 {
     Q_D(QDeclarativeMouseArea);
+    d->stealMouse = false;
     if (!d->absorb) {
         QDeclarativeItem::mouseReleaseEvent(event);
     } else {
@@ -510,6 +522,9 @@ void QDeclarativeMouseArea::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
         // If we don't accept hover, we need to reset containsMouse.
         if (!acceptHoverEvents())
             setHovered(false);
+        QGraphicsScene *s = scene();
+        if (s && s->mouseGrabberItem() == this)
+            ungrabMouse();
         setKeepMouseGrab(false);
     }
 }
@@ -582,6 +597,71 @@ bool QDeclarativeMouseArea::sceneEvent(QEvent *event)
         }
     }
     return rv;
+}
+
+bool QDeclarativeMouseArea::sendMouseEvent(QGraphicsSceneMouseEvent *event)
+{
+    Q_D(QDeclarativeMouseArea);
+    QGraphicsSceneMouseEvent mouseEvent(event->type());
+    QRectF myRect = mapToScene(QRectF(0, 0, width(), height())).boundingRect();
+
+    QGraphicsScene *s = scene();
+    QDeclarativeItem *grabber = s ? qobject_cast<QDeclarativeItem*>(s->mouseGrabberItem()) : 0;
+    bool stealThisEvent = d->stealMouse;
+    if ((stealThisEvent || myRect.contains(event->scenePos().toPoint())) && (!grabber || !grabber->keepMouseGrab())) {
+        mouseEvent.setAccepted(false);
+        for (int i = 0x1; i <= 0x10; i <<= 1) {
+            if (event->buttons() & i) {
+                Qt::MouseButton button = Qt::MouseButton(i);
+                mouseEvent.setButtonDownPos(button, mapFromScene(event->buttonDownPos(button)));
+            }
+        }
+        mouseEvent.setScenePos(event->scenePos());
+        mouseEvent.setLastScenePos(event->lastScenePos());
+        mouseEvent.setPos(mapFromScene(event->scenePos()));
+        mouseEvent.setLastPos(mapFromScene(event->lastScenePos()));
+
+        switch(mouseEvent.type()) {
+        case QEvent::GraphicsSceneMouseMove:
+            mouseMoveEvent(&mouseEvent);
+            break;
+        case QEvent::GraphicsSceneMousePress:
+            mousePressEvent(&mouseEvent);
+            break;
+        case QEvent::GraphicsSceneMouseRelease:
+            mouseReleaseEvent(&mouseEvent);
+            break;
+        default:
+            break;
+        }
+        grabber = qobject_cast<QDeclarativeItem*>(s->mouseGrabberItem());
+        if (grabber && stealThisEvent && !grabber->keepMouseGrab() && grabber != this)
+            grabMouse();
+
+        return stealThisEvent;
+    }
+    if (mouseEvent.type() == QEvent::GraphicsSceneMouseRelease) {
+        d->stealMouse = false;
+        ungrabMouse();
+    }
+    return false;
+}
+
+bool QDeclarativeMouseArea::sceneEventFilter(QGraphicsItem *i, QEvent *e)
+{
+    Q_D(QDeclarativeMouseArea);
+    if (!d->absorb || !isVisible() || !d->drag || !d->drag->filterChildren())
+        return QDeclarativeItem::sceneEventFilter(i, e);
+    switch (e->type()) {
+    case QEvent::GraphicsSceneMousePress:
+    case QEvent::GraphicsSceneMouseMove:
+    case QEvent::GraphicsSceneMouseRelease:
+        return sendMouseEvent(static_cast<QGraphicsSceneMouseEvent *>(e));
+    default:
+        break;
+    }
+
+    return QDeclarativeItem::sceneEventFilter(i, e);
 }
 
 void QDeclarativeMouseArea::timerEvent(QTimerEvent *event)
@@ -705,7 +785,7 @@ void QDeclarativeMouseArea::setHovered(bool h)
     MouseArea { acceptedButtons: Qt.LeftButton | Qt.RightButton }
     \endcode
 
-    The default is to accept the Left button.
+    The default value is \c Qt.LeftButton.
 */
 Qt::MouseButtons QDeclarativeMouseArea::acceptedButtons() const
 {
@@ -764,18 +844,33 @@ QDeclarativeDrag *QDeclarativeMouseArea::drag()
     \qmlproperty real MouseArea::drag.maximumX
     \qmlproperty real MouseArea::drag.minimumY
     \qmlproperty real MouseArea::drag.maximumY
+    \qmlproperty bool MouseArea::drag.filterChildren
 
-    drag provides a convenient way to make an item draggable.
+    \c drag provides a convenient way to make an item draggable.
 
     \list
-    \i \c target specifies the item to drag.
-    \i \c active specifies if the target item is being currently dragged.
-    \i \c axis specifies whether dragging can be done horizontally (Drag.XAxis), vertically (Drag.YAxis), or both (Drag.XandYAxis)
-    \i the minimum and maximum properties limit how far the target can be dragged along the corresponding axes.
+    \i \c drag.target specifies the id of the item to drag.
+    \i \c drag.active specifies if the target item is currently being dragged.
+    \i \c drag.axis specifies whether dragging can be done horizontally (\c Drag.XAxis), vertically (\c Drag.YAxis), or both (\c Drag.XandYAxis)
+    \i \c drag.minimum and \c drag.maximum limit how far the target can be dragged along the corresponding axes.
     \endlist
 
-    The following example uses drag to reduce the opacity of an image as it moves to the right:
-    \snippet doc/src/snippets/declarative/drag.qml 0
+    The following example displays a \l Rectangle that can be dragged along the X-axis. The opacity
+    of the rectangle is reduced when it is dragged to the right.
+
+    \snippet doc/src/snippets/declarative/mousearea.qml drag
+
+    \note Items cannot be dragged if they are anchored for the requested 
+    \c drag.axis. For example, if \c anchors.left or \c anchors.right was set
+    for \c rect in the above example, it cannot be dragged along the X-axis.
+    This can be avoided by settng the anchor value to \c undefined in 
+    an \l onPressed handler.
+
+    If \c drag.filterChildren is set to true, a drag can override descendant MouseAreas.  This
+    enables a parent MouseArea to handle drags, for example, while descendants handle clicks:
+
+    \snippet doc/src/snippets/declarative/mouseareadragfilter.qml dragfilter
+
 */
 
 QT_END_NAMESPACE

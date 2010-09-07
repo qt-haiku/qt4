@@ -53,6 +53,11 @@
 #include "testtypes.h"
 #include "testhttpserver.h"
 
+#ifdef Q_OS_SYMBIAN
+// In Symbian OS test data is located in applications private dir
+#define SRCDIR "."
+#endif
+
 /*
 This test covers evaluation of ECMAScript expressions and bindings from within
 QML.  This does not include static QML language issues.
@@ -149,6 +154,9 @@ private slots:
     void functionAssignment();
     void eval();
     void function();
+    void qtbug_10696();
+    void qtbug_11606();
+    void qtbug_11600();
 
     void include();
 
@@ -171,7 +179,7 @@ void tst_qdeclarativeecmascript::assignBasicTypes()
     QCOMPARE(object->uintProperty(), uint(10));
     QCOMPARE(object->intProperty(), -19);
     QCOMPARE((float)object->realProperty(), float(23.2));
-    QCOMPARE((float)object->doubleProperty(), float(-19.7));
+    QCOMPARE((float)object->doubleProperty(), float(-19.75));
     QCOMPARE((float)object->floatProperty(), float(8.5));
     QCOMPARE(object->colorProperty(), QColor("red"));
     QCOMPARE(object->dateProperty(), QDate(1982, 11, 25));
@@ -199,7 +207,7 @@ void tst_qdeclarativeecmascript::assignBasicTypes()
     QCOMPARE(object->uintProperty(), uint(10));
     QCOMPARE(object->intProperty(), -19);
     QCOMPARE((float)object->realProperty(), float(23.2));
-    QCOMPARE((float)object->doubleProperty(), float(-19.7));
+    QCOMPARE((float)object->doubleProperty(), float(-19.75));
     QCOMPARE((float)object->floatProperty(), float(8.5));
     QCOMPARE(object->colorProperty(), QColor("red"));
     QCOMPARE(object->dateProperty(), QDate(1982, 11, 25));
@@ -272,8 +280,8 @@ void tst_qdeclarativeecmascript::signalAssignment()
         MyQmlObject *object = qobject_cast<MyQmlObject *>(component.create());
         QVERIFY(object != 0);
         QCOMPARE(object->string(), QString());
-        emit object->argumentSignal(19, "Hello world!", 10.3);
-        QCOMPARE(object->string(), QString("pass 19 Hello world! 10.3"));
+        emit object->argumentSignal(19, "Hello world!", 10.25);
+        QCOMPARE(object->string(), QString("pass 19 Hello world! 10.25"));
     }
 }
 
@@ -563,7 +571,7 @@ void tst_qdeclarativeecmascript::deferredPropertiesErrors()
     QVERIFY(object->objectProperty() == 0);
     QVERIFY(object->objectProperty2() == 0);
 
-    QString warning = component.url().toString() + ":6: Unable to assign [undefined] to QObject*";
+    QString warning = component.url().toString() + ":6: Unable to assign [undefined] to QObject* objectProperty";
     QTest::ignoreMessage(QtWarningMsg, qPrintable(warning));
 
     qmlExecuteDeferred(object);
@@ -641,8 +649,8 @@ void tst_qdeclarativeecmascript::enums()
     {
     QDeclarativeComponent component(&engine, TEST_FILE("enums.2.qml"));
 
-    QString warning1 = component.url().toString() + ":5: Unable to assign [undefined] to int";
-    QString warning2 = component.url().toString() + ":6: Unable to assign [undefined] to int";
+    QString warning1 = component.url().toString() + ":5: Unable to assign [undefined] to int a";
+    QString warning2 = component.url().toString() + ":6: Unable to assign [undefined] to int b";
     QTest::ignoreMessage(QtWarningMsg, qPrintable(warning1));
     QTest::ignoreMessage(QtWarningMsg, qPrintable(warning2));
 
@@ -753,7 +761,7 @@ void tst_qdeclarativeecmascript::nonExistantAttachedObject()
 {
     QDeclarativeComponent component(&engine, TEST_FILE("nonExistantAttachedObject.qml"));
 
-    QString warning = component.url().toString() + ":4: Unable to assign [undefined] to QString";
+    QString warning = component.url().toString() + ":4: Unable to assign [undefined] to QString stringProperty";
     QTest::ignoreMessage(QtWarningMsg, qPrintable(warning));
 
     QObject *object = component.create();
@@ -996,11 +1004,11 @@ void tst_qdeclarativeecmascript::scriptErrors()
     QString url = component.url().toString();
 
     QString warning1 = url.left(url.length() - 3) + "js:2: Error: Invalid write to global property \"a\"";
-    QString warning2 = url + ":5: TypeError: Result of expression 'a' [undefined] is not an object.";
+    QString warning2 = url + ":5: ReferenceError: Can't find variable: a";
     QString warning3 = url.left(url.length() - 3) + "js:4: Error: Invalid write to global property \"a\"";
-    QString warning4 = url + ":10: TypeError: Result of expression 'a' [undefined] is not an object.";
-    QString warning5 = url + ":8: TypeError: Result of expression 'a' [undefined] is not an object.";
-    QString warning6 = url + ":7: Unable to assign [undefined] to int";
+    QString warning4 = url + ":10: ReferenceError: Can't find variable: a";
+    QString warning5 = url + ":8: ReferenceError: Can't find variable: a";
+    QString warning6 = url + ":7: Unable to assign [undefined] to int x";
     QString warning7 = url + ":12: Error: Cannot assign to read-only property \"trueProperty\"";
     QString warning8 = url + ":13: Error: Cannot assign to non-existent property \"fakeProperty\"";
 
@@ -1316,7 +1324,12 @@ void tst_qdeclarativeecmascript::callQtInvokables()
     QDeclarativeEngine qmlengine;
     QDeclarativeEnginePrivate *ep = QDeclarativeEnginePrivate::get(&qmlengine);
     QScriptEngine *engine = &ep->scriptEngine;
-    ep->globalClass->explicitSetProperty("object", ep->objectClass->newQObject(&o));
+
+    QStringList names; QList<QScriptValue> values;
+    names << QLatin1String("object"); values << ep->objectClass->newQObject(&o);
+    names << QLatin1String("undefined"); values << engine->undefinedValue();
+
+    ep->globalClass->explicitSetProperty(names, values);
 
     // Non-existent methods
     o.reset();
@@ -1374,7 +1387,7 @@ void tst_qdeclarativeecmascript::callQtInvokables()
     QCOMPARE(o.actuals().count(), 0);
 
     o.reset();
-    QVERIFY(engine->evaluate("object.method_NoArgs_real()").strictlyEquals(QScriptValue(engine, 19.7)));
+    QVERIFY(engine->evaluate("object.method_NoArgs_real()").strictlyEquals(QScriptValue(engine, 19.75)));
     QCOMPARE(o.error(), false);
     QCOMPARE(o.invoked(), 2);
     QCOMPARE(o.actuals().count(), 0);
@@ -1708,6 +1721,13 @@ void tst_qdeclarativeecmascript::callQtInvokables()
     QCOMPARE(o.actuals().count(), 2);
     QCOMPARE(o.actuals().at(0), QVariant(10));
     QCOMPARE(o.actuals().at(1), QVariant(11));
+
+    o.reset();
+    QCOMPARE(engine->evaluate("object.method_with_enum(9)").isUndefined(), true);
+    QCOMPARE(o.error(), false);
+    QCOMPARE(o.invoked(), 18);
+    QCOMPARE(o.actuals().count(), 1);
+    QCOMPARE(o.actuals().at(0), QVariant(9));
 }
 
 // QTBUG-5675
@@ -1798,7 +1818,7 @@ void tst_qdeclarativeecmascript::scriptConnect()
         QVERIFY(object != 0);
 
         QCOMPARE(object->property("test").toBool(), false);
-        emit object->argumentSignal(19, "Hello world!", 10.3);
+        emit object->argumentSignal(19, "Hello world!", 10.25);
         QCOMPARE(object->property("test").toBool(), true);
 
         delete object;
@@ -1811,7 +1831,7 @@ void tst_qdeclarativeecmascript::scriptConnect()
         QVERIFY(object != 0);
 
         QCOMPARE(object->property("test").toBool(), false);
-        emit object->argumentSignal(19, "Hello world!", 10.3);
+        emit object->argumentSignal(19, "Hello world!", 10.25);
         QCOMPARE(object->property("test").toBool(), true);
 
         delete object;
@@ -1824,7 +1844,7 @@ void tst_qdeclarativeecmascript::scriptConnect()
         QVERIFY(object != 0);
 
         QCOMPARE(object->property("test").toBool(), false);
-        emit object->argumentSignal(19, "Hello world!", 10.3);
+        emit object->argumentSignal(19, "Hello world!", 10.25);
         QCOMPARE(object->property("test").toBool(), true);
 
         delete object;
@@ -1837,7 +1857,7 @@ void tst_qdeclarativeecmascript::scriptConnect()
         QVERIFY(object != 0);
 
         QCOMPARE(object->methodCalled(), false);
-        emit object->argumentSignal(19, "Hello world!", 10.3);
+        emit object->argumentSignal(19, "Hello world!", 10.25);
         QCOMPARE(object->methodCalled(), true);
 
         delete object;
@@ -1850,7 +1870,7 @@ void tst_qdeclarativeecmascript::scriptConnect()
         QVERIFY(object != 0);
 
         QCOMPARE(object->methodCalled(), false);
-        emit object->argumentSignal(19, "Hello world!", 10.3);
+        emit object->argumentSignal(19, "Hello world!", 10.25);
         QCOMPARE(object->methodCalled(), true);
 
         delete object;
@@ -1863,7 +1883,7 @@ void tst_qdeclarativeecmascript::scriptConnect()
         QVERIFY(object != 0);
 
         QCOMPARE(object->property("test").toInt(), 0);
-        emit object->argumentSignal(19, "Hello world!", 10.3);
+        emit object->argumentSignal(19, "Hello world!", 10.25);
         QCOMPARE(object->property("test").toInt(), 2);
 
         delete object;
@@ -1879,13 +1899,13 @@ void tst_qdeclarativeecmascript::scriptDisconnect()
         QVERIFY(object != 0);
 
         QCOMPARE(object->property("test").toInt(), 0);
-        emit object->argumentSignal(19, "Hello world!", 10.3);
+        emit object->argumentSignal(19, "Hello world!", 10.25);
         QCOMPARE(object->property("test").toInt(), 1);
-        emit object->argumentSignal(19, "Hello world!", 10.3);
+        emit object->argumentSignal(19, "Hello world!", 10.25);
         QCOMPARE(object->property("test").toInt(), 2);
         emit object->basicSignal();
         QCOMPARE(object->property("test").toInt(), 2);
-        emit object->argumentSignal(19, "Hello world!", 10.3);
+        emit object->argumentSignal(19, "Hello world!", 10.25);
         QCOMPARE(object->property("test").toInt(), 2);
 
         delete object;
@@ -1898,13 +1918,13 @@ void tst_qdeclarativeecmascript::scriptDisconnect()
         QVERIFY(object != 0);
 
         QCOMPARE(object->property("test").toInt(), 0);
-        emit object->argumentSignal(19, "Hello world!", 10.3);
+        emit object->argumentSignal(19, "Hello world!", 10.25);
         QCOMPARE(object->property("test").toInt(), 1);
-        emit object->argumentSignal(19, "Hello world!", 10.3);
+        emit object->argumentSignal(19, "Hello world!", 10.25);
         QCOMPARE(object->property("test").toInt(), 2);
         emit object->basicSignal();
         QCOMPARE(object->property("test").toInt(), 2);
-        emit object->argumentSignal(19, "Hello world!", 10.3);
+        emit object->argumentSignal(19, "Hello world!", 10.25);
         QCOMPARE(object->property("test").toInt(), 2);
 
         delete object;
@@ -1917,13 +1937,13 @@ void tst_qdeclarativeecmascript::scriptDisconnect()
         QVERIFY(object != 0);
 
         QCOMPARE(object->property("test").toInt(), 0);
-        emit object->argumentSignal(19, "Hello world!", 10.3);
+        emit object->argumentSignal(19, "Hello world!", 10.25);
         QCOMPARE(object->property("test").toInt(), 1);
-        emit object->argumentSignal(19, "Hello world!", 10.3);
+        emit object->argumentSignal(19, "Hello world!", 10.25);
         QCOMPARE(object->property("test").toInt(), 2);
         emit object->basicSignal();
         QCOMPARE(object->property("test").toInt(), 2);
-        emit object->argumentSignal(19, "Hello world!", 10.3);
+        emit object->argumentSignal(19, "Hello world!", 10.25);
         QCOMPARE(object->property("test").toInt(), 3);
 
         delete object;
@@ -1935,13 +1955,13 @@ void tst_qdeclarativeecmascript::scriptDisconnect()
         QVERIFY(object != 0);
 
         QCOMPARE(object->property("test").toInt(), 0);
-        emit object->argumentSignal(19, "Hello world!", 10.3);
+        emit object->argumentSignal(19, "Hello world!", 10.25);
         QCOMPARE(object->property("test").toInt(), 1);
-        emit object->argumentSignal(19, "Hello world!", 10.3);
+        emit object->argumentSignal(19, "Hello world!", 10.25);
         QCOMPARE(object->property("test").toInt(), 2);
         emit object->basicSignal();
         QCOMPARE(object->property("test").toInt(), 2);
-        emit object->argumentSignal(19, "Hello world!", 10.3);
+        emit object->argumentSignal(19, "Hello world!", 10.25);
         QCOMPARE(object->property("test").toInt(), 3);
 
         delete object;
@@ -2082,14 +2102,15 @@ void tst_qdeclarativeecmascript::compiled()
     QCOMPARE(object->property("test15").toBool(), false);
     QCOMPARE(object->property("test16").toBool(), true);
 
-    QCOMPARE(object->property("test17").toInt(), 4);
+    QCOMPARE(object->property("test17").toInt(), 5);
     QCOMPARE(object->property("test18").toReal(), qreal(176));
-    QEXPECT_FAIL("", "QTBUG-9538", Continue);
-    QCOMPARE(object->property("test19").toInt(), 6);
+    QCOMPARE(object->property("test19").toInt(), 7);
     QCOMPARE(object->property("test20").toReal(), qreal(6.7));
     QCOMPARE(object->property("test21").toString(), QLatin1String("6.7"));
     QCOMPARE(object->property("test22").toString(), QLatin1String("!"));
     QCOMPARE(object->property("test23").toBool(), true);
+    QCOMPARE(qvariant_cast<QColor>(object->property("test24")), QColor(0x11,0x22,0x33));
+    QCOMPARE(qvariant_cast<QColor>(object->property("test25")), QColor(0x11,0x22,0x33,0xAA));
 
     delete object;
 }
@@ -2102,20 +2123,21 @@ void tst_qdeclarativeecmascript::numberAssignment()
     QObject *object = component.create();
     QVERIFY(object != 0);
 
-    QVERIFY(object->property("test1") == QVariant((qreal)6.7));
-    QVERIFY(object->property("test2") == QVariant((qreal)6.7));
-    QVERIFY(object->property("test3") == QVariant((qreal)6));
-    QVERIFY(object->property("test4") == QVariant((qreal)6));
+    QCOMPARE(object->property("test1"), QVariant((qreal)6.7));
+    QCOMPARE(object->property("test2"), QVariant((qreal)6.7));
+    QCOMPARE(object->property("test2"), QVariant((qreal)6.7));
+    QCOMPARE(object->property("test3"), QVariant((qreal)6));
+    QCOMPARE(object->property("test4"), QVariant((qreal)6));
 
-    QVERIFY(object->property("test5") == QVariant((int)7));
-    QVERIFY(object->property("test6") == QVariant((int)7));
-    QVERIFY(object->property("test7") == QVariant((int)6));
-    QVERIFY(object->property("test8") == QVariant((int)6));
+    QCOMPARE(object->property("test5"), QVariant((int)7));
+    QCOMPARE(object->property("test6"), QVariant((int)7));
+    QCOMPARE(object->property("test7"), QVariant((int)6));
+    QCOMPARE(object->property("test8"), QVariant((int)6));
 
-    QVERIFY(object->property("test9") == QVariant((unsigned int)7));
-    QVERIFY(object->property("test10") == QVariant((unsigned int)7));
-    QVERIFY(object->property("test11") == QVariant((unsigned int)6));
-    QVERIFY(object->property("test12") == QVariant((unsigned int)6));
+    QCOMPARE(object->property("test9"), QVariant((unsigned int)7));
+    QCOMPARE(object->property("test10"), QVariant((unsigned int)7));
+    QCOMPARE(object->property("test11"), QVariant((unsigned int)6));
+    QCOMPARE(object->property("test12"), QVariant((unsigned int)6));
 
     delete object;
 }
@@ -2424,6 +2446,16 @@ void tst_qdeclarativeecmascript::include()
     delete o;
     }
 
+    // Including file with ".pragma library"
+    {
+    QDeclarativeComponent component(&engine, TEST_FILE("include_pragma.qml"));
+    QObject *o = component.create();
+    QVERIFY(o != 0);
+    QCOMPARE(o->property("test1").toInt(), 100);
+
+    delete o;
+    }
+
     // Remote - success
     {
     TestHTTPServer server(8111);
@@ -2471,6 +2503,33 @@ void tst_qdeclarativeecmascript::include()
     delete o;
     }
 }
+
+void tst_qdeclarativeecmascript::qtbug_10696()
+{
+    QDeclarativeComponent component(&engine, TEST_FILE("qtbug_10696.qml"));
+    QObject *o = component.create();
+    QVERIFY(o != 0);
+    delete o;
+}
+
+void tst_qdeclarativeecmascript::qtbug_11606()
+{
+    QDeclarativeComponent component(&engine, TEST_FILE("qtbug_11606.qml"));
+    QObject *o = component.create();
+    QVERIFY(o != 0);
+    QCOMPARE(o->property("test").toBool(), true);
+    delete o;
+}
+
+void tst_qdeclarativeecmascript::qtbug_11600()
+{
+    QDeclarativeComponent component(&engine, TEST_FILE("qtbug_11600.qml"));
+    QObject *o = component.create();
+    QVERIFY(o != 0);
+    QCOMPARE(o->property("test").toBool(), true);
+    delete o;
+}
+
 
 QTEST_MAIN(tst_qdeclarativeecmascript)
 

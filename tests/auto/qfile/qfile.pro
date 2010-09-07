@@ -1,9 +1,9 @@
 TEMPLATE = subdirs
-wince*:{
+wince*|symbian:{
   SUBDIRS = test
 } else {
   SUBDIRS = test stdinprocess
 }
 
-!symbian*:SUBDIRS += largefile
+!symbian:SUBDIRS += largefile
 

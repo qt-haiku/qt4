@@ -55,6 +55,8 @@
 
 #include <private/qobject_p.h>
 
+#ifndef QT_NO_GESTURES
+
 QT_BEGIN_NAMESPACE
 
 class QDeclarativeGestureAreaPrivate : public QDeclarativeItemPrivate
@@ -77,6 +79,8 @@ public:
 
 /*!
     \qmlclass GestureArea QDeclarativeGestureArea
+    \ingroup qml-basic-interaction-elements
+
     \brief The GestureArea item enables simple gesture handling.
     \inherits Item
 
@@ -128,7 +132,7 @@ public:
 
     GestureArea is an invisible item: it is never painted.
 
-    \sa Gesture, MouseArea
+    \sa MouseArea, {declarative/touchinteraction/gestures}{Gestures example}
 */
 
 /*!
@@ -226,7 +230,7 @@ void QDeclarativeGestureArea::connectSignals()
         ds >> gesturetype;
         QString script;
         ds >> script;
-        QDeclarativeExpression *exp = new QDeclarativeExpression(qmlContext(this), script, 0);
+        QDeclarativeExpression *exp = new QDeclarativeExpression(qmlContext(this), this, script);
         d->bindings.insert(Qt::GestureType(gesturetype),exp);
         grabGesture(Qt::GestureType(gesturetype));
     }
@@ -259,7 +263,10 @@ bool QDeclarativeGestureAreaPrivate::gestureEvent(QGestureEvent *event)
     bool accept = true;
     for (Bindings::Iterator it = bindings.begin(); it != bindings.end(); ++it) {
         if ((gesture = event->gesture(it.key()))) {
-            it.value()->evaluate();
+            QDeclarativeExpression *expr = it.value();
+            expr->evaluate();
+            if (expr->hasError())
+                qmlInfo(q_func()) << expr->error();
             event->setAccepted(true); // XXX only if value returns true?
         }
     }
@@ -267,3 +274,5 @@ bool QDeclarativeGestureAreaPrivate::gestureEvent(QGestureEvent *event)
 }
 
 QT_END_NAMESPACE
+
+#endif // QT_NO_GESTURES

@@ -752,6 +752,7 @@ static OSWindowRef qt_mac_create_window(QWidget *, WindowClass wclass, WindowAtt
     return window;
 }
 
+#ifndef QT_NO_GESTURES
 #if MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_6
 /* We build the release package against the 10.4 SDK.
    So, to enable gestures for applications running on
@@ -768,6 +769,7 @@ enum {
     kEventParamMagnificationAmount  = 'magn'
 };
 #endif
+#endif // QT_NO_GESTURES
 
 // window events
 static EventTypeSpec window_events[] = {
@@ -1076,6 +1078,7 @@ OSStatus QWidgetPrivate::qt_window_event(EventHandlerCallRef er, EventRef event,
         handled_event = false;
         break; }
 
+#ifndef QT_NO_GESTURES
     case kEventClassGesture: {
         // First, find the widget that was under
         // the mouse when the gesture happened:
@@ -1142,6 +1145,7 @@ OSStatus QWidgetPrivate::qt_window_event(EventHandlerCallRef er, EventRef event,
 
         QApplication::sendSpontaneousEvent(widget, &qNGEvent);
     break; }
+#endif // QT_NO_GESTURES
 
     default:
         handled_event = false;
@@ -1595,12 +1599,14 @@ void QWidgetPrivate::toggleDrawers(bool visible)
             continue;
         QWidget *widget = static_cast<QWidget*>(object);
         if(qt_mac_is_macdrawer(widget)) {
+            bool oldState = widget->testAttribute(Qt::WA_WState_ExplicitShowHide);
             if(visible) {
                 if (!widget->testAttribute(Qt::WA_WState_ExplicitShowHide))
                     widget->show();
             } else {
                 widget->hide();
-                widget->setAttribute(Qt::WA_WState_ExplicitShowHide, false);
+                if(!oldState)
+                    widget->setAttribute(Qt::WA_WState_ExplicitShowHide, false);
             }
         }
     }
@@ -2684,6 +2690,7 @@ QWidget::macCGHandle() const
 void QWidget::destroy(bool destroyWindow, bool destroySubWindows)
 {
     Q_D(QWidget);
+    d->aboutToDestroy();
     if (!isWindow() && parentWidget())
         parentWidget()->d_func()->invalidateBuffer(d->effectiveRectFor(geometry()));
     d->deactivateWidgetCleanup();
@@ -2789,21 +2796,27 @@ void QWidgetPrivate::setSubWindowStacking(bool set)
 
     if (QWidget *parent = q->parentWidget()) {
         if (parent->testAttribute(Qt::WA_WState_Created)) {
-            if (set)
-                [qt_mac_window_for(parent) addChildWindow:qt_mac_window_for(q) ordered:NSWindowAbove];
-            else
+            if (set) {
+                if (parent->isVisible()) {
+                    NSWindow *childwin = qt_mac_window_for(q);
+                    [qt_mac_window_for(parent) addChildWindow:childwin ordered:NSWindowAbove];
+                }
+            } else {
                 [qt_mac_window_for(parent) removeChildWindow:qt_mac_window_for(q)];
+            }
         }
     }
 
     QList<QWidget *> widgets = q->findChildren<QWidget *>();
     for (int i=0; i<widgets.size(); ++i) {
         QWidget *child = widgets.at(i);
-        if (child->isWindow() && child->testAttribute(Qt::WA_WState_Created)) {
-            if (set)
-                [qt_mac_window_for(q) addChildWindow:qt_mac_window_for(child) ordered:NSWindowAbove];
-            else
+        if (child->isWindow() && child->testAttribute(Qt::WA_WState_Created) && child->isVisibleTo(q)) {
+            if (set) {
+                NSWindow *childwin = qt_mac_window_for(child);
+                [qt_mac_window_for(q) addChildWindow:childwin ordered:NSWindowAbove];
+            } else {
                 [qt_mac_window_for(q) removeChildWindow:qt_mac_window_for(child)];
+            }
         }
     }
 }
@@ -2856,9 +2869,11 @@ void QWidgetPrivate::setParent_sys(QWidget *parent, Qt::WindowFlags f)
         }
         if (wasWindow) {
             oldToolbar = [oldWindow toolbar];
-            [oldToolbar retain];
-            oldToolbarVisible = [oldToolbar isVisible];
-            [oldWindow setToolbar:nil];
+            if (oldToolbar) {
+                [oldToolbar retain];
+                oldToolbarVisible = [oldToolbar isVisible];
+                [oldWindow setToolbar:nil];
+            }
         }
 #endif
     }
@@ -3990,10 +4005,10 @@ static void qt_mac_update_widget_position(QWidget *q, QRect oldRect, QRect newRe
         (oldRect.isValid() == false || newRect.isValid() == false)  ||
 
         // the position update is a part of a drag-and-drop operation
-        QDragManager::self()->object || 
-        
-        // we are on Panther (no HIViewSetNeedsDisplayInRect) 
-        QSysInfo::MacintoshVersion < QSysInfo::MV_10_4 
+        QDragManager::self()->object ||
+
+        // we are on Panther (no HIViewSetNeedsDisplayInRect)
+        QSysInfo::MacintoshVersion < QSysInfo::MV_10_4
     ){
         HIViewSetFrame(view, &bounds);
         return;
@@ -4382,6 +4397,13 @@ void QWidgetPrivate::setGeometry_sys_helper(int x, int y, int w, int h, bool isM
         data.window_state = data.window_state & ~Qt::WindowMaximized;
 
     const bool visible = q->isVisible();
+    // Apply size restrictions, applicable for Windows & Widgets.
+    if (QWExtra *extra = extraData()) {
+        w = qMin(w, extra->maxw);
+        h = qMin(h, extra->maxh);
+        w = qMax(w, extra->minw);
+        h = qMax(h, extra->minh);
+    }
     data.crect = QRect(x, y, w, h);
 
     if (realWindow) {

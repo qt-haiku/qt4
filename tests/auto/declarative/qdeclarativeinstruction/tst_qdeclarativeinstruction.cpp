@@ -42,6 +42,11 @@
 #include <qtest.h>
 #include <private/qdeclarativecompiler_p.h>
 
+#ifdef Q_OS_SYMBIAN
+// In Symbian OS test data is located in applications private dir
+#define SRCDIR "."
+#endif
+
 class tst_qdeclarativeinstruction : public QObject
 {
     Q_OBJECT
@@ -534,7 +539,6 @@ void tst_qdeclarativeinstruction::dump()
         << "-------------------------------------------------------------------------------"
         << "0\t\t0\tINIT\t\t\t0\t3\t-1\t-1"
         << "1\t\t1\tCREATE\t\t\t0\t\t\t\"Test\""
-        << "1\t\t1\tCREATE_SIMPLE\t\t-1"
         << "2\t\t2\tSETID\t\t\t0\t\t\t\"testId\""
         << "3\t\t3\tSET_DEFAULT"
         << "4\t\t4\tCREATE_COMPONENT\t3"
@@ -581,7 +585,7 @@ void tst_qdeclarativeinstruction::dump()
         << "45\t\t48\tDEFER\t\t\t7"
         << "46\t\tNA\tDEFER\t\t\t7"
         << "47\t\t48\tSTORE_IMPORTED_SCRIPT\t2"
-        << "48\t\t50\tXXX UNKOWN INSTRUCTION\t1234"
+        << "48\t\t50\tXXX UNKNOWN INSTRUCTION\t1234"
         << "49\t\t51\tSTORE_VARIANT_INTEGER\t\t32\t11"
         << "50\t\t52\tSTORE_VARIANT_DOUBLE\t\t19\t33.7"
         << "-------------------------------------------------------------------------------";

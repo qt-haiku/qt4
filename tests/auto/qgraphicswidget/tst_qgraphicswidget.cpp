@@ -111,6 +111,7 @@ private slots:
     void fontPropagationSceneChange();
     void geometry_data();
     void geometry();
+    void geometryChanged();
     void width();
     void height();
     void getContentsMargins_data();
@@ -169,12 +170,14 @@ private slots:
     void initialShow();
     void initialShow2();
     void itemChangeEvents();
+    void itemSendGeometryPosChangesDeactivated();
 
     // Task fixes
     void task236127_bspTreeIndexFails();
     void task243004_setStyleCrash();
     void task250119_shortcutContext();
     void QT_BUG_6544_tabFocusFirstUnsetWhenRemovingItems();
+    void QT_BUG_12056_tabFocusFirstUnsetWhenRemovingItems();
 };
 
 
@@ -774,9 +777,26 @@ void tst_QGraphicsWidget::geometry()
     QFETCH(QSizeF, size);
     widget.setPos(pos);
     widget.resize(size);
-    if (!size.isNull())
+    if (!size.isNull() && !pos.isNull())
+        QCOMPARE(spy.count(), 2);
+    if (!size.isNull() && pos.isNull())
         QCOMPARE(spy.count(), 1);
     QCOMPARE(widget.geometry(), QRectF(pos, size));
+}
+
+void tst_QGraphicsWidget::geometryChanged()
+{
+    QGraphicsWidget w;
+    w.setGeometry(0, 0, 200, 200);
+    QCOMPARE(w.geometry(), QRectF(0, 0, 200, 200));
+    QSignalSpy spy(&w, SIGNAL(geometryChanged()));
+    w.setGeometry(0, 0, 100, 100);
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(w.geometry(), QRectF(0, 0, 100, 100));
+    w.setPos(10, 10);
+    QCOMPARE(spy.count(), 2);
+    QCOMPARE(w.geometry(), QRectF(10, 10, 100, 100));
+
 }
 
 void tst_QGraphicsWidget::width()
@@ -870,7 +890,7 @@ void tst_QGraphicsWidget::initStyleOption()
     qt_x11_wait_for_window_manager(&view);
 #endif
     QApplication::setActiveWindow(&view);
-    QTRY_COMPARE(QApplication::activeWindow(), &view);
+    QTRY_COMPARE(QApplication::activeWindow(), (QWidget*)&view);
 
     view.setAlignment(Qt::AlignTop | Qt::AlignLeft);
     SubQGraphicsWidget *widget = new SubQGraphicsWidget;
@@ -1202,7 +1222,7 @@ void tst_QGraphicsWidget::setTabOrder()
     qt_x11_wait_for_window_manager(&view);
 #endif
     QApplication::setActiveWindow(&view);
-    QTRY_COMPARE(QApplication::activeWindow(), &view);
+    QTRY_COMPARE(QApplication::activeWindow(), (QWidget*)&view);
 
     QGraphicsWidget *lastItem = 0;
     QTest::ignoreMessage(QtWarningMsg, "QGraphicsWidget::setTabOrder(0, 0) is undefined");
@@ -1265,7 +1285,7 @@ void tst_QGraphicsWidget::setTabOrderAndReparent()
     view.show();
     QApplication::setActiveWindow(&view);
     QTest::qWaitForWindowShown(&view);
-    QTRY_COMPARE(QApplication::activeWindow(), &view);
+    QTRY_COMPARE(QApplication::activeWindow(), (QWidget*)&view);
 
     int i;
     QGraphicsWidget *w1, *w2, *w3, *w4;
@@ -1405,7 +1425,7 @@ void tst_QGraphicsWidget::verifyFocusChain()
     view.show();
     QApplication::setActiveWindow(&view);
     QTest::qWaitForWindowShown(&view);
-    QTRY_COMPARE(QApplication::activeWindow(), &view);
+    QTRY_COMPARE(QApplication::activeWindow(), (QWidget*)&view);
 
     {
         // parent/child focus
@@ -1532,7 +1552,7 @@ void tst_QGraphicsWidget::updateFocusChainWhenChildDie()
     qt_x11_wait_for_window_manager(&view);
 #endif
     QApplication::setActiveWindow(&view);
-    QTRY_COMPARE(QApplication::activeWindow(), &view);
+    QTRY_COMPARE(QApplication::activeWindow(), (QWidget*)&view);
 
     // delete item in focus chain with no focus and verify chain
     SubQGraphicsWidget *parent = new SubQGraphicsWidget(0, Qt::Window);
@@ -2483,7 +2503,7 @@ void tst_QGraphicsWidget::task250119_shortcutContext()
     view.setScene(&scene);
     view.show();
     QApplication::setActiveWindow(&view);
-    QTRY_COMPARE(QApplication::activeWindow(), &view);
+    QTRY_COMPARE(QApplication::activeWindow(), (QWidget*)&view);
 
 
     // *** Event: ***
@@ -3030,6 +3050,34 @@ void tst_QGraphicsWidget::itemChangeEvents()
     QTRY_VERIFY(!item->valueDuringEvents.value(QEvent::EnabledChange).toBool());
 }
 
+void tst_QGraphicsWidget::itemSendGeometryPosChangesDeactivated()
+{
+    QGraphicsScene scene;
+    QGraphicsView view(&scene);
+    QGraphicsWidget *item = new QGraphicsWidget;
+    scene.addItem(item);
+    view.show();
+    QTest::qWaitForWindowShown(&view);
+    item->setGeometry(QRectF(0, 0, 50, 50));
+    QTRY_COMPARE(item->geometry(), QRectF(0, 0, 50, 50));
+
+    item->setFlag(QGraphicsItem::ItemSendsGeometryChanges, false);
+    item->setGeometry(QRectF(0, 0, 60, 60));
+    QCOMPARE(item->geometry(), QRectF(0, 0, 60, 60));
+    QCOMPARE(item->pos(), QPointF(0, 0));
+    item->setPos(QPointF(10, 10));
+    QCOMPARE(item->pos(), QPointF(10, 10));
+    QCOMPARE(item->geometry(), QRectF(10, 10, 60, 60));
+
+    item->setFlag(QGraphicsItem::ItemSendsScenePositionChanges, false);
+    item->setGeometry(QRectF(0, 0, 60, 60));
+    QCOMPARE(item->geometry(), QRectF(0, 0, 60, 60));
+    QCOMPARE(item->pos(), QPointF(0, 0));
+    item->setPos(QPointF(10, 10));
+    QCOMPARE(item->pos(), QPointF(10, 10));
+    QCOMPARE(item->geometry(), QRectF(10, 10, 60, 60));
+}
+
 void tst_QGraphicsWidget::QT_BUG_6544_tabFocusFirstUnsetWhenRemovingItems()
 {
     QGraphicsScene scene;
@@ -3057,6 +3105,25 @@ void tst_QGraphicsWidget::QT_BUG_6544_tabFocusFirstUnsetWhenRemovingItems()
 
     // Add an item into the scene.
     scene.addItem(parent2);
+
+    //This should not crash
+}
+void tst_QGraphicsWidget::QT_BUG_12056_tabFocusFirstUnsetWhenRemovingItems()
+{
+    QGraphicsScene scene;
+    QGraphicsWidget* item1 = new QGraphicsWidget;
+    QGraphicsWidget* item2 = new QGraphicsWidget;
+    QGraphicsWidget* item3 = new QGraphicsWidget;
+
+    scene.addItem(item1);
+    scene.addItem(item2);
+
+    scene.removeItem(item2);
+    scene.removeItem(item1);
+    delete item2;
+    delete item1;
+
+    scene.addItem(item3);
 
     //This should not crash
 }

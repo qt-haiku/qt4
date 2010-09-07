@@ -34,10 +34,10 @@ Rectangle {
             text: s.text; font.underline: true; font.overline: true; font.strikeout: true
         }
         Text {
-            text: s.text; font.letterSpacing: 200
+            text: s.text; font.letterSpacing: 2
         }
         Text {
-            text: s.text; font.underline: true; font.letterSpacing: 200; font.capitalization: "AllUppercase"; color: "blue"
+            text: s.text; font.underline: true; font.letterSpacing: 2; font.capitalization: "AllUppercase"; color: "blue"
         }
         Text {
             text: s.text; font.overline: true; font.wordSpacing: 25; font.capitalization: "Capitalize"; color: "green"
@@ -85,7 +85,7 @@ Rectangle {
             text: s.text + " thisisaverylongstringwithnospaces"; width: 150; wrapMode: Text.WrapAnywhere
         }
         Text {
-            text: s.text + " thisisaverylongstringwithnospaces"; width: 150; wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+            text: s.text + " thisisaverylongstringwithnospaces"; width: 150; wrapMode: Text.Wrap
         }
     }
 }

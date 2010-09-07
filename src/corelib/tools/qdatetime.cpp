@@ -1843,7 +1843,7 @@ QTime QTime::fromString(const QString& s, Qt::DateFormat f)
             const QString msec_s(QLatin1String("0.") + s.mid(9, 4));
             const float msec(msec_s.toFloat(&ok));
             if (!ok)
-                return QTime();
+                return QTime(hour, minute, second, 0);
             return QTime(hour, minute, second, qMin(qRound(msec * 1000.0), 999));
         }
     }
@@ -2385,7 +2385,7 @@ uint QDateTime::toTime_t() const
 /*!
     \since 4.7
 
-    Sets the date and time given the number of \a mulliseconds that have
+    Sets the date and time given the number of milliseconds,\a msecs, that have
     passed since 1970-01-01T00:00:00.000, Coordinated Universal Time
     (Qt::UTC). On systems that do not support time zones this function
     will behave as if local time were Qt::UTC.
@@ -3188,7 +3188,7 @@ QDateTime QDateTime::fromTime_t(uint seconds)
 /*!
   \since 4.7
 
-  Returns a datetime whose date and time are the number of milliseconds \a msec
+  Returns a datetime whose date and time are the number of milliseconds, \a msecs,
   that have passed since 1970-01-01T00:00:00.000, Coordinated Universal
   Time (Qt::UTC). On systems that do not support time zones, the time
   will be set as if local time were Qt::UTC.
@@ -3304,12 +3304,37 @@ QDateTime QDateTime::fromString(const QString& s, Qt::DateFormat f)
         if (tmp.size() == 10)
             return QDateTime(date);
 
+        tmp = tmp.mid(11);
+
         // Recognize UTC specifications
         if (tmp.endsWith(QLatin1Char('Z'))) {
             ts = Qt::UTC;
             tmp.chop(1);
         }
-        return QDateTime(date, QTime::fromString(tmp.mid(11), Qt::ISODate), ts);
+
+        // Recognize timezone specifications
+        QRegExp rx(QLatin1String("[+-]"));
+        if (tmp.contains(rx)) {
+            int idx = tmp.indexOf(rx);
+            QString tmp2 = tmp.mid(idx);
+            tmp = tmp.left(idx);
+            bool ok = true;
+            int ntzhour = 1;
+            int ntzminute = 3;
+            if ( tmp2.indexOf(QLatin1Char(':')) == 3 )
+               ntzminute = 4;
+            const int tzhour(tmp2.mid(ntzhour, 2).toInt(&ok));
+            const int tzminute(tmp2.mid(ntzminute, 2).toInt(&ok));
+            QTime tzt(tzhour, tzminute);
+            int utcOffset = (tzt.hour() * 60 + tzt.minute()) * 60;
+            if ( utcOffset != 0 ) {
+                ts = Qt::OffsetFromUTC;
+                QDateTime dt(date, QTime::fromString(tmp, Qt::ISODate), ts);
+                dt.setUtcOffset( utcOffset * (tmp2.startsWith(QLatin1Char('-')) ? -1 : 1) );
+                return dt;
+            }
+        }
+        return QDateTime(date, QTime::fromString(tmp, Qt::ISODate), ts);
     }
     case Qt::SystemLocaleDate:
     case Qt::SystemLocaleShortDate:
@@ -3573,7 +3598,7 @@ void QDateTime::detach()
 
     Writes the \a date to stream \a out.
 
-    \sa {Format of the QDataStream operators}
+    \sa {Serializing Qt Data Types}
 */
 
 QDataStream &operator<<(QDataStream &out, const QDate &date)
@@ -3586,7 +3611,7 @@ QDataStream &operator<<(QDataStream &out, const QDate &date)
 
     Reads a date from stream \a in into the \a date.
 
-    \sa {Format of the QDataStream operators}
+    \sa {Serializing Qt Data Types}
 */
 
 QDataStream &operator>>(QDataStream &in, QDate &date)
@@ -3602,7 +3627,7 @@ QDataStream &operator>>(QDataStream &in, QDate &date)
 
     Writes \a time to stream \a out.
 
-    \sa {Format of the QDataStream operators}
+    \sa {Serializing Qt Data Types}
 */
 
 QDataStream &operator<<(QDataStream &out, const QTime &time)
@@ -3615,7 +3640,7 @@ QDataStream &operator<<(QDataStream &out, const QTime &time)
 
     Reads a time from stream \a in into the given \a time.
 
-    \sa {Format of the QDataStream operators}
+    \sa {Serializing Qt Data Types}
 */
 
 QDataStream &operator>>(QDataStream &in, QTime &time)
@@ -3631,7 +3656,7 @@ QDataStream &operator>>(QDataStream &in, QTime &time)
 
     Writes \a dateTime to the \a out stream.
 
-    \sa {Format of the QDataStream operators}
+    \sa {Serializing Qt Data Types}
 */
 QDataStream &operator<<(QDataStream &out, const QDateTime &dateTime)
 {
@@ -3646,7 +3671,7 @@ QDataStream &operator<<(QDataStream &out, const QDateTime &dateTime)
 
     Reads a datetime from the stream \a in into \a dateTime.
 
-    \sa {Format of the QDataStream operators}
+    \sa {Serializing Qt Data Types}
 */
 
 QDataStream &operator>>(QDataStream &in, QDateTime &dateTime)

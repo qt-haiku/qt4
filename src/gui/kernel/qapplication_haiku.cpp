@@ -5,6 +5,7 @@
 #include "qeventdispatcher_haiku_p.h"
 #include "qwidget.h"
 #include "qwidget_p.h"
+#include "private/qsystemtrayicon_p.h"
 #include <QtGui>
 #include <Application.h>
 #include <Path.h>
@@ -87,8 +88,6 @@ HQApplication::~HQApplication()
 
 void HQApplication::MessageReceived(BMessage* msg)
 {
-	Q_UNUSED(msg);
-	qDebug("HQApplication::MessageReceived\n");
 	BApplication::MessageReceived(msg);
 }
 
@@ -138,9 +137,6 @@ void qt_init(QApplicationPrivate *priv, int)
 
 	happ = new HQApplication("application/x-vnd."+QFileInfo(QApplication::applicationFilePath()).fileName().toLatin1(), priv );	
 	be_app = happ;
-
-	QString appDir = QCoreApplication::applicationDirPath();
-	chdir(appDir.toUtf8());
     		
 	QApplicationPrivate::haiku_apply_settings();	
 	
@@ -149,17 +145,21 @@ void qt_init(QApplicationPrivate *priv, int)
 		
 	happ->UnlockLooper();
 
-	if(priv->argc==1)
-	for(i=0;i<100;i++) {
-		if(happ->RefHandled) {
-			BPath p(&happ->Ref);
-			priv->argc = 2;
-			priv->argv[1]=strdup(p.Path());
-			priv->argv[2]=0;
-			break;
-		}
-		snooze(1000);
-	}	
+	if(priv->argc==1) {
+		for(i=0;i<100;i++) {
+			if(happ->RefHandled) {
+				BPath p(&happ->Ref);
+				priv->argc = 2;
+				priv->argv[1]=strdup(p.Path());
+				priv->argv[2]=0;
+				break;
+			}
+			snooze(1000);
+		}	
+		
+		QString appDir = QCoreApplication::applicationDirPath();
+		chdir(appDir.toUtf8());		
+	}
 }
 
 void qt_cleanup()
@@ -469,7 +469,7 @@ void QApplicationPrivate::haiku_initialize_style()
 
 bool QApplicationPrivate::modalState()
 {
-	qDebug()<<"Unimplemented: QApplicationPrivate::modalState():"<<app_do_modal;
+	//qDebug()<<"Unimplemented: QApplicationPrivate::modalState():"<<app_do_modal;
 	return app_do_modal;
 }
 
@@ -597,13 +597,13 @@ void QApplication::setEffectEnabled(Qt::UIEffect effect, bool enable)
 {
 	Q_UNUSED(effect);
 	Q_UNUSED(enable);
-	qDebug("Unimplemented: QApplication::setEffectEnabled\n");
+//	qDebug("Unimplemented: QApplication::setEffectEnabled\n");
 }
 
 bool QApplication::isEffectEnabled(Qt::UIEffect effect)
 {
 	Q_UNUSED(effect);
-	qDebug("Unimplemented: QApplication::isEffectEnabled\n");
+//	qDebug("Unimplemented: QApplication::isEffectEnabled\n");
 	return false;
 }
 
@@ -617,10 +617,22 @@ int QApplication::cursorFlashTime()
 	return QApplicationPrivate::cursor_flash_time;
 }
 
-QWidget *QApplication::topLevelAt(const QPoint &)
+QWidget *QApplication::topLevelAt(const QPoint &point)
 {
-	qDebug("Unimplemented: QApplication::topLevelAt\n");
-	return 0;
+    QWidget *found = 0;
+    int lowestZ = INT_MAX;
+    QWidgetList list = QApplication::topLevelWidgets();
+    for (int i = 0; i < list.count(); ++i) {
+        QWidget *widget = list.at(i);
+        if (widget->isVisible() && !(widget->windowType() == Qt::Desktop)) {
+            if (widget->geometry().adjusted(0,0,1,1).contains(point)) {            	    
+                    found = widget;			//TODO: check for z-order needed!
+                   	if(widget->nativeView()->Window()->IsActive())
+                   		break;
+            }
+        }
+    }
+    return found;
 }
 
 void QApplication::beep()
@@ -636,26 +648,5 @@ void QApplicationPrivate::initializeMultitouch_sys()
 }
 
 void QApplicationPrivate::cleanupMultitouch_sys()
-{ }
-
-#ifndef QT_NO_SESSIONMANAGER
-QSessionManager::QSessionManager(QApplication * /* app */, QString & /* id */, QString& /* key */)
 {
-
 }
-
-QSessionManager::~QSessionManager()
-{
-
-}
-
-bool QSessionManager::allowsInteraction()
-{
-    return false;
-}
-
-void QSessionManager::cancel()
-{
-
-}
-#endif //QT_NO_SESSIONMANAGER

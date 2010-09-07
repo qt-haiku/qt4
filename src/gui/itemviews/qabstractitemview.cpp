@@ -679,7 +679,11 @@ void QAbstractItemView::setModel(QAbstractItemModel *model)
         connect(d->model, SIGNAL(modelReset()), this, SLOT(reset()));
         connect(d->model, SIGNAL(layoutChanged()), this, SLOT(_q_layoutChanged()));
     }
-    setSelectionModel(new QItemSelectionModel(d->model, this));
+
+    QItemSelectionModel *selection_model = new QItemSelectionModel(d->model, this);
+    connect(d->model, SIGNAL(destroyed()), selection_model, SLOT(deleteLater()));
+    setSelectionModel(selection_model);
+
     reset(); // kill editors, set new root and do layout
 }
 
@@ -1359,7 +1363,7 @@ bool QAbstractItemView::dragEnabled() const
 
     Note that the model used needs to provide support for drag and drop operations.
 
-    \sa setDragDropMode() {Using Drag and Drop with Item Views}
+    \sa setDragDropMode() {Using drag & drop with item views}
 */
 
 /*!
@@ -1785,7 +1789,10 @@ void QAbstractItemView::mouseReleaseEvent(QMouseEvent *event)
         emit clicked(index);
         if (edited)
             return;
-        if (style()->styleHint(QStyle::SH_ItemView_ActivateItemOnSingleClick, 0, this))
+        QStyleOptionViewItemV4 option = d->viewOptionsV4();
+        if (d->pressedAlreadySelected)
+            option.state |= QStyle::State_Selected;
+        if (style()->styleHint(QStyle::SH_ItemView_ActivateItemOnSingleClick, &option, this))
             emit activated(index);
     }
 }
@@ -2263,9 +2270,11 @@ void QAbstractItemView::keyPressEvent(QKeyEvent *event)
             } else {
                 d->selectionModel->setCurrentIndex(newCurrent, command);
                 d->pressedPosition = visualRect(newCurrent).center() + d->offset();
-                // We copy the same behaviour as for mousePressEvent().
-                QRect rect(d->pressedPosition - d->offset(), QSize(1, 1));
-                setSelection(rect, command);
+                if (newCurrent.isValid()) {
+                    // We copy the same behaviour as for mousePressEvent().
+                    QRect rect(d->pressedPosition - d->offset(), QSize(1, 1));
+                    setSelection(rect, command);
+                }
             }
             event->accept();
             return;

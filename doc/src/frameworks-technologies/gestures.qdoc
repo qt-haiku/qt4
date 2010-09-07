@@ -6,35 +6,21 @@
 **
 ** This file is part of the documentation of the Qt Toolkit.
 **
-** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
+** $QT_BEGIN_LICENSE:FDL$
+** Commercial Usage
+** Licensees holding valid Qt Commercial licenses may use this file in
+** accordance with the Qt Commercial License Agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in a
+** written agreement between you and Nokia.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU Free Documentation License
+** Alternatively, this file may be used under the terms of the GNU Free
+** Documentation License version 1.3 as published by the Free Software
+** Foundation and appearing in the file included in the packaging of this
+** file.
 **
 ** If you have questions regarding the use of this file, please contact
 ** Nokia at qt-info@nokia.com.
-**
-**
-**
-**
-**
-**
-**
-**
 ** $QT_END_LICENSE$
 **
 ****************************************************************************/
@@ -74,7 +60,8 @@
     \section1 Using Standard Gestures with Widgets
 
     Gestures can be enabled for instances of QWidget and QGraphicsObject subclasses.
-    An object that accepts gesture input is referred to as a \e{target object}.
+    An object that accepts gesture input is referred to throughout the documentation
+    as a \e{target object}.
 
     To enable a gesture for a target object, call its QWidget::grabGesture() or
     QGraphicsObject::grabGesture() function with an argument describing the
@@ -83,12 +70,56 @@
 
     \snippet examples/gestures/imagegestures/imagewidget.cpp enable gestures
 
-    In the above code, the gesture is set up in the constructor of the target object
+    In the above code, the gestures are set up in the constructor of the target object
     itself.
+
+    \section1 Handling Events
 
     When the user performs a gesture, QGestureEvent events will be delivered to the
     target object, and these can be handled by reimplementing the QWidget::event()
     handler function for widgets or QGraphicsItem::sceneEvent() for graphics objects.
+
+    As one target object can subscribe to more than one gesture type, the QGestureEvent
+    can contain more than one QGesture, indicating several possible gestures are active
+    at the same time. It is then up to the widget to determine how to handle those
+    multiple gestures and choose if some should be canceled in favor of others.
+
+    Each QGesture contained within a QGestureEvent object can be accepted() or ignored()
+    individually, or all together. Additionally, you can query the individual QGesture
+    data objects (the state) using several getters.
+
+    \section2 Standard Procedure for Event Handling
+
+    A QGesture is by default accepted when it arrives at your widget. However, it is good
+    practice to always explicitly accept or reject a gesture. The general rule is that, if
+    you accept a gesture, you are using it. If you are ignoring it you are not interested
+    in it. Ignoring a gesture may mean it gets offered to another target object, or it will
+    get canceled.
+
+    Each QGesture has several states it goes through; there is a well defined way to change
+    the state, typically the user input is the cause of state changes (by starting and
+    stopping interaction, for instance) but the widget can also cause state changes.
+
+    The first time a particular QGesture is delivered to a widget or graphics item, it will
+    be in the Qt::GestureStarted state. The way you handle the gesture at this point
+    influences whether you can interact with it later.
+
+    \list
+    \o Accepting the gesture means the widget acts on the gesture and there will follow
+       gestures with the Qt::GestureUpdatedstate.
+    \o Ignoring the gesture will mean the gesture will never be offered to you again.
+       It will be offered to a parent widget or item as well.
+    \o Calling setGestureCancelPolicy() on the gesture when it is in its starting state,
+       and is also accepted can cause other gestures to be canceled.
+    \endlist
+
+    Using QGesture::CancelAllInContext to cancel a gesture will cause all gestures, in any
+    state, to be canceled unless they are explicitly accepted. This means that active
+    gestures on children will get canceled. It also means that gestures delivered in the
+    same QGestureEvent will get canceled if the widget ignores them. This can be a useful
+    way to filter out all gestures except the one you are interested in.
+
+    \section2 Example Event Handling
 
     For convenience, the \l{Image Gestures Example} reimplements the general
     \l{QWidget::}{event()} handler function and delegates gesture events to a

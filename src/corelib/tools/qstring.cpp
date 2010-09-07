@@ -69,6 +69,10 @@
 #include <winnls.h>
 #endif
 
+#ifdef Q_OS_SYMBIAN
+#include <e32cmn.h>
+#endif
+
 #include <limits.h>
 #include <string.h>
 #include <stdlib.h>
@@ -113,7 +117,7 @@ int qFindStringBoyerMoore(const QChar *haystack, int haystackLen, int from,
 static int ucstricmp(const ushort *a, const ushort *ae, const ushort *b, const ushort *be)
 {
     if (a == b)
-        return 0;
+        return (ae - be);
     if (a == 0)
         return 1;
     if (b == 0)
@@ -125,7 +129,7 @@ static int ucstricmp(const ushort *a, const ushort *ae, const ushort *b, const u
 
     uint alast = 0;
     uint blast = 0;
-    while (a != e) {
+    while (a < e) {
 //         qDebug() << hex << alast << blast;
 //         qDebug() << hex << "*a=" << *a << "alast=" << alast << "folded=" << foldCase (*a, alast);
 //         qDebug() << hex << "*b=" << *b << "blast=" << blast << "folded=" << foldCase (*b, blast);
@@ -154,7 +158,7 @@ static int ucstricmp(const ushort *a, const ushort *ae, const uchar *b)
     if (b == 0)
         return -1;
 
-    while (a != ae && *b) {
+    while (a < ae && *b) {
         int diff = foldCase(*a) - foldCase(*b);
         if ((diff))
             return diff;
@@ -939,11 +943,11 @@ int QString::toWCharArray(wchar_t *array) const
         const unsigned short *uc = utf16();
         for (int i = 0; i < length(); ++i) {
             uint u = uc[i];
-            if (u >= 0xd800 && u < 0xdc00 && i < length()-1) {
+            if (QChar::isHighSurrogate(u) && i + 1 < length()) {
                 ushort low = uc[i+1];
-                if (low >= 0xdc00 && low < 0xe000) {
+                if (QChar::isLowSurrogate(low)) {
+                    u = QChar::surrogateToUcs4(u, low);
                     ++i;
-                    u = (u - 0xd800)*0x400 + (low - 0xdc00) + 0x10000;
                 }
             }
             *a = wchar_t(u);
@@ -4640,8 +4644,11 @@ int QString::compare_helper(const QChar *data1, int length1, QLatin1String s2,
         return length1;
 
     if (cs == Qt::CaseSensitive) {
-        while (uc != e && *c && *uc == *c)
+        while (uc < e && *c && *uc == *c)
             uc++, c++;
+
+        if (uc == e)
+            return -*c;
 
         return *uc - *c;
     } else {
@@ -4765,6 +4772,10 @@ int QString::localeAwareCompare_helper(const QChar *data1, int length1,
     CFRelease(thisString);
     CFRelease(otherString);
     return result;
+#elif defined(Q_OS_SYMBIAN)
+    TPtrC p1 = TPtrC16(reinterpret_cast<const TUint16 *>(data1), length1);
+    TPtrC p2 = TPtrC16(reinterpret_cast<const TUint16 *>(data2), length2);
+    return p1.CompareC(p2);
 #elif defined(Q_OS_UNIX)
     // declared in <string.h>
     int delta = strcoll(toLocal8Bit_helper(data1, length1), toLocal8Bit_helper(data2, length2));
@@ -6149,18 +6160,18 @@ QString QString::repeated(int times) const
     if (result.d->alloc != resultSize)
         return QString(); // not enough memory
 
-    qMemCopy(result.d->data, d->data, d->size * sizeof(ushort));
+    memcpy(result.d->data, d->data, d->size * sizeof(ushort));
 
     int sizeSoFar = d->size;
     ushort *end = result.d->data + sizeSoFar;
 
     const int halfResultSize = resultSize >> 1;
     while (sizeSoFar <= halfResultSize) {
-        qMemCopy(end, result.d->data, sizeSoFar * sizeof(ushort));
+        memcpy(end, result.d->data, sizeSoFar * sizeof(ushort));
         end += sizeSoFar;
         sizeSoFar <<= 1;
     }
-    qMemCopy(end, result.d->data, (resultSize - sizeSoFar) * sizeof(ushort));
+    memcpy(end, result.d->data, (resultSize - sizeSoFar) * sizeof(ushort));
     result.d->data[resultSize] = '\0';
     result.d->size = resultSize;
     return result;
@@ -6195,8 +6206,10 @@ void qt_string_normalize(QString *data, QString::NormalizationForm mode, QChar::
     if (simple)
         return;
 
-    QString &s = *data;
-    if (version != UNICODE_DATA_VERSION) {
+    if (version == QChar::Unicode_Unassigned) {
+        version = UNICODE_DATA_VERSION;
+    } else if (version != UNICODE_DATA_VERSION) {
+        QString &s = *data;
         for (int i = 0; i < NumNormalizationCorrections; ++i) {
             const NormalizationCorrection &n = uc_normalization_corrections[i];
             if (n.version > version) {
@@ -6632,8 +6645,9 @@ QString QString::arg(qlonglong a, int fieldWidth, int base, const QChar &fillCha
     QString locale_arg;
     if (d.locale_occurrences > 0) {
         QLocale locale;
-        locale_arg = locale.d()->longLongToString(a, -1, base, fieldWidth,
-                                                  flags | QLocalePrivate::ThousandsGroup);
+        if (!locale.numberOptions() & QLocale::OmitGroupSeparator)
+            flags |= QLocalePrivate::ThousandsGroup;
+        locale_arg = locale.d()->longLongToString(a, -1, base, fieldWidth, flags);
     }
 
     return replaceArgEscapes(*this, d, fieldWidth, arg, locale_arg, fillChar);
@@ -6675,8 +6689,9 @@ QString QString::arg(qulonglong a, int fieldWidth, int base, const QChar &fillCh
     QString locale_arg;
     if (d.locale_occurrences > 0) {
         QLocale locale;
-        locale_arg = locale.d()->unsLongLongToString(a, -1, base, fieldWidth,
-                                                     flags | QLocalePrivate::ThousandsGroup);
+        if (!locale.numberOptions() & QLocale::OmitGroupSeparator)
+            flags |= QLocalePrivate::ThousandsGroup;
+        locale_arg = locale.d()->unsLongLongToString(a, -1, base, fieldWidth, flags);
     }
 
     return replaceArgEscapes(*this, d, fieldWidth, arg, locale_arg, fillChar);
@@ -6809,7 +6824,8 @@ QString QString::arg(double a, int fieldWidth, char fmt, int prec, const QChar &
     if (d.locale_occurrences > 0) {
         QLocale locale;
 
-        flags |= QLocalePrivate::ThousandsGroup;
+        if (!locale.numberOptions() & QLocale::OmitGroupSeparator)
+            flags |= QLocalePrivate::ThousandsGroup;
         locale_arg = locale.d()->doubleToString(a, prec, form, fieldWidth, flags);
     }
 
@@ -6911,20 +6927,23 @@ void QString::updateProperties() const
         p++;
     }
 
-    p = d->data;
-    d->righttoleft = false;
+    d->righttoleft = isRightToLeft();
+    d->clean = true;
+}
+
+bool QString::isRightToLeft() const
+{
+    ushort *p = d->data;
+    const ushort * const end = p + d->size;
+    bool righttoleft = false;
     while (p < end) {
         switch(QChar::direction(*p))
         {
         case QChar::DirL:
-        case QChar::DirLRO:
-        case QChar::DirLRE:
             goto end;
         case QChar::DirR:
         case QChar::DirAL:
-        case QChar::DirRLO:
-        case QChar::DirRLE:
-            d->righttoleft = true;
+            righttoleft = true;
             goto end;
         default:
             break;
@@ -6932,8 +6951,7 @@ void QString::updateProperties() const
         ++p;
     }
  end:
-    d->clean = true;
-    return;
+    return righttoleft;
 }
 
 /*! \fn bool QString::isSimpleText() const
@@ -6943,7 +6961,7 @@ void QString::updateProperties() const
 
 /*! \fn bool QString::isRightToLeft() const
 
-    \internal
+    Returns true if the string is read right to left.
 */
 
 
@@ -7091,7 +7109,7 @@ QString QString::fromRawData(const QChar *unicode, int size)
 */
 QString &QString::setRawData(const QChar *unicode, int size)
 {
-    if (d->ref != 1 || d->alloc) {
+    if (d->ref != 1 || (d->data == d->array && d->alloc)) {
         *this = fromRawData(unicode, size);
     } else {
 #ifdef QT3_SUPPORT
@@ -7385,7 +7403,7 @@ QString &QString::setRawData(const QChar *unicode, int size)
 
     Writes the given \a string to the specified \a stream.
 
-    \sa {Format of the QDataStream Operators}
+    \sa {Serializing Qt Data Types}
 */
 
 QDataStream &operator<<(QDataStream &out, const QString &str)
@@ -7433,7 +7451,7 @@ QDataStream &operator<<(QDataStream &out, const QString &str)
 
     Reads a string from the specified \a stream into the given \a string.
 
-    \sa {Format of the QDataStream Operators}
+    \sa {Serializing Qt Data Types}
 */
 
 QDataStream &operator>>(QDataStream &in, QString &str)

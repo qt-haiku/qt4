@@ -6,215 +6,171 @@
 **
 ** This file is part of the documentation of the Qt Toolkit.
 **
-** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
+** $QT_BEGIN_LICENSE:FDL$
+** Commercial Usage
+** Licensees holding valid Qt Commercial licenses may use this file in
+** accordance with the Qt Commercial License Agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in a
+** written agreement between you and Nokia.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU Free Documentation License
+** Alternatively, this file may be used under the terms of the GNU Free
+** Documentation License version 1.3 as published by the Free Software
+** Foundation and appearing in the file included in the packaging of this
+** file.
 **
 ** If you have questions regarding the use of this file, please contact
 ** Nokia at qt-info@nokia.com.
-**
-**
-**
-**
-**
-**
-**
-**
 ** $QT_END_LICENSE$
 **
 ****************************************************************************/
 
 /*!
-\page qdeclarativeelements.html
-\target elements
-\title QML Elements
+  \page qdeclarativeelements.html
+  \target elements
+  \title QML Elements
 
-The following table lists the QML elements provided by the \l {QtDeclarative}{Qt Declarative} module.
+  This is a dictionary of all the QML elements available in the \l
+  {QtDeclarative} {Qt Declarative} module. 
 
-\table 80%
-\header
-\o \bold {States}
-\o \bold {Animation and Transitions}
-\o \bold {Working with Data}
-\o \bold {Utility}
-\row
+  To see the QML elements listed by
+  functional area, \l{Groups Of Related QML Elements} {look here}.
 
-\o
-\list
-\o \l State
-\o \l PropertyChanges
-\o \l StateGroup
-\o \l ParentChange (Item-specific)
-\o \l StateChangeScript (Item-specific)
-\o \l AnchorChanges (Item-specific)
-\endlist
+  \generatelist qmlclasses
 
-\o
-\list
-\o \l PropertyAnimation
-\o \l NumberAnimation
-\o \l ColorAnimation
-\o \l RotationAnimation
-\o \l SequentialAnimation
-\o \l ParallelAnimation
-\o \l PauseAnimation
-\o \l ParentAnimation
-\o \l AnchorAnimation
-\o \l SmoothedAnimation
-\o \l PropertyAction
-\o \l ScriptAction
-\o \l Transition
-\o \l SmoothedFollow
-\o \l SpringFollow
-\o \l Behavior
-\endlist
+*/
 
-\o
-\list
-\o \l Binding
-\o \l ListModel
-\list
-\o \l ListElement
-\endlist
-\o \l VisualItemModel
-\o \l VisualDataModel
-\o \l Package
-\o \l XmlListModel
-\list
-\o \l XmlRole
-\endlist
-\endlist
 
-\o
-\list
-\o \l Connections
-\o \l Component
-\o \l Timer
-\o \l QtObject
-\o \l WorkerScript
-\endlist
+/*!
+    \group qml-groups
+    \title Groups Of Related QML Elements
 
-\header
-\o \bold {Basic Visual Items}
-\o \bold {Basic Interaction Items}
-\o \bold {Utility}
-\o \bold {Transforms}
+    \brief If you know what kind of QML element you want (Basic Visual, 
+    Interaction, Animation, etc), look here.
 
-\row
-\o
-\list
-\o \l Item
-\o \l Rectangle
-    \list
-    \o \l Gradient
-        \list
-        \o \l GradientStop
-        \endlist
-    \endlist
-\o \l Image
-\o \l BorderImage
-\o \l AnimatedImage
-\o \l Text
-\o \l TextInput
-    \list
-    \o \l IntValidator
-    \o \l DoubleValidator
-    \o \l RegExpValidator
-    \endlist
-\o \l TextEdit
-\endlist
+    This is a list of functional groups of QML elements.
 
-\o
-\list
-\o \l MouseArea
-\o \l FocusScope
-\o \l Flickable
-\o \l Flipable
-\o \l GestureArea (experimental)
-\endlist
+    \generatelist{related}
 
-\o
-\list
-\o \l Loader
-\o \l Repeater
-\o \l SystemPalette
-\o \l FontLoader
-\o \l LayoutItem
-\endlist
+*/
 
-\o
-\list
-\o \l Scale
-\o \l Rotation
-\o \l Translate
-\endlist
+/*!
+    \group qml-basic-visual-elements
+    \title Basic QML Visual Elements
+    \ingroup qml-groups
 
-\header
-\o \bold {Views}
-\o \bold {Positioners}
-\o \bold {Media}
-\o \bold {Effects}
+    \brief Elements for constructing basic visual items.
 
-\row
-\o
+    \generatelist{related}
 
-\target xmlViews
-\list
-\o \l ListView
-\o \l GridView
-\o \l PathView
-    \list
-    \o \l Path
-        \list
-        \o \l PathLine
-        \o \l PathQuad
-        \o \l PathCubic
-        \o \l PathAttribute
-        \o \l PathPercent
-        \endlist
-    \endlist
-\o \l WebView
-\endlist
+*/
 
-\o
-\list
-\o \l Column
-\o \l Row
-\o \l Grid
-\o \l Flow
-\endlist
+/*!
+    \group qml-basic-interaction-elements
+    \title Basic QML Interaction Elements
+    \ingroup qml-groups
 
-\o
-\list
-\o \l SoundEffect
-\o \l Audio
-\o \l Video
-\endlist
+    \brief Elements for handling basic interactions.
 
-\o
-\list
-\o \l Particles (experimental)
-    \list
-    \o \l ParticleMotionLinear
-    \o \l ParticleMotionGravity
-    \o \l ParticleMotionWander
-    \endlist
-\endlist
-\endtable
+    \generatelist{related}
+
+*/
+
+/*!
+    \group qml-state-elements
+    \title QML State Elements
+    \ingroup qml-groups
+
+    \brief Elements for handling state changes.
+
+    \generatelist{related}
+
+*/
+
+/*!
+    \group qml-event-elements
+    \title QML Event Elements
+    \ingroup qml-groups
+
+    \brief Elements for handling events.
+
+    \generatelist{related}
+
+*/
+
+/*!
+    \group qml-animation-transition
+    \title QML Animation and Transition Elements
+    \ingroup qml-groups
+
+    \brief Elements for handling animations and transitions.
+
+    \generatelist{related}
+
+*/
+
+/*!
+    \group qml-working-with-data
+    \title Working With Data in QML
+    \ingroup qml-groups
+
+    \brief Elements for working with data.
+
+    \generatelist{related}
+
+*/
+
+/*!
+    \group qml-view-elements
+    \title QML View Elements
+    \ingroup qml-groups
+
+    \brief Elements for handling views.
+
+    \generatelist{related}
+
+*/
+
+/*!
+    \group qml-positioning-elements
+    \title QML Positioning Elements
+    \ingroup qml-groups
+
+    \brief Elements for positioning items.
+
+    \generatelist{related}
+
+*/
+
+/*!
+    \group qml-utility-elements
+    \title QML Utility Elements
+    \ingroup qml-groups
+
+    \brief Elements for handling misc operations.
+
+    \generatelist{related}
+
+*/
+
+/*!
+    \group qml-transform-elements
+    \title QML Transform Elements
+    \ingroup qml-groups
+
+    \brief Elements for handling transformations.
+
+    \generatelist{related}
+
+*/
+
+/*!
+    \group qml-particle-elements
+    \title QML Particle Elements
+    \ingroup qml-groups
+
+    \brief Elements for handling particle effects.
+
+    \generatelist{related}
 
 */

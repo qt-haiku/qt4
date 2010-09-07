@@ -74,7 +74,7 @@ class Q_AUTOTEST_EXPORT QDeclarativeAbstractAnimation : public QObject, public Q
     Q_PROPERTY(bool running READ isRunning WRITE setRunning NOTIFY runningChanged)
     Q_PROPERTY(bool paused READ isPaused WRITE setPaused NOTIFY pausedChanged)
     Q_PROPERTY(bool alwaysRunToEnd READ alwaysRunToEnd WRITE setAlwaysRunToEnd NOTIFY alwaysRunToEndChanged)
-    Q_PROPERTY(int loops READ loops WRITE setLoops NOTIFY loopsChanged)
+    Q_PROPERTY(int loops READ loops WRITE setLoops NOTIFY loopCountChanged)
     Q_CLASSINFO("DefaultMethod", "start()")
 
 public:
@@ -134,9 +134,12 @@ public:
 private Q_SLOTS:
     void timelineComplete();
     void componentFinalized();
-
 private:
     virtual void setTarget(const QDeclarativeProperty &);
+    void notifyRunningChanged(bool running);
+    friend class QDeclarativeBehavior;
+
+
 };
 
 class QDeclarativePauseAnimationPrivate;
@@ -194,7 +197,7 @@ class QDeclarativePropertyAction : public QDeclarativeAbstractAnimation
     Q_DECLARE_PRIVATE(QDeclarativePropertyAction)
 
     Q_PROPERTY(QObject *target READ target WRITE setTarget NOTIFY targetChanged)
-    Q_PROPERTY(QString property READ property WRITE setProperty NOTIFY targetChanged)
+    Q_PROPERTY(QString property READ property WRITE setProperty NOTIFY propertyChanged)
     Q_PROPERTY(QString properties READ properties WRITE setProperties NOTIFY propertiesChanged)
     Q_PROPERTY(QDeclarativeListProperty<QObject> targets READ targets)
     Q_PROPERTY(QDeclarativeListProperty<QObject> exclude READ exclude)
@@ -222,7 +225,8 @@ public:
 Q_SIGNALS:
     void valueChanged(const QVariant &);
     void propertiesChanged(const QString &);
-    void targetChanged(QObject *, const QString &);
+    void targetChanged();
+    void propertyChanged();
 
 protected:
     virtual void transition(QDeclarativeStateActions &actions,
@@ -243,7 +247,7 @@ class Q_AUTOTEST_EXPORT QDeclarativePropertyAnimation : public QDeclarativeAbstr
     Q_PROPERTY(QVariant to READ to WRITE setTo NOTIFY toChanged)
     Q_PROPERTY(QEasingCurve easing READ easing WRITE setEasing NOTIFY easingChanged)
     Q_PROPERTY(QObject *target READ target WRITE setTarget NOTIFY targetChanged)
-    Q_PROPERTY(QString property READ property WRITE setProperty NOTIFY targetChanged)
+    Q_PROPERTY(QString property READ property WRITE setProperty NOTIFY propertyChanged)
     Q_PROPERTY(QString properties READ properties WRITE setProperties NOTIFY propertiesChanged)
     Q_PROPERTY(QDeclarativeListProperty<QObject> targets READ targets)
     Q_PROPERTY(QDeclarativeListProperty<QObject> exclude READ exclude)
@@ -289,15 +293,16 @@ Q_SIGNALS:
     void toChanged(QVariant);
     void easingChanged(const QEasingCurve &);
     void propertiesChanged(const QString &);
-    void targetChanged(QObject *, const QString &);
+    void targetChanged();
+    void propertyChanged();
 };
 
 class Q_AUTOTEST_EXPORT QDeclarativeColorAnimation : public QDeclarativePropertyAnimation
 {
     Q_OBJECT
     Q_DECLARE_PRIVATE(QDeclarativePropertyAnimation)
-    Q_PROPERTY(QColor from READ from WRITE setFrom NOTIFY fromChanged)
-    Q_PROPERTY(QColor to READ to WRITE setTo NOTIFY toChanged)
+    Q_PROPERTY(QColor from READ from WRITE setFrom)
+    Q_PROPERTY(QColor to READ to WRITE setTo)
 
 public:
     QDeclarativeColorAnimation(QObject *parent=0);
@@ -315,8 +320,8 @@ class Q_AUTOTEST_EXPORT QDeclarativeNumberAnimation : public QDeclarativePropert
     Q_OBJECT
     Q_DECLARE_PRIVATE(QDeclarativePropertyAnimation)
 
-    Q_PROPERTY(qreal from READ from WRITE setFrom NOTIFY fromChanged)
-    Q_PROPERTY(qreal to READ to WRITE setTo NOTIFY toChanged)
+    Q_PROPERTY(qreal from READ from WRITE setFrom)
+    Q_PROPERTY(qreal to READ to WRITE setTo)
 
 public:
     QDeclarativeNumberAnimation(QObject *parent=0);
@@ -340,8 +345,8 @@ class Q_AUTOTEST_EXPORT QDeclarativeVector3dAnimation : public QDeclarativePrope
     Q_OBJECT
     Q_DECLARE_PRIVATE(QDeclarativePropertyAnimation)
 
-    Q_PROPERTY(QVector3D from READ from WRITE setFrom NOTIFY fromChanged)
-    Q_PROPERTY(QVector3D to READ to WRITE setTo NOTIFY toChanged)
+    Q_PROPERTY(QVector3D from READ from WRITE setFrom)
+    Q_PROPERTY(QVector3D to READ to WRITE setTo)
 
 public:
     QDeclarativeVector3dAnimation(QObject *parent=0);
@@ -361,8 +366,8 @@ class Q_AUTOTEST_EXPORT QDeclarativeRotationAnimation : public QDeclarativePrope
     Q_DECLARE_PRIVATE(QDeclarativeRotationAnimation)
     Q_ENUMS(RotationDirection)
 
-    Q_PROPERTY(qreal from READ from WRITE setFrom NOTIFY fromChanged)
-    Q_PROPERTY(qreal to READ to WRITE setTo NOTIFY toChanged)
+    Q_PROPERTY(qreal from READ from WRITE setFrom)
+    Q_PROPERTY(qreal to READ to WRITE setTo)
     Q_PROPERTY(RotationDirection direction READ direction WRITE setDirection NOTIFY directionChanged)
 
 public:
@@ -384,7 +389,7 @@ Q_SIGNALS:
 };
 
 class QDeclarativeAnimationGroupPrivate;
-class QDeclarativeAnimationGroup : public QDeclarativeAbstractAnimation
+class Q_AUTOTEST_EXPORT QDeclarativeAnimationGroup : public QDeclarativeAbstractAnimation
 {
     Q_OBJECT
     Q_DECLARE_PRIVATE(QDeclarativeAnimationGroup)

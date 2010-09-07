@@ -774,7 +774,7 @@ void QSortFilterProxyModelPrivate::source_items_inserted(
     if (model->rowCount(source_parent) == delta_item_count) {
         // Items were inserted where there were none before.
         // If it was new rows make sure to create mappings for columns so that a
-        // valid mapping can be retreived later and vice-versa.
+        // valid mapping can be retrieved later and vice-versa.
 
         QVector<int> &orthogonal_proxy_to_source = (orient == Qt::Horizontal) ? m->source_rows : m->source_columns;
         QVector<int> &orthogonal_source_to_proxy = (orient == Qt::Horizontal) ? m->proxy_rows : m->proxy_columns;
@@ -2392,7 +2392,7 @@ bool QSortFilterProxyModel::lessThan(const QModelIndex &left, const QModelIndex 
     QVariant r = (right.model() ? right.model()->data(right, d->sort_role) : QVariant());
     switch (l.userType()) {
     case QVariant::Invalid:
-        return (r.type() == QVariant::Invalid);
+        return (r.type() != QVariant::Invalid);
     case QVariant::Int:
         return l.toInt() < r.toInt();
     case QVariant::UInt:

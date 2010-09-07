@@ -50,6 +50,11 @@
 #include <QtDeclarative/private/qdeclarativeanchors_p_p.h>
 #include <QtDeclarative/private/qdeclarativeitem_p.h>
 
+#ifdef Q_OS_SYMBIAN
+// In Symbian OS test data is located in applications private dir
+#define SRCDIR "."
+#endif
+
 Q_DECLARE_METATYPE(QDeclarativeAnchors::Anchor)
 Q_DECLARE_METATYPE(QDeclarativeAnchorLine::AnchorLine)
 
@@ -77,6 +82,7 @@ private slots:
     void nullItem_data();
     void crash1();
     void centerIn();
+    void hvCenter();
     void fill();
     void margins();
 };
@@ -523,6 +529,19 @@ void tst_qdeclarativeanchors::centerIn()
     QCOMPARE(rect->x(), 75.0 - 20.0);
     QCOMPARE(rect->y(), 75.0 - 10.0);
 
+    delete view;
+}
+
+void tst_qdeclarativeanchors::hvCenter()
+{
+    QDeclarativeView *view = new QDeclarativeView(QUrl::fromLocalFile(SRCDIR "/data/hvCenter.qml"));
+
+    qApp->processEvents();
+    QDeclarativeRectangle* rect = findItem<QDeclarativeRectangle>(view->rootObject(), QLatin1String("centered"));
+    QDeclarativeItemPrivate *rectPrivate = QDeclarativeItemPrivate::get(rect);
+    // test QTBUG-10999
+    QCOMPARE(rect->x(), 10.0);
+    QCOMPARE(rect->y(), 19.0);
     delete view;
 }
 

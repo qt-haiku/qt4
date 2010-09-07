@@ -50,7 +50,7 @@
     The class serves as a container for QGraphicsItems. It is used together
     with QGraphicsView for visualizing graphical items, such as lines,
     rectangles, text, or even custom items, on a 2D surface. QGraphicsScene is
-    part of \l{The Graphics View Framework}.
+    part of the \l{Graphics View Framework}.
 
     QGraphicsScene also provides functionality that lets you efficiently
     determine both the location of items, and for determining what items are
@@ -699,6 +699,7 @@ void QGraphicsScenePrivate::removeItemHelper(QGraphicsItem *item)
     if (!selectionChanging && selectedItems.size() != oldSelectedItemsSize)
         emit q->selectionChanged();
 
+#ifndef QT_NO_GESTURES
     QHash<QGesture *, QGraphicsObject *>::iterator it;
     for (it = gestureTargets.begin(); it != gestureTargets.end();) {
         if (it.value() == item)
@@ -706,10 +707,15 @@ void QGraphicsScenePrivate::removeItemHelper(QGraphicsItem *item)
         else
             ++it;
     }
+
     QGraphicsObject *dummy = static_cast<QGraphicsObject *>(item);
     cachedTargetItems.removeOne(dummy);
     cachedItemGestures.remove(dummy);
     cachedAlreadyDeliveredGestures.remove(dummy);
+
+    foreach (Qt::GestureType gesture, item->d_ptr->gestureContext.keys())
+        ungrabGesture(item, gesture);
+#endif // QT_NO_GESTURES
 }
 
 /*!
@@ -825,6 +831,11 @@ void QGraphicsScenePrivate::setFocusItemHelper(QGraphicsItem *item,
 #endif //QT_NO_IM
     }
 
+    // This handles the case that the item has been removed from the
+    // scene in response to the FocusOut event.
+    if (item && item->scene() != q)
+        item = 0;
+
     if (item)
         focusItem = item;
     updateInputMethodSensitivityInViews();
@@ -879,8 +890,7 @@ void QGraphicsScenePrivate::removePopup(QGraphicsWidget *widget, bool itemIsDyin
             ungrabKeyboard(static_cast<QGraphicsItem *>(widget), itemIsDying);
         }
         if (!itemIsDying && widget->isVisible()) {
-            widget->hide();
-            widget->QGraphicsItem::d_ptr->explicitlyHidden = 0;
+            widget->QGraphicsItem::d_ptr->setVisibleHelper(false, /* explicit = */ false);
         }
     }
 }
@@ -1177,11 +1187,13 @@ bool QGraphicsScenePrivate::filterEvent(QGraphicsItem *item, QEvent *event)
 bool QGraphicsScenePrivate::sendEvent(QGraphicsItem *item, QEvent *event)
 {
     if (QGraphicsObject *object = item->toGraphicsObject()) {
+#ifndef QT_NO_GESTURES
         QGestureManager *gestureManager = QApplicationPrivate::instance()->gestureManager;
         if (gestureManager) {
             if (gestureManager->filterEvent(object, event))
                 return true;
         }
+#endif // QT_NO_GESTURES
     }
 
     if (filterEvent(item, event))
@@ -1328,6 +1340,8 @@ void QGraphicsScenePrivate::mousePressEventHandler(QGraphicsSceneMouseEvent *mou
                 break;
             }
         }
+        if (item->d_ptr->flags & QGraphicsItem::ItemStopsClickFocusPropagation)
+            break;
         if (item->isPanel())
             break;
     }
@@ -2542,12 +2556,16 @@ void QGraphicsScene::addItem(QGraphicsItem *item)
         return;
     }
 
-    if (d->unpolishedItems.isEmpty()) {
-        QMetaMethod method = metaObject()->method(d->polishItemsIndex);
-        method.invoke(this, Qt::QueuedConnection);
+    // QDeclarativeItems do not rely on initial itemChanged message, as the componentComplete
+    // function allows far more opportunity for delayed-construction optimization.
+    if (!item->d_ptr->isDeclarativeItem) {
+        if (d->unpolishedItems.isEmpty()) {
+            QMetaMethod method = metaObject()->method(d->polishItemsIndex);
+            method.invoke(this, Qt::QueuedConnection);
+        }
+        d->unpolishedItems.append(item);
+        item->d_ptr->pendingPolish = true;
     }
-    d->unpolishedItems.append(item);
-    item->d_ptr->pendingPolish = true;
 
     // Detach this item from its parent if the parent's scene is different
     // from this scene.
@@ -2594,6 +2612,11 @@ void QGraphicsScene::addItem(QGraphicsItem *item)
         d->allItemsIgnoreTouchEvents = false;
         d->enableTouchEventsOnViews();
     }
+
+#ifndef QT_NO_GESTURES
+    foreach (Qt::GestureType gesture, item->d_ptr->gestureContext.keys())
+        d->grabGesture(item, gesture);
+#endif
 
     // Update selection lists
     if (item->isSelected())
@@ -3515,10 +3538,12 @@ bool QGraphicsScene::event(QEvent *event)
     case QEvent::TouchEnd:
         d->touchEventHandler(static_cast<QTouchEvent *>(event));
         break;
+#ifndef QT_NO_GESTURES
     case QEvent::Gesture:
     case QEvent::GestureOverride:
         d->gestureEventHandler(static_cast<QGestureEvent *>(event));
         break;
+#endif // QT_NO_GESTURES
     default:
         return QObject::event(event);
     }
@@ -4144,6 +4169,25 @@ void QGraphicsScene::wheelEvent(QGraphicsSceneWheelEvent *wheelEvent)
                                                                 wheelEvent->scenePos(),
                                                                 wheelEvent->widget());
 
+#ifdef Q_WS_MAC
+    // On Mac, ignore the event if the first item under the mouse is not the last opened
+    // popup (or one of its descendant)
+    if (!d->popupWidgets.isEmpty() && !wheelCandidates.isEmpty() && wheelCandidates.first() != d->popupWidgets.back() && !d->popupWidgets.back()->isAncestorOf(wheelCandidates.first())) {
+        wheelEvent->accept();
+        return;
+    }
+#else
+    // Find the first popup under the mouse (including the popup's descendants) starting from the last.
+    // Remove all popups after the one found, or all or them if no popup is under the mouse.
+    // Then continue with the event.
+    QList<QGraphicsWidget *>::const_iterator iter = d->popupWidgets.end();
+    while (--iter >= d->popupWidgets.begin() && !wheelCandidates.isEmpty()) {
+        if (wheelCandidates.first() == *iter || (*iter)->isAncestorOf(wheelCandidates.first()))
+            break;
+        d->removePopup(*iter);
+    }
+#endif
+
     bool hasSetFocus = false;
     foreach (QGraphicsItem *item, wheelCandidates) {
         if (!hasSetFocus && item->isEnabled()
@@ -4366,11 +4410,6 @@ void QGraphicsScenePrivate::drawItemHelper(QGraphicsItem *item, QPainter *painte
     bool pixmapFound;
     QGraphicsItemCache *itemCache = itemd->extraItemCache();
     if (cacheMode == QGraphicsItem::ItemCoordinateCache) {
-        if (itemCache->boundingRect != brect.toRect()) {
-            itemCache->boundingRect = brect.toRect();
-            itemCache->allExposed = true;
-            itemCache->exposed.clear();
-        }
         pixmapKey = itemCache->key;
     } else {
         pixmapKey = itemCache->deviceData.value(widget).key;
@@ -4383,19 +4422,24 @@ void QGraphicsScenePrivate::drawItemHelper(QGraphicsItem *item, QPainter *painte
     if (cacheMode == QGraphicsItem::ItemCoordinateCache) {
         QSize pixmapSize;
         bool fixedCacheSize = false;
-        QRectF brectAligned = brect.toAlignedRect();
+        QRect br = brect.toAlignedRect();
         if ((fixedCacheSize = itemCache->fixedSize.isValid())) {
             pixmapSize = itemCache->fixedSize;
         } else {
-            pixmapSize = brectAligned.size().toSize();
+            pixmapSize = br.size();
         }
 
         // Create or recreate the pixmap.
         int adjust = itemCache->fixedSize.isValid() ? 0 : 2;
         QSize adjustSize(adjust*2, adjust*2);
-        QRectF br = brectAligned.adjusted(-adjust, -adjust, adjust, adjust);
+        br.adjust(-adjust, -adjust, adjust, adjust);
         if (pix.isNull() || (!fixedCacheSize && (pixmapSize + adjustSize) != pix.size())) {
             pix = QPixmap(pixmapSize + adjustSize);
+            itemCache->boundingRect = br;
+            itemCache->exposed.clear();
+            itemCache->allExposed = true;
+        } else if (itemCache->boundingRect != br) {
+            itemCache->boundingRect = br;
             itemCache->exposed.clear();
             itemCache->allExposed = true;
         }
@@ -4449,10 +4493,10 @@ void QGraphicsScenePrivate::drawItemHelper(QGraphicsItem *item, QPainter *painte
         // qpixmap-image-transform-pixmap roundtrip.
         if (newPainterOpacity != oldPainterOpacity) {
             painter->setOpacity(newPainterOpacity);
-            painter->drawPixmap(br, pix, QRectF(QPointF(), pix.size()));
+            painter->drawPixmap(br.topLeft(), pix);
             painter->setOpacity(oldPainterOpacity);
         } else {
-            painter->drawPixmap(br, pix, QRectF(QPointF(), pix.size()));
+            painter->drawPixmap(br.topLeft(), pix);
         }
         return;
     }
@@ -4879,6 +4923,24 @@ void QGraphicsScenePrivate::markDirty(QGraphicsItem *item, const QRectF &rect, b
     if (updateAll)
         return;
 
+    if (removingItemFromScene && !ignoreOpacity && !item->d_ptr->ignoreOpacity) {
+        // If any of the item's ancestors ignore opacity, it means that the opacity
+        // was set to 0 (and the update request has not yet been processed). That
+        // also means that we have to ignore the opacity for the item itself; otherwise
+        // things like: parent->setOpacity(0); scene->removeItem(child) won't work.
+        // Note that we only do this when removing items from the scene. In all other
+        // cases the ignoreOpacity bit propagates properly in processDirtyItems, but
+        // since the item is removed immediately it won't be processed there.
+        QGraphicsItem *p = item->d_ptr->parent;
+        while (p) {
+            if (p->d_ptr->ignoreOpacity) {
+                item->d_ptr->ignoreOpacity = true;
+                break;
+            }
+            p = p->d_ptr->parent;
+        }
+    }
+
     if (item->d_ptr->discardUpdateRequest(/*ignoreVisibleBit=*/force,
                                           /*ignoreDirtyBit=*/removingItemFromScene || invalidateChildren,
                                           /*ignoreOpacity=*/ignoreOpacity)) {
@@ -5121,7 +5183,12 @@ void QGraphicsScenePrivate::processDirtyItemsRecursive(QGraphicsItem *item, bool
     // Process children.
     if (itemHasChildren && item->d_ptr->dirtyChildren) {
         const bool itemClipsChildrenToShape = item->d_ptr->flags & QGraphicsItem::ItemClipsChildrenToShape;
-        if (itemClipsChildrenToShape) {
+        // Items with no content are threated as 'dummy' items which means they are never drawn and
+        // 'processed', so the painted view bounding rect is never up-to-date. This means that whenever
+        // such an item changes geometry, its children have to take care of the update regardless
+        // of whether the item clips children to shape or not.
+        const bool bypassUpdateClip = !itemHasContents && wasDirtyParentViewBoundingRects;
+        if (itemClipsChildrenToShape && !bypassUpdateClip) {
             // Make sure child updates are clipped to the item's bounding rect.
             for (int i = 0; i < views.size(); ++i)
                 views.at(i)->d_func()->setUpdateClip(item);
@@ -5609,6 +5676,10 @@ bool QGraphicsScene::sendEvent(QGraphicsItem *item, QEvent *event)
 void QGraphicsScenePrivate::addView(QGraphicsView *view)
 {
     views << view;
+#ifndef QT_NO_GESTURES
+    foreach (Qt::GestureType gesture, grabbedGestures.keys())
+        view->viewport()->grabGesture(gesture);
+#endif
 }
 
 void QGraphicsScenePrivate::removeView(QGraphicsView *view)
@@ -5938,6 +6009,7 @@ void QGraphicsScenePrivate::leaveModal(QGraphicsItem *panel)
     dispatchHoverEvent(&hoverEvent);
 }
 
+#ifndef QT_NO_GESTURES
 void QGraphicsScenePrivate::gestureTargetsAtHotSpots(const QSet<QGesture *> &gestures,
                                               Qt::GestureFlag flag,
                                               QHash<QGraphicsObject *, QSet<QGesture *> > *targets,
@@ -6058,8 +6130,15 @@ void QGraphicsScenePrivate::gestureEventHandler(QGestureEvent *event)
                     if (ev.isAccepted() || ev.isAccepted(g)) {
                         conflictedGestures.remove(g);
                         // mark the item as a gesture target
-                        if (item)
+                        if (item) {
                             gestureTargets.insert(g, item.data());
+                            QHash<QGraphicsObject *, QSet<QGesture *> >::iterator it, e;
+                            it = cachedItemGestures.begin();
+                            e = cachedItemGestures.end();
+                            for(; it != e; ++it)
+                                it.value().remove(g);
+                            cachedItemGestures[item.data()].insert(g);
+                        }
                         DEBUG() << "QGraphicsScenePrivate::gestureEventHandler:"
                                 << "override was accepted:"
                                 << g << item.data();
@@ -6228,7 +6307,8 @@ void QGraphicsScenePrivate::cancelGesturesForChildren(QGesture *original)
 {
     Q_ASSERT(original);
     QGraphicsItem *originalItem = gestureTargets.value(original);
-    Q_ASSERT(originalItem);
+    if (originalItem == 0) // we only act on accepted gestures, which implies it has a target.
+        return;
 
     // iterate over all active gestures and for each find the owner
     // if the owner is part of our sub-hierarchy, cancel it.
@@ -6305,6 +6385,28 @@ void QGraphicsScenePrivate::cancelGesturesForChildren(QGesture *original)
         gestureTargets.remove(*setIter);
     }
 }
+
+void QGraphicsScenePrivate::grabGesture(QGraphicsItem *, Qt::GestureType gesture)
+{
+    (void)QGestureManager::instance(); // create a gesture manager
+    if (!grabbedGestures[gesture]++) {
+        foreach (QGraphicsView *view, views)
+            view->viewport()->grabGesture(gesture);
+    }
+}
+
+void QGraphicsScenePrivate::ungrabGesture(QGraphicsItem *item, Qt::GestureType gesture)
+{
+    // we know this can only be an object
+    Q_ASSERT(item->d_ptr->isObject);
+    QGraphicsObject *obj = static_cast<QGraphicsObject *>(item);
+    QGestureManager::instance()->cleanupCachedGestures(obj, gesture);
+    if (!--grabbedGestures[gesture]) {
+        foreach (QGraphicsView *view, views)
+            view->viewport()->ungrabGesture(gesture);
+    }
+}
+#endif // QT_NO_GESTURES
 
 QT_END_NAMESPACE
 

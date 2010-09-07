@@ -47,6 +47,8 @@
 
 QT_BEGIN_NAMESPACE
 
+Q_DECL_IMPORT extern int qt_defaultDpi();
+
 template<typename T>
 int qmlRegisterValueTypeEnums(const char *qmlName)
 {
@@ -72,7 +74,7 @@ int qmlRegisterValueTypeEnums(const char *qmlName)
         0
     };
 
-    return QDeclarativePrivate::registerType(type);
+    return QDeclarativePrivate::qmlregister(QDeclarativePrivate::TypeRegistration, &type);
 }
 
 QDeclarativeValueTypeFactory::QDeclarativeValueTypeFactory()
@@ -909,6 +911,11 @@ void QDeclarativeFontValueType::setStrikeout(bool b)
 
 qreal QDeclarativeFontValueType::pointSize() const
 {
+    if (font.pointSizeF() == -1) {
+        if (dpi.isNull)
+            dpi = qt_defaultDpi();
+        return font.pixelSize() * qreal(72.) / qreal(dpi);
+    }
     return font.pointSizeF();
 }
 
@@ -929,6 +936,11 @@ void QDeclarativeFontValueType::setPointSize(qreal size)
 
 int QDeclarativeFontValueType::pixelSize() const
 {
+    if (font.pixelSize() == -1) {
+        if (dpi.isNull)
+            dpi = qt_defaultDpi();
+        return (font.pointSizeF() * dpi) / qreal(72.);
+    }
     return font.pixelSize();
 }
 
@@ -961,7 +973,7 @@ qreal QDeclarativeFontValueType::letterSpacing() const
 
 void QDeclarativeFontValueType::setLetterSpacing(qreal size)
 {
-    font.setLetterSpacing(QFont::PercentageSpacing, size);
+    font.setLetterSpacing(QFont::AbsoluteSpacing, size);
 }
 
 qreal QDeclarativeFontValueType::wordSpacing() const

@@ -807,6 +807,9 @@ QFont::QFont(const QString &family, int pointSize, int weight, bool italic)
         resolve_mask |= QFont::WeightResolved | QFont::StyleResolved;
     }
 
+    if (italic)
+        resolve_mask |= QFont::StyleResolved;
+
     d->request.family = family;
     d->request.pointSize = qreal(pointSize);
     d->request.pixelSize = -1;
@@ -1264,6 +1267,15 @@ QFont::StyleHint QFont::styleHint() const
 
     \value OldEnglish the font matcher prefers decorative fonts.
     \value Decorative is a synonym for \c OldEnglish.
+
+    \value Monospace the font matcher prefers fonts that map to the
+    CSS generic font-family 'monospace'.
+
+    \value Fantasy the font matcher prefers fonts that map to the
+    CSS generic font-family 'fantasy'.
+
+    \value Cursive the font matcher prefers fonts that map to the
+    CSS generic font-family 'cursive'.
 
     \value System the font matcher prefers system fonts.
 */

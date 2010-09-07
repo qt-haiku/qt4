@@ -51,6 +51,7 @@ QT_BEGIN_NAMESPACE
 
 /*!
     \qmlclass PathElement QDeclarativePathElement
+    \ingroup qml-view-elements
     \since 4.7
     \brief PathElement is the base path type.
 
@@ -67,6 +68,7 @@ QT_BEGIN_NAMESPACE
 
 /*!
     \qmlclass Path QDeclarativePath
+    \ingroup qml-view-elements
     \since 4.7
     \brief A Path object defines a path for use by \l PathView.
 
@@ -474,6 +476,7 @@ void QDeclarativeCurve::setX(qreal x)
 {
     if (_x != x) {
         _x = x;
+        emit xChanged();
         emit changed();
     }
 }
@@ -487,6 +490,7 @@ void QDeclarativeCurve::setY(qreal y)
 {
     if (_y != y) {
         _y = y;
+        emit yChanged();
         emit changed();
     }
 }
@@ -495,6 +499,7 @@ void QDeclarativeCurve::setY(qreal y)
 
 /*!
     \qmlclass PathAttribute QDeclarativePathAttribute
+    \ingroup qml-view-elements
     \since 4.7
     \brief The PathAttribute allows setting an attribute at a given position in a Path.
 
@@ -533,6 +538,13 @@ void QDeclarativeCurve::setY(qreal y)
 /*!
     \qmlproperty string PathAttribute::name
     the name of the attribute to change.
+
+    This attribute will be available to the delegate as PathView.<name>
+
+    Note that using an existing Item property name such as "opacity" as an
+    attribute is allowed.  This is because path attributes add a new
+    \l{qdeclarativeintroduction.html#attached-properties} {Attached Property}
+    which in no way clashes with existing properties.
 */
 
 /*!
@@ -569,6 +581,7 @@ void QDeclarativePathAttribute::setValue(qreal value)
 {
     if (_value != value) {
         _value = value;
+        emit valueChanged();
         emit changed();
     }
 }
@@ -577,6 +590,7 @@ void QDeclarativePathAttribute::setValue(qreal value)
 
 /*!
     \qmlclass PathLine QDeclarativePathLine
+    \ingroup qml-view-elements
     \since 4.7
     \brief The PathLine defines a straight line.
 
@@ -617,6 +631,7 @@ void QDeclarativePathLine::addToPath(QPainterPath &path)
 
 /*!
     \qmlclass PathQuad QDeclarativePathQuad
+    \ingroup qml-view-elements
     \since 4.7
     \brief The PathQuad defines a quadratic Bezier curve with a control point.
 
@@ -628,7 +643,7 @@ void QDeclarativePathLine::addToPath(QPainterPath &path)
     \qml
     Path {
         startX: 0; startY: 0
-        PathQuad x: 200; y: 0; controlX: 100; controlY: 150 }
+        PathQuad { x: 200; y: 0; controlX: 100; controlY: 150 }
     }
     \endqml
     \endtable
@@ -671,6 +686,7 @@ void QDeclarativePathQuad::setControlX(qreal x)
 {
     if (_controlX != x) {
         _controlX = x;
+        emit controlXChanged();
         emit changed();
     }
 }
@@ -688,6 +704,7 @@ void QDeclarativePathQuad::setControlY(qreal y)
 {
     if (_controlY != y) {
         _controlY = y;
+        emit controlYChanged();
         emit changed();
     }
 }
@@ -701,6 +718,7 @@ void QDeclarativePathQuad::addToPath(QPainterPath &path)
 
 /*!
    \qmlclass PathCubic QDeclarativePathCubic
+    \ingroup qml-view-elements
     \since 4.7
    \brief The PathCubic defines a cubic Bezier curve with two control points.
 
@@ -713,8 +731,9 @@ void QDeclarativePathQuad::addToPath(QPainterPath &path)
     Path {
         startX: 20; startY: 0
         PathCubic {
-            x: 180; y: 0; control1X: -10; control1Y: 90
-                          control2X: 210; control2Y: 90
+            x: 180; y: 0
+            control1X: -10; control1Y: 90
+            control2X: 210; control2Y: 90
         }
     }
     \endqml
@@ -753,6 +772,7 @@ void QDeclarativePathCubic::setControl1X(qreal x)
 {
     if (_control1X != x) {
         _control1X = x;
+        emit control1XChanged();
         emit changed();
     }
 }
@@ -766,6 +786,7 @@ void QDeclarativePathCubic::setControl1Y(qreal y)
 {
     if (_control1Y != y) {
         _control1Y = y;
+        emit control1YChanged();
         emit changed();
     }
 }
@@ -785,6 +806,7 @@ void QDeclarativePathCubic::setControl2X(qreal x)
 {
     if (_control2X != x) {
         _control2X = x;
+        emit control2XChanged();
         emit changed();
     }
 }
@@ -798,6 +820,7 @@ void QDeclarativePathCubic::setControl2Y(qreal y)
 {
     if (_control2Y != y) {
         _control2Y = y;
+        emit control2YChanged();
         emit changed();
     }
 }
@@ -811,6 +834,7 @@ void QDeclarativePathCubic::addToPath(QPainterPath &path)
 
 /*!
     \qmlclass PathPercent QDeclarativePathPercent
+    \ingroup qml-view-elements
     \since 4.7
     \brief The PathPercent manipulates the way a path is interpreted.
 
@@ -867,6 +891,9 @@ qreal QDeclarativePathPercent::value() const
 
 void QDeclarativePathPercent::setValue(qreal value)
 {
-    _value = value;
+    if (_value != value) {
+        _value = value;
+        emit changed();
+    }
 }
 QT_END_NAMESPACE

@@ -110,13 +110,54 @@ class QWidgetItemV2;
 
 class QStyle;
 
+class Q_AUTOTEST_EXPORT QWidgetBackingStoreTracker
+{
+
+public:
+    QWidgetBackingStoreTracker();
+    ~QWidgetBackingStoreTracker();
+
+    void create(QWidget *tlw);
+    void destroy();
+
+    void registerWidget(QWidget *w);
+    void unregisterWidget(QWidget *w);
+
+    inline QWidgetBackingStore* data()
+    {
+        return m_ptr;
+    }
+
+    inline QWidgetBackingStore* operator->()
+    {
+        return m_ptr;
+    }
+
+    inline QWidgetBackingStore& operator*()
+    {
+        return *m_ptr;
+    }
+
+    inline operator bool() const
+    {
+        return (0 != m_ptr);
+    }
+
+private:
+    Q_DISABLE_COPY(QWidgetBackingStoreTracker)
+
+private:
+    QWidgetBackingStore* m_ptr;
+    QSet<QWidget *> m_widgets;
+};
+
 struct QTLWExtra {
     // *************************** Cross-platform variables *****************************
 
     // Regular pointers (keep them together to avoid gaps on 64 bits architectures).
     QIcon *icon; // widget icon
     QPixmap *iconPixmap;
-    QWidgetBackingStore *backingStore;
+    QWidgetBackingStoreTracker backingStore;
     QWindowSurface *windowSurface;
     QPainter *sharedPainter;
 
@@ -170,6 +211,14 @@ struct QTLWExtra {
     WindowGroupRef group;
     IconRef windowIcon; // the current window icon, if set with setWindowIcon_sys.
     quint32 savedWindowAttributesFromMaximized; // Saved attributes from when the calling updateMaximizeButton_sys()
+#ifdef QT_MAC_USE_COCOA
+    // This value is just to make sure we maximize and restore to the right location, yet we allow apps to be maximized and
+    // manually resized.
+    // The name is misleading, since this is set when maximizing the window. It is a hint to saveGeometry(..) to record the
+    // starting position as 0,0 instead of the normal starting position.
+    bool wasMaximized;
+#endif // QT_MAC_USE_COCOA
+
 #elif defined(Q_WS_QWS) // <--------------------------------------------------------- QWS
 #ifndef QT_NO_QWS_MANAGER
     QWSManager *qwsManager;
@@ -494,12 +543,19 @@ public:
     bool setMinimumSize_helper(int &minw, int &minh);
     bool setMaximumSize_helper(int &maxw, int &maxh);
     void setConstraints_sys();
+    bool pointInsideRectAndMask(const QPoint &) const;
     QWidget *childAt_helper(const QPoint &, bool) const;
+    QWidget *childAtRecursiveHelper(const QPoint &p, bool, bool includeFrame = false) const;
     void updateGeometry_helper(bool forceUpdate);
 
     void getLayoutItemMargins(int *left, int *top, int *right, int *bottom) const;
     void setLayoutItemMargins(int left, int top, int right, int bottom);
     void setLayoutItemMargins(QStyle::SubElement element, const QStyleOption *opt = 0);
+
+    // aboutToDestroy() is called just before the contents of
+    // QWidget::destroy() is executed. It's used to signal QWidget
+    // sub-classes that their internals are about to be released.
+    virtual void aboutToDestroy() {}
 
     QInputContext *inputContext() const;
     inline QWidget *effectiveFocusWidget() {
@@ -677,7 +733,9 @@ public:
 #ifndef QT_NO_ACTION
     QList<QAction*> actions;
 #endif
+#ifndef QT_NO_GESTURES
     QMap<Qt::GestureType, Qt::GestureFlags> gestureContext;
+#endif
 
     // Bit fields.
     uint high_attributes[4]; // the low ones are in QWidget::widget_attributes
@@ -706,8 +764,9 @@ public:
     void updateX11AcceptFocus();
 #elif defined(Q_WS_WIN) // <--------------------------------------------------------- WIN
     uint noPaintOnScreen : 1; // see qwidget_win.cpp ::paintEngine()
+#ifndef QT_NO_GESTURES
     uint nativeGesturePanEnabled : 1;
-
+#endif
     bool shouldShowMaximizeButton();
     void winUpdateIsOpaque();
     void reparentChildren();
@@ -920,11 +979,18 @@ inline void QWidgetPrivate::setSharedPainter(QPainter *painter)
     x->sharedPainter = painter;
 }
 
+inline bool QWidgetPrivate::pointInsideRectAndMask(const QPoint &p) const
+{
+    Q_Q(const QWidget);
+    return q->rect().contains(p) && (!extra || !extra->hasMask || q->testAttribute(Qt::WA_MouseNoMask)
+                                     || extra->mask.contains(p));
+}
+
 inline QWidgetBackingStore *QWidgetPrivate::maybeBackingStore() const
 {
     Q_Q(const QWidget);
     QTLWExtra *x = q->window()->d_func()->maybeTopData();
-    return x ? x->backingStore : 0;
+    return x ? x->backingStore.data() : 0;
 }
 
 QT_END_NAMESPACE

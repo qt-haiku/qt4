@@ -48,9 +48,7 @@
 #include <QUrl>
 #include <QFileInfo>
 
-#if ENABLE(QT_BEARER)
 #include "NetworkStateNotifier.h"
-#endif
 
 void QWEBKIT_EXPORT qt_networkAccessAllowed(bool isAllowed)
 {
@@ -74,7 +72,6 @@ public:
     QString localStoragePath;
     QString offlineWebApplicationCachePath;
     qint64 offlineStorageDefaultQuota;
-    QUrl inspectorLocation;
 
     void apply();
     WebCore::Settings* settings;
@@ -190,6 +187,7 @@ void QWebSettingsPrivate::apply()
         value = attributes.value(QWebSettings::JavascriptCanAccessClipboard,
                                       global->attributes.value(QWebSettings::JavascriptCanAccessClipboard));
         settings->setDOMPasteAllowed(value);
+        settings->setJavaScriptCanAccessClipboard(value);
 
         value = attributes.value(QWebSettings::DeveloperExtrasEnabled,
                                       global->attributes.value(QWebSettings::DeveloperExtrasEnabled));
@@ -238,8 +236,8 @@ void QWebSettingsPrivate::apply()
                                       global->attributes.value(QWebSettings::LocalContentCanAccessFileUrls));
         settings->setAllowFileAccessFromFileURLs(value);
 
-        value = attributes.value(QWebSettings::XSSAuditorEnabled,
-                                      global->attributes.value(QWebSettings::XSSAuditorEnabled));
+        value = attributes.value(QWebSettings::XSSAuditingEnabled,
+                                      global->attributes.value(QWebSettings::XSSAuditingEnabled));
         settings->setXSSAuditorEnabled(value);
 
 #if ENABLE(TILED_BACKING_STORE)
@@ -247,6 +245,10 @@ void QWebSettingsPrivate::apply()
                                       global->attributes.value(QWebSettings::TiledBackingStoreEnabled));
         settings->setTiledBackingStoreEnabled(value);
 #endif
+
+        value = attributes.value(QWebSettings::SiteSpecificQuirksEnabled,
+                                      global->attributes.value(QWebSettings::SiteSpecificQuirksEnabled));
+        settings->setNeedsSiteSpecificQuirks(value);
 
         settings->setUsesPageCache(WebCore::pageCache()->capacity());
     } else {
@@ -429,6 +431,8 @@ QWebSettings* QWebSettings::globalSettings()
         and at other times scrolling the page itself. For this reason iframes and framesets are
         barely usable on touch devices. This will flatten all the frames to become one scrollable page.
         This is disabled by default.
+    \value SiteSpecificQuirksEnabled This setting enables WebKit's workaround for broken sites. It is
+        enabled by default.
 */
 
 /*!
@@ -464,6 +468,7 @@ QWebSettings::QWebSettings()
     d->attributes.insert(QWebSettings::AcceleratedCompositingEnabled, true);
     d->attributes.insert(QWebSettings::TiledBackingStoreEnabled, false);
     d->attributes.insert(QWebSettings::FrameFlatteningEnabled, false);
+    d->attributes.insert(QWebSettings::SiteSpecificQuirksEnabled, true);
     d->offlineStorageDefaultQuota = 5 * 1024 * 1024;
     d->defaultTextEncoding = QLatin1String("iso-8859-1");
 }
@@ -1008,31 +1013,6 @@ void QWebSettings::setLocalStoragePath(const QString& path)
 {
     d->localStoragePath = path;
     d->apply();
-}
-
-/*!
-    \since 4.7
-
-    Specifies the \a location of a frontend to load with each web page when using Web Inspector.
-
-    \sa inspectorUrl()
-*/
-void QWebSettings::setInspectorUrl(const QUrl& location)
-{
-    d->inspectorLocation = location;
-    d->apply();
-}
-
-/*!
-    \since 4.7
-
-    Returns the location of the Web Inspector frontend.
-
-    \sa setInspectorUrl()
-*/
-QUrl QWebSettings::inspectorUrl() const
-{
-    return d->inspectorLocation;
 }
 
 /*!

@@ -54,6 +54,7 @@
 
 #ifdef Q_WS_S60
 #include <aknappui.h>
+#include <eikbtgpc.h>
 #endif
 
 // This is necessary in order to be able to perform delayed invokation on slots
@@ -387,7 +388,6 @@ void QWidgetPrivate::create_sys(WId window, bool /* initializeWindow */, bool de
                 | EPointerFilterMove | EPointerFilterDrag, 0);
             drawableWindow->EnableVisibilityChangeEvents();
 
-            s60UpdateIsOpaque();
         }
 
         q->setAttribute(Qt::WA_WState_Created);
@@ -399,6 +399,9 @@ void QWidgetPrivate::create_sys(WId window, bool /* initializeWindow */, bool de
         // We wait until the control is fully constructed before calling setWinId, because
         // this generates a WinIdChanged event.
         setWinId(control.take());
+
+        if (!desktop)
+            s60UpdateIsOpaque(); // must be called after setWinId()
 
     } else if (q->testAttribute(Qt::WA_NativeWindow) || paintOnScreen()) { // create native child widget
 
@@ -431,6 +434,7 @@ void QWidgetPrivate::create_sys(WId window, bool /* initializeWindow */, bool de
         // Request mouse move events.
         drawableWindow->PointerFilter(EPointerFilterEnterExit
             | EPointerFilterMove | EPointerFilterDrag, 0);
+        drawableWindow->EnableVisibilityChangeEvents();
 
         if (q->isVisible() && q->testAttribute(Qt::WA_Mapped)) {
             activateSymbianWindow(control.data());
@@ -478,18 +482,14 @@ void QWidgetPrivate::show_sys()
              activateSymbianWindow();
 
          QSymbianControl *id = static_cast<QSymbianControl *>(q->internalWinId());
+         const bool isFullscreen = q->windowState() & Qt::WindowFullScreen;
 
 #ifdef Q_WS_S60
         // Lazily initialize the S60 screen furniture when the first window is shown.
-        if (!QApplication::testAttribute(Qt::AA_S60DontConstructApplicationPanes)
+        if (q->isWindow() && !QApplication::testAttribute(Qt::AA_S60DontConstructApplicationPanes)
                 && !S60->buttonGroupContainer() && !S60->statusPane()) {
 
-            bool isFullscreen = q->windowState() & Qt::WindowFullScreen;
-            bool cbaRequested = q->windowFlags() & Qt::WindowSoftkeysVisibleHint;
-
-            // If the window is fullscreen and has not explicitly requested that the CBA be visible
-            // we delay the creation even more.
-            if ((!isFullscreen || cbaRequested) && !q->testAttribute(Qt::WA_DontShowOnScreen)) {
+            if (!q->testAttribute(Qt::WA_DontShowOnScreen)) {
 
                 // Create the status pane and CBA here
                 CEikAppUi *ui = static_cast<CEikAppUi *>(S60->appUi());
@@ -503,22 +503,23 @@ void QWidgetPrivate::show_sys()
                     // Can't use AppUi directly because it privately inherits from MEikStatusPaneObserver.
                     QSymbianControl *desktopControl = static_cast<QSymbianControl *>(QApplication::desktop()->winId());
                     S60->statusPane()->SetObserver(desktopControl);
-
-                    // Hide the status pane if fullscreen OR
-                    // Fill client area if maximized OR
-                    // Put window below status pane unless the window has an explicit position.
-                    if (isFullscreen) {
+                    if (isFullscreen)
                         S60->statusPane()->MakeVisible(false);
-                    } else if (q->windowState() & Qt::WindowMaximized) {
-                        TRect r = static_cast<CEikAppUi*>(S60->appUi())->ClientRect();
-                        id->SetExtent(r.iTl, r.Size());
-                    } else if (!q->testAttribute(Qt::WA_Moved)) {
-                        id->SetPosition(static_cast<CEikAppUi*>(S60->appUi())->ClientRect().iTl);
-                    }
                 }
             }
         }
 #endif
+
+        // Fill client area if maximized OR
+        // Put window below status pane unless the window has an explicit position.
+        if (!isFullscreen) {
+            if (q->windowState() & Qt::WindowMaximized) {
+                TRect r = static_cast<CEikAppUi*>(S60->appUi())->ClientRect();
+                id->SetExtent(r.iTl, r.Size());
+            } else if (!q->testAttribute(Qt::WA_Moved)) {
+                id->SetPosition(static_cast<CEikAppUi*>(S60->appUi())->ClientRect().iTl);
+            }
+        }
 
         id->MakeVisible(true);
 
@@ -683,6 +684,12 @@ void QWidgetPrivate::setParent_sys(QWidget *parent, Qt::WindowFlags f)
     QSymbianControl *old_winid = static_cast<QSymbianControl *>(wasCreated ? data.winid : 0);
     if ((q->windowType() == Qt::Desktop))
         old_winid = 0;
+
+    // old_winid may not have received a 'not visible' visibility
+    // changed event before being destroyed; make sure that it is
+    // removed from the backing store's list of visible windows.
+    S60->controlVisibilityChanged(old_winid, false);
+
     setWinId(0);
 
     // hide and reparent our own window away. Otherwise we might get
@@ -736,9 +743,6 @@ void QWidgetPrivate::s60UpdateIsOpaque()
     Q_Q(QWidget);
 
     if (!q->testAttribute(Qt::WA_WState_Created) || !q->testAttribute(Qt::WA_TranslucentBackground))
-        return;
-
-    if ((data.window_flags & Qt::FramelessWindowHint) == 0)
         return;
 
     RWindow *const window = static_cast<RWindow *>(q->effectiveWinId()->DrawableWindow());
@@ -909,14 +913,12 @@ void QWidgetPrivate::registerDropSite(bool /* on */)
 
 void QWidgetPrivate::createTLSysExtra()
 {
-    extra->topextra->backingStore = 0;
     extra->topextra->inExpose = 0;
 }
 
 void QWidgetPrivate::deleteTLSysExtra()
 {
-    delete extra->topextra->backingStore;
-    extra->topextra->backingStore = 0;
+    extra->topextra->backingStore.destroy();
 }
 
 void QWidgetPrivate::createSysExtra()
@@ -1087,12 +1089,14 @@ void QWidget::setWindowState(Qt::WindowStates newstate)
     Qt::WindowStates oldstate = windowState();
 
     const TBool isFullscreen = newstate & Qt::WindowFullScreen;
+#ifdef Q_WS_S60
     const TBool cbaRequested = windowFlags() & Qt::WindowSoftkeysVisibleHint;
     const TBool cbaVisible = CEikButtonGroupContainer::Current() ? true : false;
     const TBool softkeyVisibilityChange = isFullscreen && (cbaRequested != cbaVisible);
 
     if (oldstate == newstate && !softkeyVisibilityChange)
         return;
+#endif // Q_WS_S60
 
     if (isWindow()) {
         createWinId();
@@ -1115,15 +1119,10 @@ void QWidget::setWindowState(Qt::WindowStates newstate)
         // The window decoration visibility has to be changed before doing actual window state
         // change since in that order the availableGeometry will return directly the right size and
         // we will avoid unnecessarty redraws
-        CEikStatusPane *statusPane = S60->statusPane();
-        CEikButtonGroupContainer *buttonGroup = S60->buttonGroupContainer();
-        TBool visible = !(newstate & (Qt::WindowFullScreen | Qt::WindowMinimized));
-        if (statusPane)
-            statusPane->MakeVisible(visible);
-        if (buttonGroup) {
-            // Visibility
-            buttonGroup->MakeVisible(visible || (isFullscreen && cbaRequested));
-        }
+        const bool visible = !(newstate & (Qt::WindowFullScreen | Qt::WindowMinimized));
+        const bool statusPaneVisibility = visible;
+        const bool buttonGroupVisibility = (visible || (isFullscreen && cbaRequested));
+        S60->setStatusPaneAndButtonGroupVisibility(statusPaneVisibility, buttonGroupVisibility);
 #endif // Q_WS_S60
 
         // Ensure the initial size is valid, since we store it as normalGeometry below.
@@ -1135,8 +1134,10 @@ void QWidget::setWindowState(Qt::WindowStates newstate)
 
         const bool cbaVisibilityHint = windowFlags() & Qt::WindowSoftkeysVisibleHint;
         if (newstate & Qt::WindowFullScreen && !cbaVisibilityHint) {
+            setAttribute(Qt::WA_OutsideWSRange, false);
             window->SetExtentToWholeScreen();
         } else if (newstate & Qt::WindowMaximized || ((newstate & Qt::WindowFullScreen) && cbaVisibilityHint)) {
+            setAttribute(Qt::WA_OutsideWSRange, false);
             TRect maxExtent = qt_QRect2TRect(qApp->desktop()->availableGeometry(this));
             window->SetExtent(maxExtent.iTl, maxExtent.Size());
         } else {
@@ -1145,7 +1146,7 @@ void QWidget::setWindowState(Qt::WindowStates newstate)
             // accurate because it did not consider the status pane. This means that when returning
             // normal mode after showing the status pane, the geometry would overlap so we should
             // move it if it never had an explicit position.
-            if (!wasMoved && statusPane && visible) {
+            if (!wasMoved && S60->statusPane() && visible) {
                 TPoint tl = static_cast<CEikAppUi*>(S60->appUi())->ClientRect().iTl;
                 normalGeometry.setTopLeft(QPoint(tl.iX, tl.iY));
             }
@@ -1179,6 +1180,7 @@ void QWidget::setWindowState(Qt::WindowStates newstate)
 void QWidget::destroy(bool destroyWindow, bool destroySubWindows)
 {
     Q_D(QWidget);
+    d->aboutToDestroy();
     if (!isWindow() && parentWidget())
         parentWidget()->d_func()->invalidateBuffer(geometry());
     d->deactivateWidgetCleanup();

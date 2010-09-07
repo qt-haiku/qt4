@@ -91,6 +91,16 @@
     animation.setDuration(1000);
     animation.setEasingCurve(QEasingCurve::InOutQuad);
     \endcode
+
+    The ability to set an amplitude, overshoot, or period depends on the QEasingCurve type. Amplitude access
+    is available to curves that behave as springs such as elastic and bounce curves. Changing the amplitude changes
+    the height of the curve. Period access is only available to elastic curves and setting a higher period slows
+    the rate of bounce. Only curves that have "boomerang" behaviors such as the InBack, OutBack, InOutBack, and OutInBack 
+    have overshoot settings. These curves will interpolate beyond the end points and return to the end point, 
+    acting similar to a boomerang.
+
+    The \l{Easing Curves Example} contains samples of QEasingCurve types and lets you change the curve settings.
+
  */
 
 /*!
@@ -140,15 +150,15 @@
                         accelerating from zero velocity.
     \value OutQuart     \inlineimage qeasingcurve-outquart.png
                         \br
-                        Easing curve for a cubic (t^4) function:
+                        Easing curve for a quartic (t^4) function:
                         decelerating to zero velocity.
     \value InOutQuart   \inlineimage qeasingcurve-inoutquart.png
                         \br
-                        Easing curve for a cubic (t^4) function:
+                        Easing curve for a quartic (t^4) function:
                         acceleration until halfway, then deceleration.
     \value OutInQuart   \inlineimage qeasingcurve-outinquart.png
                         \br
-                        Easing curve for a cubic (t^4) function:
+                        Easing curve for a quartic (t^4) function:
                         deceleration until halfway, then acceleration.
     \value InQuint      \inlineimage qeasingcurve-inquint.png
                         \br
@@ -156,15 +166,15 @@
                         in: accelerating from zero velocity.
     \value OutQuint     \inlineimage qeasingcurve-outquint.png
                         \br
-                        Easing curve for a cubic (t^5) function:
+                        Easing curve for a quintic (t^5) function:
                         decelerating to zero velocity.
     \value InOutQuint   \inlineimage qeasingcurve-inoutquint.png
                         \br
-                        Easing curve for a cubic (t^5) function:
+                        Easing curve for a quintic (t^5) function:
                         acceleration until halfway, then deceleration.
     \value OutInQuint   \inlineimage qeasingcurve-outinquint.png
                         \br
-                        Easing curve for a cubic (t^5) function:
+                        Easing curve for a quintic (t^5) function:
                         deceleration until halfway, then acceleration.
     \value InSine       \inlineimage qeasingcurve-insine.png
                         \br
@@ -859,7 +869,7 @@ QDebug operator<<(QDebug debug, const QEasingCurve &item)
     Writes the given \a easing curve to the given \a stream and returns a
     reference to the stream.
 
-    \sa {Format of the QDataStream Operators}
+    \sa {Serializing Qt Data Types}
 */
 
 QDataStream &operator<<(QDataStream &stream, const QEasingCurve &easing)
@@ -884,7 +894,7 @@ QDataStream &operator<<(QDataStream &stream, const QEasingCurve &easing)
     Reads an easing curve from the given \a stream into the given \a
     easing curve and returns a reference to the stream.
 
-    \sa {Format of the QDataStream Operators}
+    \sa {Serializing Qt Data Types}
 */
 
 QDataStream &operator>>(QDataStream &stream, QEasingCurve &easing)

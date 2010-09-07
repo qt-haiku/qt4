@@ -44,7 +44,6 @@
 
 #include "CodeBlock.h"
 #include "Error.h"
-#include "JSLock.h"
 #include "Interpreter.h"
 
 #include "PrototypeFunction.h"
@@ -64,6 +63,7 @@
 #include "bridge/qscriptqobject_p.h"
 #include "bridge/qscriptglobalobject_p.h"
 #include "bridge/qscriptactivationobject_p.h"
+#include "bridge/qscriptstaticscopeobject_p.h"
 
 #ifndef QT_NO_QOBJECT
 #include <QtCore/qcoreapplication.h>
@@ -151,8 +151,7 @@ QT_BEGIN_NAMESPACE
   evaluation caused an exception by calling hasUncaughtException(). In
   that case, you can call toString() on the error object to obtain an
   error message. The current uncaught exception is also available
-  through uncaughtException(). You can obtain a human-readable
-  backtrace of the exception with uncaughtExceptionBacktrace().
+  through uncaughtException().
   Calling clearExceptions() will cause any uncaught exceptions to be
   cleared.
 
@@ -294,9 +293,20 @@ QT_BEGIN_NAMESPACE
 
     This enum specifies the ownership when wrapping a C++ value, e.g. by using newQObject().
 
-    \value QtOwnership The standard Qt ownership rules apply, i.e. the associated object will never be explicitly deleted by the script engine. This is the default. (QObject ownership is explained in \l{Object Trees and Object Ownership}.)
-    \value ScriptOwnership The value is owned by the script environment. The associated data will be deleted when appropriate (i.e. after the garbage collector has discovered that there are no more live references to the value).
-    \value AutoOwnership If the associated object has a parent, the Qt ownership rules apply (QtOwnership); otherwise, the object is owned by the script environment (ScriptOwnership).
+    \value QtOwnership The standard Qt ownership rules apply, i.e. the
+    associated object will never be explicitly deleted by the script
+    engine. This is the default. (QObject ownership is explained in
+    \l{Object Trees & Ownership}.)
+
+    \value ScriptOwnership The value is owned by the script
+    environment. The associated data will be deleted when appropriate
+    (i.e. after the garbage collector has discovered that there are no
+    more live references to the value).
+
+    \value AutoOwnership If the associated object has a parent, the Qt
+    ownership rules apply (QtOwnership); otherwise, the object is
+    owned by the script environment (ScriptOwnership).
+
 */
 
 /*!
@@ -425,6 +435,53 @@ qsreal ToNumber(const QString &value)
 }
 
 #endif
+
+static const qsreal MsPerSecond = 1000.0;
+
+static inline int MsFromTime(qsreal t)
+{
+    int r = int(::fmod(t, MsPerSecond));
+    return (r >= 0) ? r : r + int(MsPerSecond);
+}
+
+/*!
+  \internal
+  Converts a JS date value (milliseconds) to a QDateTime (local time).
+*/
+QDateTime MsToDateTime(JSC::ExecState *exec, qsreal t)
+{
+    if (qIsNaN(t))
+        return QDateTime();
+    JSC::GregorianDateTime tm;
+    JSC::msToGregorianDateTime(exec, t, /*output UTC=*/true, tm);
+    int ms = MsFromTime(t);
+    QDateTime convertedUTC = QDateTime(QDate(tm.year + 1900, tm.month + 1, tm.monthDay),
+                                       QTime(tm.hour, tm.minute, tm.second, ms), Qt::UTC);
+    return convertedUTC.toLocalTime();
+}
+
+/*!
+  \internal
+  Converts a QDateTime to a JS date value (milliseconds).
+*/
+qsreal DateTimeToMs(JSC::ExecState *exec, const QDateTime &dt)
+{
+    if (!dt.isValid())
+        return qSNaN();
+    QDateTime utc = dt.toUTC();
+    QDate date = utc.date();
+    QTime time = utc.time();
+    JSC::GregorianDateTime tm;
+    tm.year = date.year() - 1900;
+    tm.month = date.month() - 1;
+    tm.monthDay = date.day();
+    tm.weekDay = date.dayOfWeek();
+    tm.yearDay = date.dayOfYear();
+    tm.hour = time.hour();
+    tm.minute = time.minute();
+    tm.second = time.second();
+    return JSC::gregorianDateTimeToMS(exec, tm, time.msec(), /*inputIsUTC=*/true);
+}
 
 void GlobalClientData::mark(JSC::MarkStack& markStack)
 {
@@ -894,6 +951,7 @@ QScriptEnginePrivate::QScriptEnginePrivate()
     JSC::ExecState* exec = globalObject->globalExec();
 
     scriptObjectStructure = QScriptObject::createStructure(globalObject->objectPrototype());
+    staticScopeObjectStructure = QScriptStaticScopeObject::createStructure(JSC::jsNull());
 
     qobjectPrototype = new (exec) QScript::QObjectPrototype(exec, QScript::QObjectPrototype::createStructure(globalObject->objectPrototype()), globalObject->prototypeFunctionStructure());
     qobjectWrapperObjectStructure = QScriptObject::createStructure(qobjectPrototype);
@@ -943,7 +1001,6 @@ QScriptEnginePrivate::~QScriptEnginePrivate()
     detachAllRegisteredScriptStrings();
     qDeleteAll(m_qobjectData);
     qDeleteAll(m_typeInfos);
-    JSC::JSLock lock(false);
     globalData->heap.destroy();
     globalData->deref();
     while (freeScriptValues) {
@@ -1000,12 +1057,17 @@ JSC::JSValue QScriptEnginePrivate::arrayFromVariantList(JSC::ExecState *exec, co
     return arr;
 }
 
-QVariantList QScriptEnginePrivate::variantListFromArray(JSC::ExecState *exec, JSC::JSValue arr)
+QVariantList QScriptEnginePrivate::variantListFromArray(JSC::ExecState *exec, JSC::JSArray *arr)
 {
+    QScriptEnginePrivate *eng = QScript::scriptEngineFromExec(exec);
+    if (eng->visitedConversionObjects.contains(arr))
+        return QVariantList(); // Avoid recursion.
+    eng->visitedConversionObjects.insert(arr);
     QVariantList lst;
     uint len = toUInt32(exec, property(exec, arr, exec->propertyNames().length));
     for (uint i = 0; i < len; ++i)
         lst.append(toVariant(exec, property(exec, arr, i)));
+    eng->visitedConversionObjects.remove(arr);
     return lst;
 }
 
@@ -1018,14 +1080,19 @@ JSC::JSValue QScriptEnginePrivate::objectFromVariantMap(JSC::ExecState *exec, co
     return obj;
 }
 
-QVariantMap QScriptEnginePrivate::variantMapFromObject(JSC::ExecState *exec, JSC::JSValue obj)
+QVariantMap QScriptEnginePrivate::variantMapFromObject(JSC::ExecState *exec, JSC::JSObject *obj)
 {
+    QScriptEnginePrivate *eng = QScript::scriptEngineFromExec(exec);
+    if (eng->visitedConversionObjects.contains(obj))
+        return QVariantMap(); // Avoid recursion.
+    eng->visitedConversionObjects.insert(obj);
     JSC::PropertyNameArray propertyNames(exec);
-    JSC::asObject(obj)->getOwnPropertyNames(exec, propertyNames, JSC::IncludeDontEnumProperties);
+    obj->getOwnPropertyNames(exec, propertyNames, JSC::IncludeDontEnumProperties);
     QVariantMap vmap;
     JSC::PropertyNameArray::const_iterator it = propertyNames.begin();
     for( ; it != propertyNames.end(); ++it)
         vmap.insert(it->ustring(), toVariant(exec, property(exec, obj, *it)));
+    eng->visitedConversionObjects.remove(obj);
     return vmap;
 }
 
@@ -1222,7 +1289,6 @@ bool QScriptEnginePrivate::isCollecting() const
 
 void QScriptEnginePrivate::collectGarbage()
 {
-    JSC::JSLock lock(false);
     QScript::APIShim shim(this);
     globalData->heap.collectAllGarbage();
 }
@@ -1252,7 +1318,6 @@ JSC::JSValue QScriptEnginePrivate::evaluateHelper(JSC::ExecState *exec, intptr_t
                                                   bool &compile)
 {
     Q_Q(QScriptEngine);
-    JSC::JSLock lock(false); // ### hmmm
     QBoolBlocker inEvalBlocker(inEval, true);
     q->currentContext()->activationObject(); //force the creation of a context for native function;
 
@@ -1514,7 +1579,7 @@ void QScriptEnginePrivate::detachAllRegisteredScriptStrings()
 
 #ifndef QT_NO_REGEXP
 
-Q_DECL_IMPORT extern QString qt_regexp_toCanonical(const QString &, QRegExp::PatternSyntax);
+Q_CORE_EXPORT QString qt_regexp_toCanonical(const QString &, QRegExp::PatternSyntax);
 
 JSC::JSValue QScriptEnginePrivate::newRegExp(JSC::ExecState *exec, const QRegExp &regexp)
 {
@@ -1650,16 +1715,10 @@ QVariant QScriptEnginePrivate::toVariant(JSC::ExecState *exec, JSC::JSValue valu
             return QVariant(toRegExp(exec, value));
 #endif
         else if (isArray(value))
-            return variantListFromArray(exec, value);
+            return variantListFromArray(exec, JSC::asArray(value));
         else if (QScriptDeclarativeClass *dc = declarativeClass(value))
             return dc->toVariant(declarativeObject(value));
-        // try to convert to primitive
-        JSC::JSValue savedException;
-        saveException(exec, &savedException);
-        JSC::JSValue prim = value.toPrimitive(exec);
-        restoreException(exec, savedException);
-        if (!prim.isObject())
-            return toVariant(exec, prim);
+        return variantMapFromObject(exec, JSC::asObject(value));
     } else if (value.isNumber()) {
         return QVariant(toNumber(exec, value));
     } else if (value.isString()) {
@@ -1755,15 +1814,7 @@ void QScriptEnginePrivate::setProperty(JSC::ExecState *exec, JSC::JSValue object
         } else if (flags != QScriptValue::KeepExistingFlags) {
             if (thisObject->hasOwnProperty(exec, id))
                 thisObject->deleteProperty(exec, id); // ### hmmm - can't we just update the attributes?
-            unsigned attribs = 0;
-            if (flags & QScriptValue::ReadOnly)
-                attribs |= JSC::ReadOnly;
-            if (flags & QScriptValue::SkipInEnumeration)
-                attribs |= JSC::DontEnum;
-            if (flags & QScriptValue::Undeletable)
-                attribs |= JSC::DontDelete;
-            attribs |= flags & QScriptValue::UserRange;
-            thisObject->putWithAttributes(exec, id, value, attribs);
+            thisObject->putWithAttributes(exec, id, value, propertyFlagsToJSCAttributes(flags));
         } else {
             JSC::PutPropertySlot slot;
             thisObject->put(exec, id, value, slot);
@@ -2008,8 +2059,6 @@ QScriptValue QScriptEngine::newFunction(QScriptEngine::FunctionSignature fun,
 }
 
 #ifndef QT_NO_REGEXP
-
-Q_DECL_IMPORT extern QString qt_regexp_toCanonical(const QString &, QRegExp::PatternSyntax);
 
 /*!
   Creates a QtScript object of class RegExp with the given
@@ -2746,8 +2795,7 @@ void QScriptEnginePrivate::popContext()
 
   The exception state is cleared when evaluate() is called.
 
-  \sa uncaughtException(), uncaughtExceptionLineNumber(),
-      uncaughtExceptionBacktrace()
+  \sa uncaughtException(), uncaughtExceptionLineNumber()
 */
 bool QScriptEngine::hasUncaughtException() const
 {
@@ -2765,7 +2813,6 @@ bool QScriptEngine::hasUncaughtException() const
   message.
 
   \sa hasUncaughtException(), uncaughtExceptionLineNumber(),
-      uncaughtExceptionBacktrace()
 */
 QScriptValue QScriptEngine::uncaughtException() const
 {
@@ -2785,7 +2832,7 @@ QScriptValue QScriptEngine::uncaughtException() const
   Line numbers are 1-based, unless a different base was specified as
   the second argument to evaluate().
 
-  \sa hasUncaughtException(), uncaughtExceptionBacktrace()
+  \sa hasUncaughtException()
 */
 int QScriptEngine::uncaughtExceptionLineNumber() const
 {
@@ -2797,7 +2844,7 @@ int QScriptEngine::uncaughtExceptionLineNumber() const
 /*!
   Returns a human-readable backtrace of the last uncaught exception.
 
-  Each line is of the form \c{<function-name>(<arguments>)@<file-name>:<line-number>}.
+  It is in the form \c{<function-name>()@<file-name>:<line-number>}.
 
   \sa uncaughtException()
 */
@@ -3120,12 +3167,12 @@ bool QScriptEnginePrivate::convertValue(JSC::ExecState *exec, JSC::JSValue value
         } break;
     case QMetaType::QVariantList:
         if (isArray(value)) {
-            *reinterpret_cast<QVariantList *>(ptr) = variantListFromArray(exec, value);
+            *reinterpret_cast<QVariantList *>(ptr) = variantListFromArray(exec, JSC::asArray(value));
             return true;
         } break;
     case QMetaType::QVariantMap:
         if (isObject(value)) {
-            *reinterpret_cast<QVariantMap *>(ptr) = variantMapFromObject(exec, value);
+            *reinterpret_cast<QVariantMap *>(ptr) = variantMapFromObject(exec, JSC::asObject(value));
             return true;
         } break;
     case QMetaType::QVariant:
@@ -4142,6 +4189,7 @@ void QScriptEngine::setAgent(QScriptEngineAgent *agent)
                  "cannot set agent belonging to different engine");
         return;
     }
+    QScript::APIShim shim(d);
     if (d->activeAgent)
         QScriptEngineAgentPrivate::get(d->activeAgent)->detach();
     d->activeAgent = agent;

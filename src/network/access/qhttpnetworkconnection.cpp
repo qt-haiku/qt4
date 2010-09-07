@@ -286,13 +286,8 @@ bool QHttpNetworkConnectionPrivate::handleAuthenticateChallenge(QAbstractSocket 
 
     resend = false;
     //create the response header to be used with QAuthenticatorPrivate.
-    QHttpResponseHeader responseHeader;
     QList<QPair<QByteArray, QByteArray> > fields = reply->header();
-    QList<QPair<QByteArray, QByteArray> >::const_iterator it = fields.constBegin();
-    while (it != fields.constEnd()) {
-        responseHeader.addValue(QString::fromLatin1(it->first), QString::fromUtf8(it->second));
-        it++;
-    }
+
     //find out the type of authentication protocol requested.
     QAuthenticatorPrivate::Method authMethod = reply->d_func()->authenticationMethod(isProxy);
     if (authMethod != QAuthenticatorPrivate::None) {
@@ -310,7 +305,7 @@ bool QHttpNetworkConnectionPrivate::handleAuthenticateChallenge(QAbstractSocket 
         if (auth->isNull())
             auth->detach();
         QAuthenticatorPrivate *priv = QAuthenticatorPrivate::getPrivate(*auth);
-        priv->parseHttpResponse(responseHeader, isProxy);
+        priv->parseHttpResponse(fields, isProxy);
 
         if (priv->phase == QAuthenticatorPrivate::Done) {
             if ((isProxy && pendingProxyAuthSignal) ||(!isProxy && pendingAuthSignal)) {
@@ -658,6 +653,8 @@ void QHttpNetworkConnectionPrivate::removeReply(QHttpNetworkReply *reply)
         // is the reply associated the currently processing of this channel?
         if (channels[i].reply == reply) {
             channels[i].reply = 0;
+            channels[i].request = QHttpNetworkRequest();
+            channels[i].resendCurrent = false;
 
             if (!reply->isFinished() && !channels[i].alreadyPipelinedRequests.isEmpty()) {
                 // the reply had to be prematurely removed, e.g. it was not finished
@@ -723,6 +720,7 @@ void QHttpNetworkConnectionPrivate::removeReply(QHttpNetworkReply *reply)
 
 // This function must be called from the event loop. The only
 // exception is documented in QHttpNetworkConnectionPrivate::queueRequest
+// although it is called _q_startNextRequest, it will actually start multiple requests when possible
 void QHttpNetworkConnectionPrivate::_q_startNextRequest()
 {
     //resend the necessary ones.
@@ -740,26 +738,23 @@ void QHttpNetworkConnectionPrivate::_q_startNextRequest()
 
     // dequeue new ones
 
-    QAbstractSocket *socket = 0;
+    // return fast if there is nothing to do
+    if (highPriorityQueue.isEmpty() && lowPriorityQueue.isEmpty())
+        return;
+    // try to get a free AND connected socket
     for (int i = 0; i < channelCount; ++i) {
-        QAbstractSocket *chSocket = channels[i].socket;
-        // try to get a free AND connected socket
         if (!channels[i].isSocketBusy() && channels[i].socket->state() == QAbstractSocket::ConnectedState) {
-            socket = chSocket;
-            dequeueAndSendRequest(socket);
-            break;
+            dequeueAndSendRequest(channels[i].socket);
         }
     }
 
-    if (!socket) {
-        for (int i = 0; i < channelCount; ++i) {
-            QAbstractSocket *chSocket = channels[i].socket;
-            // try to get a free unconnected socket
-            if (!channels[i].isSocketBusy()) {
-                socket = chSocket;
-                dequeueAndSendRequest(socket);
-                break;
-            }
+    // return fast if there is nothing to do
+    if (highPriorityQueue.isEmpty() && lowPriorityQueue.isEmpty())
+        return;
+    // try to get a free unconnected socket
+    for (int i = 0; i < channelCount; ++i) {
+        if (!channels[i].isSocketBusy()) {
+            dequeueAndSendRequest(channels[i].socket);
         }
     }
 

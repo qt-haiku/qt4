@@ -445,11 +445,11 @@ void QGLFramebufferObjectPrivate::init(QGLFramebufferObject *q, const QSize &sz,
         GLint maxSamples;
         glGetIntegerv(GL_MAX_SAMPLES_EXT, &maxSamples);
 
-        samples = qBound(1, int(samples), int(maxSamples));
+        samples = qBound(0, int(samples), int(maxSamples));
 
         glGenRenderbuffers(1, &color_buffer);
         glBindRenderbuffer(GL_RENDERBUFFER_EXT, color_buffer);
-        if (glRenderbufferStorageMultisampleEXT) {
+        if (glRenderbufferStorageMultisampleEXT && samples > 0) {
             glRenderbufferStorageMultisampleEXT(GL_RENDERBUFFER_EXT, samples,
                 internal_format, size.width(), size.height());
         } else {
@@ -1021,6 +1021,36 @@ QPaintEngine *QGLFramebufferObject::paintEngine() const
     }
     return engine;
 #endif
+}
+
+/*!
+    \fn bool QGLFramebufferObject::bindDefault()
+    \internal
+
+    Switches rendering back to the default, windowing system provided
+    framebuffer.
+    Returns true upon success, false otherwise.
+
+    \sa bind(), release()
+*/
+bool QGLFramebufferObject::bindDefault()
+{
+    QGLContext *ctx = const_cast<QGLContext *>(QGLContext::currentContext());
+
+    if (ctx) {
+        bool ext_detected = (QGLExtensions::glExtensions() & QGLExtensions::FramebufferObject);
+        if (!ext_detected || (ext_detected && !qt_resolve_framebufferobject_extensions(ctx)))
+            return false;
+
+        ctx->d_ptr->current_fbo = ctx->d_ptr->default_fbo;
+        glBindFramebuffer(GL_FRAMEBUFFER_EXT, ctx->d_ptr->default_fbo);
+#ifdef QT_DEBUG
+    } else {
+        qWarning("QGLFramebufferObject::bindDefault() called without current context.");
+#endif
+    }
+
+    return ctx != 0;
 }
 
 /*!

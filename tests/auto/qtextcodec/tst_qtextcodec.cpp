@@ -1946,6 +1946,8 @@ void tst_QTextCodec::toLocal8Bit()
 {
 #ifdef QT_NO_PROCESS
     QSKIP("This test requires QProcess", SkipAll);
+#elif defined(Q_OS_SYMBIAN)
+    QSKIP("This test requires streams support in QProcess", SkipAll);
 #else
     QProcess process;
     process.start("echo/echo");
@@ -2001,6 +2003,8 @@ void tst_QTextCodec::threadSafety()
 
     QCOMPARE(res.results(), codecList);
     QCOMPARE(res2.results(), mibList);
+#else
+    QSKIP("This function is not yet supported with QT_NO_CONCURRENT defined.", SkipAll);
 #endif
 }
 
@@ -2012,7 +2016,7 @@ void tst_QTextCodec::invalidNames()
     QVERIFY(!QTextCodec::codecForName("\1a\2b\3a\4d\5c\6s\7a\xffr\xec_\x9c_"));
     QVERIFY(!QTextCodec::codecForName("\n"));
     QVERIFY(!QTextCodec::codecForName("don't exist"));
-    QByteArray huge = "azertyuiop^$qsdfghjklm<wxcvbn,;:=1234567890°_";
+    QByteArray huge = "azertyuiop^$qsdfghjklm<wxcvbn,;:=1234567890ï¿½_";
     huge = huge + huge + huge + huge + huge + huge + huge + huge;
     huge = huge + huge + huge + huge + huge + huge + huge + huge;
     huge = huge + huge + huge + huge + huge + huge + huge + huge;

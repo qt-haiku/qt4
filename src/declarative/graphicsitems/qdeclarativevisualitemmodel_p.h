@@ -54,18 +54,13 @@ Q_DECLARE_METATYPE(QModelIndex)
 QT_BEGIN_NAMESPACE
 
 QT_MODULE(Declarative)
-/*****************************************************************************
- *****************************************************************************
- XXX Experimental
- *****************************************************************************
-*****************************************************************************/
 
 class QDeclarativeItem;
 class QDeclarativeComponent;
 class QDeclarativePackage;
 class QDeclarativeVisualDataModelPrivate;
 
-class Q_DECLARATIVE_EXPORT QDeclarativeVisualModel : public QObject
+class Q_AUTOTEST_EXPORT QDeclarativeVisualModel : public QObject
 {
     Q_OBJECT
 
@@ -108,7 +103,7 @@ private:
 
 class QDeclarativeVisualItemModelAttached;
 class QDeclarativeVisualItemModelPrivate;
-class Q_DECLARATIVE_EXPORT QDeclarativeVisualItemModel : public QDeclarativeVisualModel
+class Q_AUTOTEST_EXPORT QDeclarativeVisualItemModel : public QDeclarativeVisualModel
 {
     Q_OBJECT
     Q_DECLARE_PRIVATE(QDeclarativeVisualItemModel)
@@ -143,7 +138,7 @@ private:
 };
 
 
-class Q_DECLARATIVE_EXPORT QDeclarativeVisualDataModel : public QDeclarativeVisualModel
+class Q_AUTOTEST_EXPORT QDeclarativeVisualDataModel : public QDeclarativeVisualModel
 {
     Q_OBJECT
     Q_DECLARE_PRIVATE(QDeclarativeVisualDataModel)

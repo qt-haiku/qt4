@@ -72,6 +72,7 @@
 #include <private/qmath_p.h>
 #include <qstatictext.h>
 #include <private/qstatictext_p.h>
+#include <private/qstylehelper_p.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -89,6 +90,15 @@ void qt_format_text(const QFont &font,
                     const QRectF &_r, int tf, const QTextOption *option, const QString& str, QRectF *brect,
                     int tabstops, int* tabarray, int tabarraylen,
                     QPainter *painter);
+static void drawTextItemDecoration(QPainter *painter, const QPointF &pos, const QFontEngine *fe,
+                                   QTextCharFormat::UnderlineStyle underlineStyle,
+                                   const QTextItem::RenderFlags flags, qreal width,
+                                   const QTextCharFormat &charFormat);
+// Helper function to calculate left most position, width and flags for decoration drawing
+static void drawDecorationForGlyphs(QPainter *painter, const glyph_t *glyphArray,
+                                    const QFixedPoint *positions, int glyphCount,
+                                    QFontEngine *fontEngine, const QFont &font,
+                                    const QTextCharFormat &charFormat);
 
 static inline QGradient::CoordinateMode coordinateMode(const QBrush &brush)
 {
@@ -970,7 +980,7 @@ void QPainterPrivate::updateState(QPainterState *newState)
     devices. If the painter is active, device() returns the paint
     device on which the painter paints, and paintEngine() returns the
     paint engine that the painter is currently operating on. For more
-    information, see \l {The Paint System} documentation.
+    information, see the \l {Paint System}.
 
     Sometimes it is desirable to make someone else paint on an unusual
     QPaintDevice. QPainter supports a static function to do this,
@@ -1015,7 +1025,7 @@ void QPainterPrivate::updateState(QPainterState *newState)
 
     \o viewport(), window(), worldTransform() make up the painter's coordinate
         transformation system. For more information, see the \l
-        {Coordinate Transformations} section and the \l {The Coordinate
+        {Coordinate Transformations} section and the \l {Coordinate
         System} documentation.
 
     \o hasClipping() tells whether the painter clips at all. (The paint
@@ -1222,7 +1232,7 @@ void QPainterPrivate::updateState(QPainterState *newState)
     All the tranformation operations operate on the transformation
     worldTransform(). A matrix transforms a point in the plane to another
     point. For more information about the transformation matrix, see
-    the \l {The Coordinate System} and QTransform documentation.
+    the \l {Coordinate System} and QTransform documentation.
 
     The setWorldTransform() function can replace or add to the currently
     set worldTransform(). The resetTransform() function resets any
@@ -1244,7 +1254,7 @@ void QPainterPrivate::updateState(QPainterState *newState)
     logical coordinates, and the worldTransform() is identical with the
     transformation matrix.
 
-    See also \l {The Coordinate System} documentation.
+    See also \l {Coordinate System}
 
     \section1 Clipping
 
@@ -1563,7 +1573,6 @@ void QPainter::initFrom(const QWidget *widget)
         d->engine->setDirty(QPaintEngine::DirtyBrush);
         d->engine->setDirty(QPaintEngine::DirtyFont);
     }
-    d->state->layoutDirection = widget->layoutDirection();
 }
 
 
@@ -1873,7 +1882,7 @@ bool QPainter::begin(QPaintDevice *pd)
         QWidget *widget = static_cast<QWidget *>(d->original_device);
         initFrom(widget);
     } else {
-        d->state->layoutDirection = QApplication::layoutDirection();
+        d->state->layoutDirection = Qt::LayoutDirectionAuto;
         // make sure we have a font compatible with the paintdevice
         d->state->deviceFont = d->state->font = QFont(d->state->deviceFont, device());
     }
@@ -2391,6 +2400,8 @@ void QPainter::setCompositionMode(CompositionMode mode)
         qWarning("QPainter::setCompositionMode: Painter not active");
         return;
     }
+    if (d->state->composition_mode == mode)
+        return;
     if (d->extended) {
         d->state->composition_mode = mode;
         d->extended->compositionModeChanged();
@@ -2880,8 +2891,7 @@ void QPainter::setClipRegion(const QRegion &r, Qt::ClipOperation op)
     functions is safe.
 
     For more information about the coordinate system, transformations
-    and window-viewport conversion, see \l {The Coordinate System}
-    documentation.
+    and window-viewport conversion, see \l {Coordinate System}.
 
     \sa setWorldTransform(), QTransform
 */
@@ -2901,7 +2911,7 @@ void QPainter::setWorldMatrix(const QMatrix &matrix, bool combine)
     preserve the properties of perspective transformations.
 
     \sa {QPainter#Coordinate Transformations}{Coordinate Transformations},
-    {The Coordinate System}
+    {Coordinate System}
 */
 
 const QMatrix &QPainter::worldMatrix() const
@@ -3044,7 +3054,7 @@ void QPainter::setWorldMatrixEnabled(bool enable)
     Returns true if world transformation is enabled; otherwise returns
     false.
 
-    \sa setWorldMatrixEnabled(), worldTransform(), {The Coordinate System}
+    \sa setWorldMatrixEnabled(), worldTransform(), {Coordinate System}
 */
 
 bool QPainter::worldMatrixEnabled() const
@@ -3386,7 +3396,7 @@ void QPainter::drawPath(const QPainterPath &path)
     \snippet doc/src/snippets/code/src_gui_painting_qpainter.cpp 6
     \endtable
 
-    \sa drawLines(), drawPolyline(), {The Coordinate System}
+    \sa drawLines(), drawPolyline(), {Coordinate System}
 */
 
 /*!
@@ -3433,7 +3443,7 @@ void QPainter::drawPath(const QPainterPath &path)
     \snippet doc/src/snippets/code/src_gui_painting_qpainter.cpp 7
     \endtable
 
-    \sa drawRects(), drawPolygon(), {The Coordinate System}
+    \sa drawRects(), drawPolygon(), {Coordinate System}
 */
 
 /*!
@@ -3597,7 +3607,7 @@ void QPainter::drawRects(const QRect *rects, int rectCount)
     Draws a single point at the given \a position using the current
     pen's color.
 
-    \sa {The Coordinate System}
+    \sa {Coordinate System}
 */
 
 /*!
@@ -3619,7 +3629,7 @@ void QPainter::drawRects(const QRect *rects, int rectCount)
     Draws the first \a pointCount points in the array \a points using
     the current pen's color.
 
-    \sa {The Coordinate System}
+    \sa {Coordinate System}
 */
 void QPainter::drawPoints(const QPointF *points, int pointCount)
 {
@@ -4225,7 +4235,7 @@ void QPainter::drawRoundRect(const QRectF &r, int xRnd, int yRnd)
     \snippet doc/src/snippets/code/src_gui_painting_qpainter.cpp 9
     \endtable
 
-    \sa drawPie(), {The Coordinate System}
+    \sa drawPie(), {Coordinate System}
 */
 void QPainter::drawEllipse(const QRectF &r)
 {
@@ -4239,8 +4249,6 @@ void QPainter::drawEllipse(const QRectF &r)
         return;
 
     QRectF rect(r.normalized());
-    if (rect.isEmpty())
-        return;
 
     if (d->extended) {
         d->extended->drawEllipse(rect);
@@ -4282,8 +4290,6 @@ void QPainter::drawEllipse(const QRect &r)
         return;
 
     QRect rect(r.normalized());
-    if (rect.isEmpty())
-        return;
 
     if (d->extended) {
         d->extended->drawEllipse(rect);
@@ -4355,7 +4361,7 @@ void QPainter::drawEllipse(const QRect &r)
     \snippet doc/src/snippets/code/src_gui_painting_qpainter.cpp 10
     \endtable
 
-    \sa drawPie(), drawChord(), {The Coordinate System}
+    \sa drawPie(), drawChord(), {Coordinate System}
 */
 
 void QPainter::drawArc(const QRectF &r, int a, int alen)
@@ -4419,7 +4425,7 @@ void QPainter::drawArc(const QRectF &r, int a, int alen)
     \snippet doc/src/snippets/code/src_gui_painting_qpainter.cpp 11
     \endtable
 
-    \sa drawEllipse(), drawChord(), {The Coordinate System}
+    \sa drawEllipse(), drawChord(), {Coordinate System}
 */
 void QPainter::drawPie(const QRectF &r, int a, int alen)
 {
@@ -4488,7 +4494,7 @@ void QPainter::drawPie(const QRectF &r, int a, int alen)
     \snippet doc/src/snippets/code/src_gui_painting_qpainter.cpp 12
     \endtable
 
-    \sa drawArc(), drawPie(), {The Coordinate System}
+    \sa drawArc(), drawPie(), {Coordinate System}
 */
 void QPainter::drawChord(const QRectF &r, int a, int alen)
 {
@@ -4779,7 +4785,7 @@ void QPainter::drawLines(const QPoint *pointPairs, int lineCount)
     \snippet doc/src/snippets/code/src_gui_painting_qpainter.cpp 13
     \endtable
 
-    \sa drawLines(), drawPolygon(), {The Coordinate System}
+    \sa drawLines(), drawPolygon(), {Coordinate System}
 */
 void QPainter::drawPolyline(const QPointF *points, int pointCount)
 {
@@ -4918,7 +4924,7 @@ void QPainter::drawPolyline(const QPoint *points, int pointCount)
     \l{Qt::FillRule} for a more detailed description of these fill
     rules.
 
-    \sa  drawConvexPolygon(), drawPolyline(), {The Coordinate System}
+    \sa  drawConvexPolygon(), drawPolyline(), {Coordinate System}
 */
 void QPainter::drawPolygon(const QPointF *points, int pointCount, Qt::FillRule fillRule)
 {
@@ -5069,7 +5075,7 @@ void QPainter::drawPolygon(const QPoint *points, int pointCount, Qt::FillRule fi
     On some platforms (e.g. X11), the drawConvexPolygon() function can
     be faster than the drawPolygon() function.
 
-    \sa drawPolygon(), drawPolyline(), {The Coordinate System}
+    \sa drawPolygon(), drawPolyline(), {Coordinate System}
 */
 
 /*!
@@ -5856,14 +5862,24 @@ void QPainter::drawStaticText(const QPointF &topLeftPosition, const QStaticText 
         return;
     }
 
+    if (d->extended->type() == QPaintEngine::OpenGL2 && !staticText_d->untransformedCoordinates) {
+        staticText_d->untransformedCoordinates = true;
+        staticText_d->needsRelayout = true;
+    } else if (d->extended->type() != QPaintEngine::OpenGL2 && staticText_d->untransformedCoordinates) {
+        staticText_d->untransformedCoordinates = false;
+        staticText_d->needsRelayout = true;
+    }
+
     // Don't recalculate entire layout because of translation, rather add the dx and dy
     // into the position to move each text item the correct distance.
-    QPointF transformedPosition = topLeftPosition * d->state->matrix;
-    QTransform matrix = d->state->matrix;
+    QPointF transformedPosition = topLeftPosition;
+    if (!staticText_d->untransformedCoordinates)
+        transformedPosition = transformedPosition * d->state->matrix;
+    QTransform oldMatrix;
 
     // The translation has been applied to transformedPosition. Remove translation
     // component from matrix.
-    if (d->state->matrix.isTranslating()) {
+    if (d->state->matrix.isTranslating() && !staticText_d->untransformedCoordinates) {
         qreal m11 = d->state->matrix.m11();
         qreal m12 = d->state->matrix.m12();
         qreal m13 = d->state->matrix.m13();
@@ -5872,6 +5888,7 @@ void QPainter::drawStaticText(const QPointF &topLeftPosition, const QStaticText 
         qreal m23 = d->state->matrix.m23();
         qreal m33 = d->state->matrix.m33();
 
+        oldMatrix = d->state->matrix;
         d->state->matrix.setMatrix(m11, m12, m13,
                                    m21, m22, m23,
                                    0.0, 0.0, m33);
@@ -5880,7 +5897,7 @@ void QPainter::drawStaticText(const QPointF &topLeftPosition, const QStaticText 
     // If the transform is not identical to the text transform,
     // we have to relayout the text (for other transformations than plain translation)
     bool staticTextNeedsReinit = staticText_d->needsRelayout;
-    if (staticText_d->matrix != d->state->matrix) {
+    if (!staticText_d->untransformedCoordinates && staticText_d->matrix != d->state->matrix) {
         staticText_d->matrix = d->state->matrix;
         staticTextNeedsReinit = true;
     }
@@ -5915,12 +5932,16 @@ void QPainter::drawStaticText(const QPointF &topLeftPosition, const QStaticText 
             currentColor = item->color;
         }
         d->extended->drawStaticTextItem(item);
+
+        drawDecorationForGlyphs(this, item->glyphs, item->glyphPositions,
+                                item->numGlyphs, item->fontEngine, staticText_d->font,
+                                QTextCharFormat());
     }
     if (currentColor != oldPen.color())
         setPen(oldPen);
 
-    if (matrix.isTranslating())
-        d->state->matrix = matrix;
+    if (!staticText_d->untransformedCoordinates && oldMatrix.isTranslating())
+        d->state->matrix = oldMatrix;
 }
 
 /*!
@@ -5937,6 +5958,23 @@ void QPainter::drawText(const QPointF &p, const QString &str, int tf, int justif
 
     if (!d->engine || str.isEmpty() || pen().style() == Qt::NoPen)
         return;
+
+    if (tf & Qt::TextBypassShaping) {
+        // Skip harfbuzz complex shaping, shape using glyph advances only
+        int len = str.length();
+        int numGlyphs = len;
+        QVarLengthGlyphLayoutArray glyphs(len);
+        QFontEngine *fontEngine = d->state->font.d->engineForScript(QUnicodeTables::Common);
+        if (!fontEngine->stringToCMap(str.data(), len, &glyphs, &numGlyphs, 0)) {
+            glyphs.resize(numGlyphs);
+            if (!fontEngine->stringToCMap(str.data(), len, &glyphs, &numGlyphs, 0))
+                Q_ASSERT_X(false, Q_FUNC_INFO, "stringToCMap shouldn't fail twice");
+        }
+
+        QTextItemInt gf(glyphs, &d->state->font, str.data(), len, fontEngine);
+        drawTextItem(p, gf);
+        return;
+    }
 
     QStackTextEngine engine(str, d->state->font);
     engine.option.setTextDirection(d->state->layoutDirection);
@@ -5977,12 +6015,17 @@ void QPainter::drawText(const QPointF &p, const QString &str, int tf, int justif
         gf.glyphs = engine.shapedGlyphs(&si);
         gf.chars = engine.layoutData->string.unicode() + si.position;
         gf.num_chars = engine.length(item);
-        gf.width = si.width;
+        if (engine.forceJustification) {
+            for (int j=0; j<gf.glyphs.numGlyphs; ++j)
+                gf.width += gf.glyphs.effectiveAdvance(j);
+        } else {
+            gf.width = si.width;
+        }
         gf.logClusters = engine.logClusters(&si);
 
         drawTextItem(QPointF(x.toReal(), p.y()), gf);
 
-        x += si.width;
+        x += gf.width;
     }
 }
 
@@ -6213,10 +6256,9 @@ static QPixmap generateWavyPixmap(qreal maxRadius, const QPen &pen)
 {
     const qreal radiusBase = qMax(qreal(1), maxRadius);
 
-    QString key = QLatin1String("WaveUnderline-");
-    key += pen.color().name();
-    key += QLatin1Char('-');
-    key += QString::number(radiusBase);
+    QString key = QLatin1Literal("WaveUnderline-")
+                  % pen.color().name()
+                  % HexString<qreal>(radiusBase);
 
     QPixmap pixmap;
     if (QPixmapCache::find(key, pixmap))
@@ -6261,14 +6303,14 @@ static QPixmap generateWavyPixmap(qreal maxRadius, const QPen &pen)
     return pixmap;
 }
 
-static void drawTextItemDecoration(QPainter *painter, const QPointF &pos, const QTextItemInt &ti)
+static void drawTextItemDecoration(QPainter *painter, const QPointF &pos, const QFontEngine *fe,
+                                   QTextCharFormat::UnderlineStyle underlineStyle,
+                                   const QTextItem::RenderFlags flags, qreal width,
+                                   const QTextCharFormat &charFormat)
 {
-    QTextCharFormat::UnderlineStyle underlineStyle = ti.underlineStyle;
     if (underlineStyle == QTextCharFormat::NoUnderline
-        && !(ti.flags & (QTextItem::StrikeOut | QTextItem::Overline)))
+        && !(flags & (QTextItem::StrikeOut | QTextItem::Overline)))
         return;
-
-    QFontEngine *fe = ti.fontEngine;
 
     const QPen oldPen = painter->pen();
     const QBrush oldBrush = painter->brush();
@@ -6278,7 +6320,7 @@ static void drawTextItemDecoration(QPainter *painter, const QPointF &pos, const 
     pen.setWidthF(fe->lineThickness().toReal());
     pen.setCapStyle(Qt::FlatCap);
 
-    QLineF line(pos.x(), pos.y(), pos.x() + ti.width.toReal(), pos.y());
+    QLineF line(pos.x(), pos.y(), pos.x() + width, pos.y());
 
     const qreal underlineOffset = fe->underlinePosition().toReal();
     // deliberately ceil the offset to avoid the underline coming too close to
@@ -6293,21 +6335,21 @@ static void drawTextItemDecoration(QPainter *painter, const QPointF &pos, const 
         painter->save();
         painter->translate(0, pos.y() + 1);
 
-        QColor uc = ti.charFormat.underlineColor();
+        QColor uc = charFormat.underlineColor();
         if (uc.isValid())
             pen.setColor(uc);
 
         // Adapt wave to underlineOffset or pen width, whatever is larger, to make it work on all platforms
         const QPixmap wave = generateWavyPixmap(qMax(underlineOffset, pen.widthF()), pen);
-        const int descent = (int) ti.descent.toReal();
+        const int descent = (int) fe->descent().toReal();
 
         painter->setBrushOrigin(painter->brushOrigin().x(), 0);
-        painter->fillRect(pos.x(), 0, qCeil(ti.width.toReal()), qMin(wave.height(), descent), wave);
+        painter->fillRect(pos.x(), 0, qCeil(width), qMin(wave.height(), descent), wave);
         painter->restore();
     } else if (underlineStyle != QTextCharFormat::NoUnderline) {
         QLineF underLine(line.x1(), underlinePos, line.x2(), underlinePos);
 
-        QColor uc = ti.charFormat.underlineColor();
+        QColor uc = charFormat.underlineColor();
         if (uc.isValid())
             pen.setColor(uc);
 
@@ -6319,14 +6361,14 @@ static void drawTextItemDecoration(QPainter *painter, const QPointF &pos, const 
     pen.setStyle(Qt::SolidLine);
     pen.setColor(oldPen.color());
 
-    if (ti.flags & QTextItem::StrikeOut) {
+    if (flags & QTextItem::StrikeOut) {
         QLineF strikeOutLine = line;
         strikeOutLine.translate(0., - fe->ascent().toReal() / 3.);
         painter->setPen(pen);
         painter->drawLine(strikeOutLine);
     }
 
-    if (ti.flags & QTextItem::Overline) {
+    if (flags & QTextItem::Overline) {
         QLineF overLine = line;
         overLine.translate(0., - fe->ascent().toReal());
         painter->setPen(pen);
@@ -6335,6 +6377,50 @@ static void drawTextItemDecoration(QPainter *painter, const QPointF &pos, const 
 
     painter->setPen(oldPen);
     painter->setBrush(oldBrush);
+}
+
+static void drawDecorationForGlyphs(QPainter *painter, const glyph_t *glyphArray,
+                                    const QFixedPoint *positions, int glyphCount,
+                                    QFontEngine *fontEngine, const QFont &font,
+                                    const QTextCharFormat &charFormat)
+{
+    if (!(font.underline() || font.strikeOut() || font.overline()))
+        return;
+
+    QFixed leftMost;
+    QFixed rightMost;
+    QFixed baseLine;
+    for (int i=0; i<glyphCount; ++i) {
+        glyph_metrics_t gm = fontEngine->boundingBox(glyphArray[i]);
+        if (i == 0 || leftMost > positions[i].x)
+            leftMost = positions[i].x;
+
+        // We don't support glyphs that do not share a common baseline. If this turns out to
+        // be a relevant use case, then we need to find clusters of glyphs that share a baseline
+        // and do a drawTextItemDecorations call per cluster.
+        if (i == 0 || baseLine < positions[i].y)
+            baseLine = positions[i].y;
+
+        // We use the advance rather than the actual bounds to match the algorithm in drawText()
+        if (i == 0 || rightMost < positions[i].x + gm.xoff)
+            rightMost = positions[i].x + gm.xoff;
+    }
+
+    QFixed width = rightMost - leftMost;
+    QTextItem::RenderFlags flags = 0;
+
+    if (font.underline())
+        flags |= QTextItem::Underline;
+    if (font.overline())
+        flags |= QTextItem::Overline;
+    if (font.strikeOut())
+        flags |= QTextItem::StrikeOut;
+
+    drawTextItemDecoration(painter, QPointF(leftMost.toReal(), baseLine.toReal()),
+                           fontEngine,
+                           font.underline() ? QTextCharFormat::SingleUnderline
+                                            : QTextCharFormat::NoUnderline, flags,
+                           width.toReal(), charFormat);
 }
 
 void QPainter::drawTextItem(const QPointF &p, const QTextItem &_ti)
@@ -6467,7 +6553,8 @@ void QPainter::drawTextItem(const QPointF &p, const QTextItem &_ti)
         else
             d->engine->drawTextItem(p, ti);
     }
-    drawTextItemDecoration(this, p, ti);
+    drawTextItemDecoration(this, p, ti.fontEngine, ti.underlineStyle, ti.flags, ti.width.toReal(),
+                           ti.charFormat);
 
     if (d->state->renderHints != oldRenderHints) {
         d->state->renderHints = oldRenderHints;
@@ -7107,7 +7194,7 @@ bool QPainter::viewTransformEnabled() const
     The default window rectangle is the same as the device's
     rectangle.
 
-    \sa window(), viewTransformEnabled(), {The Coordinate
+    \sa window(), viewTransformEnabled(), {Coordinate
     System#Window-Viewport Conversion}{Window-Viewport Conversion}
 */
 
@@ -7171,7 +7258,7 @@ QRect QPainter::window() const
     The default viewport rectangle is the same as the device's
     rectangle.
 
-    \sa viewport(), viewTransformEnabled() {The Coordinate
+    \sa viewport(), viewTransformEnabled() {Coordinate
     System#Window-Viewport Conversion}{Window-Viewport Conversion}
 */
 
@@ -7255,7 +7342,7 @@ QRect QPainter::viewport() const
     Enables view transformations if \a enable is true, or disables
     view transformations if \a enable is false.
 
-    \sa viewTransformEnabled(), {The Coordinate System#Window-Viewport
+    \sa viewTransformEnabled(), {Coordinate System#Window-Viewport
     Conversion}{Window-Viewport Conversion}
 */
 
@@ -8024,7 +8111,10 @@ start_lengthVariant:
     Sets the layout direction used by the painter when drawing text,
     to the specified \a direction.
 
-    \sa layoutDirection(), drawText(), {QPainter#Settings}{Settings}
+    The default is Qt::LayoutDirectionAuto, which will implicitly determine the
+    direction from the text drawn.
+
+    \sa QTextOption::setTextDirection(), layoutDirection(), drawText(), {QPainter#Settings}{Settings}
 */
 void QPainter::setLayoutDirection(Qt::LayoutDirection direction)
 {
@@ -8036,12 +8126,12 @@ void QPainter::setLayoutDirection(Qt::LayoutDirection direction)
 /*!
     Returns the layout direction used by the painter when drawing text.
 
-    \sa setLayoutDirection(), drawText(), {QPainter#Settings}{Settings}
+    \sa QTextOption::textDirection(), setLayoutDirection(), drawText(), {QPainter#Settings}{Settings}
 */
 Qt::LayoutDirection QPainter::layoutDirection() const
 {
     Q_D(const QPainter);
-    return d->state ? d->state->layoutDirection : Qt::LeftToRight;
+    return d->state ? d->state->layoutDirection : Qt::LayoutDirectionAuto;
 }
 
 QPainterState::QPainterState(const QPainterState *s)
@@ -8936,6 +9026,15 @@ void QPainter::drawPixmapFragments(const PixmapFragment *fragments, int fragment
 
     if (!d->engine)
         return;
+
+#ifndef QT_NO_DEBUG
+    for (int i = 0; i < fragmentCount; ++i) {
+        QRectF sourceRect(fragments[i].sourceLeft, fragments[i].sourceTop,
+                          fragments[i].width, fragments[i].height);
+        if (!(QRectF(pixmap.rect()).contains(sourceRect)))
+            qWarning("QPainter::drawPixmapFragments - the source rect is not contained by the pixmap's rectangle");
+    }
+#endif
 
     if (d->engine->isExtended()) {
         d->extended->drawPixmapFragments(fragments, fragmentCount, pixmap, hints);

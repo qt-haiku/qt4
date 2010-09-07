@@ -46,6 +46,15 @@
 #include <private/qdeclarativevaluetype_p.h>
 #include "testtypes.h"
 
+#ifdef Q_OS_SYMBIAN
+// In Symbian OS test data is located in applications private dir
+#define SRCDIR "."
+#endif
+
+QT_BEGIN_NAMESPACE
+extern int qt_defaultDpi();
+QT_END_NAMESPACE
+
 class tst_qdeclarativevaluetypes : public QObject
 {
     Q_OBJECT
@@ -132,8 +141,8 @@ void tst_qdeclarativevaluetypes::pointf()
         MyTypeObject *object = qobject_cast<MyTypeObject *>(component.create());
         QVERIFY(object != 0);
 
-        QCOMPARE(object->property("p_x").toDouble(), 11.3);
-        QCOMPARE(object->property("p_y").toDouble(), -10.9);
+        QCOMPARE(float(object->property("p_x").toDouble()), float(11.3));
+        QCOMPARE(float(object->property("p_y").toDouble()), float(-10.9));
         QCOMPARE(object->property("copy"), QVariant(QPointF(11.3, -10.9)));
 
         delete object;
@@ -182,8 +191,8 @@ void tst_qdeclarativevaluetypes::sizef()
         MyTypeObject *object = qobject_cast<MyTypeObject *>(component.create());
         QVERIFY(object != 0);
 
-        QCOMPARE(object->property("s_width").toDouble(), 0.1);
-        QCOMPARE(object->property("s_height").toDouble(), 100923.2);
+        QCOMPARE(float(object->property("s_width").toDouble()), float(0.1));
+        QCOMPARE(float(object->property("s_height").toDouble()), float(100923.2));
         QCOMPARE(object->property("copy"), QVariant(QSizeF(0.1, 100923.2)));
 
         delete object;
@@ -278,10 +287,10 @@ void tst_qdeclarativevaluetypes::rectf()
         MyTypeObject *object = qobject_cast<MyTypeObject *>(component.create());
         QVERIFY(object != 0);
 
-        QCOMPARE(object->property("r_x").toDouble(), 103.8);
-        QCOMPARE(object->property("r_y").toDouble(), 99.2);
-        QCOMPARE(object->property("r_width").toDouble(), 88.1);
-        QCOMPARE(object->property("r_height").toDouble(), 77.6);
+        QCOMPARE(float(object->property("r_x").toDouble()), float(103.8));
+        QCOMPARE(float(object->property("r_y").toDouble()), float(99.2));
+        QCOMPARE(float(object->property("r_width").toDouble()), float(88.1));
+        QCOMPARE(float(object->property("r_height").toDouble()), float(77.6));
         QCOMPARE(object->property("copy"), QVariant(QRectF(103.8, 99.2, 88.1, 77.6)));
 
         delete object;
@@ -464,7 +473,7 @@ void tst_qdeclarativevaluetypes::font()
         QCOMPARE(object->property("f_overline").toBool(), object->font().overline());
         QCOMPARE(object->property("f_strikeout").toBool(), object->font().strikeOut());
         QCOMPARE(object->property("f_pointSize").toDouble(), object->font().pointSizeF());
-        QCOMPARE(object->property("f_pixelSize").toInt(), object->font().pixelSize());
+        QCOMPARE(object->property("f_pixelSize").toInt(), int((object->font().pointSizeF() * qt_defaultDpi()) / qreal(72.)));
         QCOMPARE(object->property("f_capitalization").toInt(), (int)object->font().capitalization());
         QCOMPARE(object->property("f_letterSpacing").toDouble(), object->font().letterSpacing());
         QCOMPARE(object->property("f_wordSpacing").toDouble(), object->font().wordSpacing());
@@ -833,6 +842,14 @@ void tst_qdeclarativevaluetypes::enums()
 
     {
     QDeclarativeComponent component(&engine, TEST_FILE("enums.4.qml"));
+    MyTypeObject *object = qobject_cast<MyTypeObject *>(component.create());
+    QVERIFY(object != 0);
+    QVERIFY(object->font().capitalization() == QFont::AllUppercase);
+    delete object;
+    }
+
+    {
+    QDeclarativeComponent component(&engine, TEST_FILE("enums.5.qml"));
     MyTypeObject *object = qobject_cast<MyTypeObject *>(component.create());
     QVERIFY(object != 0);
     QVERIFY(object->font().capitalization() == QFont::AllUppercase);

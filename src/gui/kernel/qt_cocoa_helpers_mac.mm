@@ -682,10 +682,14 @@ bool qt_dispatchKeyEvent(void * /*NSEvent * */ keyEvent, QWidget *widgetToGetEve
     NSEvent *event = static_cast<NSEvent *>(keyEvent);
     EventRef key_event = static_cast<EventRef>(const_cast<void *>([event eventRef]));
     Q_ASSERT(key_event);
+    unsigned int info = 0;
     if ([event type] == NSKeyDown) {
         NSString *characters = [event characters];
-        unichar value = [characters characterAtIndex:0];
-        qt_keymapper_private()->updateKeyMap(0, key_event, (void *)&value);
+        if ([characters length]) {
+            unichar value = [characters characterAtIndex:0];
+            qt_keymapper_private()->updateKeyMap(0, key_event, (void *)&value);
+            info = value;
+        }
     }
 
     // Redirect keys to alien widgets.
@@ -701,9 +705,8 @@ bool qt_dispatchKeyEvent(void * /*NSEvent * */ keyEvent, QWidget *widgetToGetEve
 
     if (mustUseCocoaKeyEvent())
         return qt_dispatchKeyEventWithCocoa(keyEvent, widgetToGetEvent);
-    bool isAccepted;
-    bool consumed = qt_keymapper_private()->translateKeyEvent(widgetToGetEvent, 0, key_event, &isAccepted, true);
-    return consumed && isAccepted;
+    bool consumed = qt_keymapper_private()->translateKeyEvent(widgetToGetEvent, 0, key_event, &info, true);
+    return consumed && (info != 0);
 #endif
 }
 
@@ -1526,6 +1529,22 @@ void macSyncDrawingOnFirstInvocation(void * /*OSWindowRef */window)
         [theWindow display];
     }
 }
+
+void qt_cocoaStackChildWindowOnTopOfOtherChildren(QWidget *childWidget)
+{
+    if (!childWidget)
+        return;
+
+    QWidget *parent = childWidget->parentWidget();
+    if (childWidget->isWindow() && parent) {
+        if ([[qt_mac_window_for(parent) childWindows] containsObject:qt_mac_window_for(childWidget)]) {
+            QWidgetPrivate *d = qt_widget_private(childWidget);
+            d->setSubWindowStacking(false);
+            d->setSubWindowStacking(true);
+        }
+    }
+}
+
 #endif // QT_MAC_USE_COCOA
 
 QT_END_NAMESPACE

@@ -125,7 +125,7 @@ public:
     void itemGeometryChanged(QDeclarativeItem *, const QRectF &, const QRectF &);
 
 public:
-    QDeclarativeItem *viewport;
+    QDeclarativeItem *contentItem;
 
     AxisData hData;
     AxisData vData;
@@ -140,13 +140,13 @@ public:
     bool stealMouse : 1;
     bool pressed : 1;
     bool interactive : 1;
-    QTime lastPosTime;
+    QElapsedTimer lastPosTime;
     QPointF lastPos;
     QPointF pressPos;
-    QTime pressTime;
+    QElapsedTimer pressTime;
     qreal deceleration;
     qreal maxVelocity;
-    QTime velocityTime;
+    QElapsedTimer velocityTime;
     QPointF lastFlickablePosition;
     qreal reportedVelocitySmoothing;
     QGraphicsSceneMouseEvent *delayedPressEvent;

@@ -6,35 +6,34 @@
 **
 ** This file is part of the examples of the Qt Toolkit.
 **
-** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
+** $QT_BEGIN_LICENSE:BSD$
+** You may use this file under the terms of the BSD license as follows:
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** "Redistribution and use in source and binary forms, with or without
+** modification, are permitted provided that the following conditions are
+** met:
+**   * Redistributions of source code must retain the above copyright
+**     notice, this list of conditions and the following disclaimer.
+**   * Redistributions in binary form must reproduce the above copyright
+**     notice, this list of conditions and the following disclaimer in
+**     the documentation and/or other materials provided with the
+**     distribution.
+**   * Neither the name of Nokia Corporation and its Subsidiary(-ies) nor
+**     the names of its contributors may be used to endorse or promote
+**     products derived from this software without specific prior written
+**     permission.
 **
-** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
-**
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
-**
-**
-**
-**
-**
-**
-**
-**
+** THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+** "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+** LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+** A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+** OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+** SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+** LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+** DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+** THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+** OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
 ** $QT_END_LICENSE$
 **
 ****************************************************************************/
@@ -54,7 +53,7 @@
 
 #include <math.h>
 
-static QMap<QString, QSvgRenderer *> svgCache;
+static QMap<QNetworkConfiguration::BearerType, QSvgRenderer *> svgCache;
 
 //! [0]
 Cloud::Cloud(const QNetworkConfiguration &config, QGraphicsItem *parent)
@@ -246,6 +245,8 @@ void Cloud::stateChanged(QNetworkSession::State state)
     else
         finalOpacity = 1.0;
 
+#if !defined(Q_WS_MAEMO_5) && !defined(Q_WS_MAEMO_6) && \
+    !defined(Q_OS_SYMBIAN) && !defined(Q_OS_WINCE)
     QString tooltip;
 
     if (configuration.name().isEmpty())
@@ -260,9 +261,9 @@ void Cloud::stateChanged(QNetworkSession::State state)
     tooltip += tr("<br>Id: %1").arg(configuration.identifier());
 #endif
 
-    const QString bearerName = configuration.bearerName();
-    if (!bearerName.isEmpty())
-        tooltip += tr("<br>Bearer: %1").arg(bearerName);
+    const QString bearerTypeName = configuration.bearerTypeName();
+    if (!bearerTypeName.isEmpty())
+        tooltip += tr("<br>Bearer: %1").arg(bearerTypeName);
 
     QString s = tr("<br>State: %1 (%2)");
     switch (state) {
@@ -303,23 +304,45 @@ void Cloud::stateChanged(QNetworkSession::State state)
     tooltip += tr("<br>Sent data: %1 bytes").arg(session->bytesWritten());
 
     setToolTip(tooltip);
+#else
+    Q_UNUSED(state);
+#endif
 }
 //! [2]
 
 //! [1]
 void Cloud::newConfigurationActivated()
 {
-    const QString bearerName = configuration.bearerName();
-    if (!svgCache.contains(bearerName)) {
-        if (bearerName == QLatin1String("WLAN"))
-            svgCache.insert(bearerName, new QSvgRenderer(QLatin1String(":wlan.svg")));
-        else if (bearerName == QLatin1String("Ethernet"))
-            svgCache.insert(bearerName, new QSvgRenderer(QLatin1String(":lan.svg")));
-        else
-            svgCache.insert(bearerName, new QSvgRenderer(QLatin1String(":unknown.svg")));
+    QNetworkConfiguration::BearerType bearerType = configuration.bearerType();
+    if (!svgCache.contains(bearerType)) {
+        QSvgRenderer *renderer = 0;
+        switch (bearerType) {
+        case QNetworkConfiguration::BearerWLAN:
+            renderer = new QSvgRenderer(QLatin1String(":wlan.svg"));
+            break;
+        case QNetworkConfiguration::BearerEthernet:
+            renderer = new QSvgRenderer(QLatin1String(":lan.svg"));
+            break;
+        case QNetworkConfiguration::Bearer2G:
+            renderer = new QSvgRenderer(QLatin1String(":cell.svg"));
+            break;
+        case QNetworkConfiguration::BearerBluetooth:
+            renderer = new QSvgRenderer(QLatin1String(":bluetooth.svg"));
+            break;
+        case QNetworkConfiguration::BearerCDMA2000:
+        case QNetworkConfiguration::BearerWCDMA:
+        case QNetworkConfiguration::BearerHSPA:
+            renderer = new QSvgRenderer(QLatin1String(":umts.svg"));
+            break;
+        default:
+            renderer = new QSvgRenderer(QLatin1String(":unknown.svg"));
+        }
+
+        if (renderer)
+            svgCache.insert(bearerType, renderer);
     }
 
-    icon->setSharedRenderer(svgCache[bearerName]);
+    icon->setSharedRenderer(svgCache[bearerType]);
 
     if (configuration.name().isEmpty()) {
         text->setPlainText(tr("HIDDEN NETWORK"));

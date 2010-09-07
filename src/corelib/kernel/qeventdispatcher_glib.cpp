@@ -246,6 +246,7 @@ struct GPostEventSource
     GSource source;
     QAtomicInt serialNumber;
     int lastSerialNumber;
+    QEventDispatcherGlibPrivate *d;
 };
 
 static gboolean postEventSourcePrepare(GSource *s, gint *timeout)
@@ -274,6 +275,7 @@ static gboolean postEventSourceDispatch(GSource *s, GSourceFunc, gpointer)
     GPostEventSource *source = reinterpret_cast<GPostEventSource *>(s);
     source->lastSerialNumber = source->serialNumber;
     QCoreApplication::sendPostedEvents();
+    source->d->runTimersOnceWithNormalPriority();
     return true; // i dunno, george...
 }
 
@@ -313,6 +315,7 @@ QEventDispatcherGlibPrivate::QEventDispatcherGlibPrivate(GMainContext *context)
     postEventSource = reinterpret_cast<GPostEventSource *>(g_source_new(&postEventSourceFuncs,
                                                                         sizeof(GPostEventSource)));
     postEventSource->serialNumber = 1;
+    postEventSource->d = this;
     g_source_set_can_recurse(&postEventSource->source, true);
     g_source_attach(&postEventSource->source, mainContext);
 
@@ -501,7 +504,7 @@ void QEventDispatcherGlib::registerTimer(int timerId, int interval, QObject *obj
 {
 #ifndef QT_NO_DEBUG
     if (timerId < 1 || interval < 0 || !object) {
-        qWarning("QEventDispatcherUNIX::registerTimer: invalid arguments");
+        qWarning("QEventDispatcherGlib::registerTimer: invalid arguments");
         return;
     } else if (object->thread() != thread() || thread() != QThread::currentThread()) {
         qWarning("QObject::startTimer: timers cannot be started from another thread");
@@ -517,7 +520,7 @@ bool QEventDispatcherGlib::unregisterTimer(int timerId)
 {
 #ifndef QT_NO_DEBUG
     if (timerId < 1) {
-        qWarning("QEventDispatcherUNIX::unregisterTimer: invalid argument");
+        qWarning("QEventDispatcherGlib::unregisterTimer: invalid argument");
         return false;
     } else if (thread() != QThread::currentThread()) {
         qWarning("QObject::killTimer: timers cannot be stopped from another thread");
@@ -533,7 +536,7 @@ bool QEventDispatcherGlib::unregisterTimers(QObject *object)
 {
 #ifndef QT_NO_DEBUG
     if (!object) {
-        qWarning("QEventDispatcherUNIX::unregisterTimers: invalid argument");
+        qWarning("QEventDispatcherGlib::unregisterTimers: invalid argument");
         return false;
     } else if (object->thread() != thread() || thread() != QThread::currentThread()) {
         qWarning("QObject::killTimers: timers cannot be stopped from another thread");

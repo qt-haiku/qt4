@@ -45,7 +45,10 @@
 #include "qevent.h"
 #include "qwidget.h"
 #include "qabstractscrollarea.h"
+#include <qgraphicssceneevent.h>
 #include "qdebug.h"
+
+#ifndef QT_NO_GESTURES
 
 QT_BEGIN_NAMESPACE
 
@@ -110,6 +113,7 @@ QGestureRecognizer::Result QPanGestureRecognizer::recognize(QGesture *state,
                           p1.pos().y() - p1.startPos().y() + p2.pos().y() - p2.startPos().y()) / 2;
             if (d->offset.x() > 10  || d->offset.y() > 10 ||
                 d->offset.x() < -10 || d->offset.y() < -10) {
+                q->setHotSpot(p1.startScreenPos());
                 result = QGestureRecognizer::TriggerGesture;
             } else {
                 result = QGestureRecognizer::MayBeGesture;
@@ -439,6 +443,7 @@ QGestureRecognizer::Result QTapGestureRecognizer::recognize(QGesture *state,
     switch (event->type()) {
     case QEvent::TouchBegin: {
         d->position = ev->touchPoints().at(0).pos();
+        q->setHotSpot(ev->touchPoints().at(0).screenPos());
         result = QGestureRecognizer::TriggerGesture;
         break;
     }
@@ -505,48 +510,72 @@ QTapAndHoldGestureRecognizer::recognize(QGesture *state, QObject *object,
     if (object == state && event->type() == QEvent::Timer) {
         q->killTimer(d->timerId);
         d->timerId = 0;
-        return QGestureRecognizer::Ignore | QGestureRecognizer::ConsumeEventHint;
+        return QGestureRecognizer::FinishGesture | QGestureRecognizer::ConsumeEventHint;
     }
 
     const QTouchEvent *ev = static_cast<const QTouchEvent *>(event);
+    const QMouseEvent *me = static_cast<const QMouseEvent *>(event);
+#ifndef QT_NO_GRAPHICSVIEW
+    const QGraphicsSceneMouseEvent *gsme = static_cast<const QGraphicsSceneMouseEvent *>(event);
+#endif
 
-    QGestureRecognizer::Result result = QGestureRecognizer::CancelGesture;
-
-    enum { TimerInterval = 2000 };
     enum { TapRadius = 40 };
 
     switch (event->type()) {
-    case QEvent::TouchBegin:
-        d->position = ev->touchPoints().at(0).pos();
+#ifndef QT_NO_GRAPHICSVIEW
+    case QEvent::GraphicsSceneMousePress:
+        d->position = gsme->screenPos();
+        q->setHotSpot(d->position);
         if (d->timerId)
             q->killTimer(d->timerId);
-        d->timerId = q->startTimer(TimerInterval);
-        result = QGestureRecognizer::TriggerGesture;
-        break;
-    case QEvent::TouchEnd:
+        d->timerId = q->startTimer(QTapAndHoldGesturePrivate::Timeout);
+        return QGestureRecognizer::MayBeGesture; // we don't show a sign of life until the timeout
+#endif
+    case QEvent::MouseButtonPress:
+        d->position = me->globalPos();
+        q->setHotSpot(d->position);
         if (d->timerId)
-            result = QGestureRecognizer::CancelGesture;
-        else
-            result = QGestureRecognizer::FinishGesture;
-        break;
+            q->killTimer(d->timerId);
+        d->timerId = q->startTimer(QTapAndHoldGesturePrivate::Timeout);
+        return QGestureRecognizer::MayBeGesture; // we don't show a sign of life until the timeout
+    case QEvent::TouchBegin:
+        d->position = ev->touchPoints().at(0).startScreenPos();
+        q->setHotSpot(d->position);
+        if (d->timerId)
+            q->killTimer(d->timerId);
+        d->timerId = q->startTimer(QTapAndHoldGesturePrivate::Timeout);
+        return QGestureRecognizer::MayBeGesture; // we don't show a sign of life until the timeout
+#ifndef QT_NO_GRAPHICSVIEW
+    case QEvent::GraphicsSceneMouseRelease:
+#endif
+    case QEvent::MouseButtonRelease:
+    case QEvent::TouchEnd:
+        return QGestureRecognizer::CancelGesture; // get out of the MayBeGesture state
     case QEvent::TouchUpdate:
-        if (q->state() != Qt::NoGesture && ev->touchPoints().size() == 1) {
+        if (d->timerId && ev->touchPoints().size() == 1) {
             QTouchEvent::TouchPoint p = ev->touchPoints().at(0);
             QPoint delta = p.pos().toPoint() - p.startPos().toPoint();
             if (delta.manhattanLength() <= TapRadius)
-                result = QGestureRecognizer::TriggerGesture;
+                return QGestureRecognizer::MayBeGesture;
         }
-        break;
-    case QEvent::MouseButtonPress:
-    case QEvent::MouseMove:
-    case QEvent::MouseButtonRelease:
-        result = QGestureRecognizer::Ignore;
-        break;
-    default:
-        result = QGestureRecognizer::Ignore;
-        break;
+        return QGestureRecognizer::CancelGesture;
+    case QEvent::MouseMove: {
+        QPoint delta = me->globalPos() - d->position.toPoint();
+        if (d->timerId && delta.manhattanLength() <= TapRadius)
+            return QGestureRecognizer::MayBeGesture;
+        return QGestureRecognizer::CancelGesture;
     }
-    return result;
+#ifndef QT_NO_GRAPHICSVIEW
+    case QEvent::GraphicsSceneMouseMove: {
+        QPoint delta = gsme->screenPos() - d->position.toPoint();
+        if (d->timerId && delta.manhattanLength() <= TapRadius)
+            return QGestureRecognizer::MayBeGesture;
+        return QGestureRecognizer::CancelGesture;
+    }
+#endif
+    default:
+        return QGestureRecognizer::Ignore;
+    }
 }
 
 void QTapAndHoldGestureRecognizer::reset(QGesture *state)
@@ -563,3 +592,5 @@ void QTapAndHoldGestureRecognizer::reset(QGesture *state)
 }
 
 QT_END_NAMESPACE
+
+#endif // QT_NO_GESTURES

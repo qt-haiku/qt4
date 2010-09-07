@@ -59,6 +59,7 @@ class SymbianMakefileGenerator : public MakefileGenerator, public SymbianCommonG
 protected:
     QString platform;
     QString uid2;
+    QString mmpFileName;
     QMap<QString, QStringList> sources;
     QMap<QString, QStringList> systeminclude;
     QMap<QString, QStringList> library;
@@ -78,6 +79,7 @@ protected:
     QString generateUID3();
 
     void initMmpVariables();
+    void generateMmpFileName();
     void handleMmpRulesOverrides(QString &checkString,
                                  bool &inResourceBlock,
                                  QStringList &restrictedMmpKeywords,
@@ -117,8 +119,6 @@ protected:
     void writeMmpFileBinaryVersionPart(QTextStream& t);
     void writeMmpFileRulesPart(QTextStream& t);
 
-    void writeCustomDefFile();
-
     void appendIfnotExist(QStringList &list, QString value);
     void appendIfnotExist(QStringList &list, QStringList values);
 
@@ -131,7 +131,6 @@ protected:
                                const QString& itemSuffix);
 
     void generateDistcleanTargets(QTextStream& t);
-    void generateExecutionTargets(QTextStream& t, const QStringList& platforms);
 
     // Subclass implements
     virtual void writeBldInfExtensionRulesPart(QTextStream& t, const QString &iconTargetFile) = 0;

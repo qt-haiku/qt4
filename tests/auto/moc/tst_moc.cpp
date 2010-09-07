@@ -491,6 +491,8 @@ private slots:
     void typenameWithUnsigned();
     void warnOnVirtualSignal();
     void QTBUG5590_dummyProperty();
+    void QTBUG12260_defaultTemplate();
+    void notifyError();
 signals:
     void sigWithUnsignedArg(unsigned foo);
     void sigWithSignedArg(signed foo);
@@ -1321,6 +1323,67 @@ public slots:
     void foo(struct constconst *) {};
     void foo(struct const_ *) {};
 };
+
+
+template<typename T1, typename T2>
+class TestTemplate2
+{
+};
+
+class QTBUG11647_constInTemplateParameter : public QObject
+{ Q_OBJECT
+public slots:
+    void testSlot(TestTemplate2<const int, const short*>) {}
+    void testSlot2(TestTemplate2<int, short const * const >) {}
+    void testSlot3(TestTemplate2<TestTemplate2 < const int, const short* > const *,
+                                TestTemplate2< TestTemplate2 < void, int > , unsigned char *> > ) {}
+
+signals:
+    void testSignal(TestTemplate2<const int, const short*>);
+};
+
+class QTBUG12260_defaultTemplate_Object : public QObject
+{ Q_OBJECT
+public slots:
+#if !(defined(Q_CC_GNU) && __GNUC__ == 4 && __GNUC_MINOR__ <= 3) || defined(Q_MOC_RUN)
+    void doSomething(QHash<QString, QVariant> values = QHash<QString, QVariant>() ) { Q_UNUSED(values); }
+#else
+    // we want to test the previous function, but gcc < 4.4 seemed to have a bug similar to the one moc has.
+    typedef QHash<QString, QVariant> WorkaroundGCCBug;
+    void doSomething(QHash<QString, QVariant> values = WorkaroundGCCBug() ) { Q_UNUSED(values); }
+#endif
+
+    void doAnotherThing(bool a = (1 < 3), bool b = (1 > 4)) { Q_UNUSED(a); Q_UNUSED(b); }
+};
+
+
+void tst_Moc::QTBUG12260_defaultTemplate()
+{
+    QVERIFY(QTBUG12260_defaultTemplate_Object::staticMetaObject.indexOfSlot("doSomething(QHash<QString,QVariant>)") != -1);
+    QVERIFY(QTBUG12260_defaultTemplate_Object::staticMetaObject.indexOfSlot("doAnotherThing(bool,bool)") != -1);
+}
+
+void tst_Moc::notifyError()
+{
+#ifdef MOC_CROSS_COMPILED
+    QSKIP("Not tested when cross-compiled", SkipAll);
+#endif
+#if defined(Q_OS_LINUX) && defined(Q_CC_GNU) && !defined(QT_NO_PROCESS)
+    QProcess proc;
+    proc.start("moc", QStringList(srcify("error-on-wrong-notify.h")));
+    QVERIFY(proc.waitForFinished());
+    QCOMPARE(proc.exitCode(), 1);
+    QCOMPARE(proc.exitStatus(), QProcess::NormalExit);
+    QByteArray mocOut = proc.readAllStandardOutput();
+    QVERIFY(mocOut.isEmpty());
+    QString mocError = QString::fromLocal8Bit(proc.readAllStandardError());
+    QCOMPARE(mocError, QString(SRCDIR) +
+        QString("/error-on-wrong-notify.h:52: Error: NOTIFY signal 'fooChanged' of property 'foo' does not exist in class ClassWithWrongNOTIFY.\n"));
+#else
+    QSKIP("Only tested on linux/gcc", SkipAll);
+#endif
+}
+
 
 QTEST_APPLESS_MAIN(tst_Moc)
 #include "tst_moc.moc"

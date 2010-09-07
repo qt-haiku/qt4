@@ -45,10 +45,10 @@
 #include <qdeclarativeitem.h>
 #include <qdeclarativeengine.h>
 #include <qdeclarativecontext.h>
-#include <qdeclarativedebug_p.h>
-#include <qdeclarativedebugservice_p.h>
 #include <qdeclarativeglobal_p.h>
 #include <qdeclarativeguard_p.h>
+
+#include <private/qdeclarativedebugtrace_p.h>
 
 #include <qscriptvalueiterator.h>
 #include <qdebug.h>
@@ -66,66 +66,64 @@
 #include <QtCore/qabstractanimation.h>
 #include <private/qgraphicsview_p.h>
 #include <private/qdeclarativeitem_p.h>
+#include <private/qabstractanimation_p.h>
 #include <private/qdeclarativeitemchangelistener_p.h>
 
 QT_BEGIN_NAMESPACE
 
 DEFINE_BOOL_CONFIG_OPTION(frameRateDebug, QML_SHOW_FRAMERATE)
 
-class QDeclarativeViewDebugServer;
-class FrameBreakAnimation : public QAbstractAnimation
+class QDeclarativeScene : public QGraphicsScene
 {
 public:
-    FrameBreakAnimation(QDeclarativeViewDebugServer *s)
-    : QAbstractAnimation((QObject*)s), server(s)
-    {
-        start();
-    }
+    QDeclarativeScene();
 
-    virtual int duration() const { return -1; }
-    virtual void updateCurrentTime(int msecs);
+protected:
+    virtual void keyPressEvent(QKeyEvent *);
+    virtual void keyReleaseEvent(QKeyEvent *);
 
-private:
-    QDeclarativeViewDebugServer *server;
+    virtual void mouseMoveEvent(QGraphicsSceneMouseEvent *);
+    virtual void mousePressEvent(QGraphicsSceneMouseEvent *);
+    virtual void mouseReleaseEvent(QGraphicsSceneMouseEvent *);
 };
 
-class QDeclarativeViewDebugServer : public QDeclarativeDebugService
+QDeclarativeScene::QDeclarativeScene()
 {
-public:
-    QDeclarativeViewDebugServer(QObject *parent = 0) : QDeclarativeDebugService(QLatin1String("CanvasFrameRate"), parent), breaks(0)
-    {
-        timer.start();
-        new FrameBreakAnimation(this);
-    }
+}
 
-    void addTiming(int pe, int tbf)
-    {
-        if (!isEnabled())
-            return;
-
-        bool isFrameBreak = breaks > 1;
-        breaks = 0;
-        int e = timer.elapsed();
-        QByteArray data;
-        QDataStream ds(&data, QIODevice::WriteOnly);
-        ds << (int)pe << (int)tbf << (int)e
-           << (bool)isFrameBreak;
-        sendMessage(data);
-    }
-
-    void frameBreak() { ++breaks; }
-
-private:
-    QTime timer;
-    int breaks;
-};
-
-Q_GLOBAL_STATIC(QDeclarativeViewDebugServer, qfxViewDebugServer);
-
-void FrameBreakAnimation::updateCurrentTime(int msecs)
+void QDeclarativeScene::keyPressEvent(QKeyEvent *e)
 {
-    Q_UNUSED(msecs);
-    server->frameBreak();
+    QDeclarativeDebugTrace::addEvent(QDeclarativeDebugTrace::Key);
+
+    QGraphicsScene::keyPressEvent(e);
+}
+
+void QDeclarativeScene::keyReleaseEvent(QKeyEvent *e)
+{
+    QDeclarativeDebugTrace::addEvent(QDeclarativeDebugTrace::Key);
+
+    QGraphicsScene::keyReleaseEvent(e);
+}
+
+void QDeclarativeScene::mouseMoveEvent(QGraphicsSceneMouseEvent *e)
+{
+    QDeclarativeDebugTrace::addEvent(QDeclarativeDebugTrace::Mouse);
+
+    QGraphicsScene::mouseMoveEvent(e);
+}
+
+void QDeclarativeScene::mousePressEvent(QGraphicsSceneMouseEvent *e)
+{
+    QDeclarativeDebugTrace::addEvent(QDeclarativeDebugTrace::Mouse);
+
+    QGraphicsScene::mousePressEvent(e);
+}
+
+void QDeclarativeScene::mouseReleaseEvent(QGraphicsSceneMouseEvent *e)
+{
+    QDeclarativeDebugTrace::addEvent(QDeclarativeDebugTrace::Mouse);
+
+    QGraphicsScene::mouseReleaseEvent(e);
 }
 
 class QDeclarativeViewPrivate : public QGraphicsViewPrivate, public QDeclarativeItemChangeListener
@@ -133,8 +131,8 @@ class QDeclarativeViewPrivate : public QGraphicsViewPrivate, public QDeclarative
     Q_DECLARE_PUBLIC(QDeclarativeView)
 public:
     QDeclarativeViewPrivate()
-        : root(0), declarativeItemRoot(0), graphicsWidgetRoot(0), component(0), resizeMode(QDeclarativeView::SizeViewToRootObject) {}
-    ~QDeclarativeViewPrivate() { delete root; }
+        : root(0), declarativeItemRoot(0), graphicsWidgetRoot(0), component(0), resizeMode(QDeclarativeView::SizeViewToRootObject), initialSize(0,0) {}
+    ~QDeclarativeViewPrivate() { delete root; delete engine; }
     void execute();
     void itemGeometryChanged(QDeclarativeItem *item, const QRectF &newGeometry, const QRectF &oldGeometry);
     void initResize();
@@ -147,16 +145,17 @@ public:
 
     QUrl source;
 
-    QDeclarativeEngine engine;
+    QDeclarativeEngine* engine;
     QDeclarativeComponent *component;
     QBasicTimer resizetimer;
 
     QDeclarativeView::ResizeMode resizeMode;
-    QTime frameTimer;
+    QSize initialSize;
+    QElapsedTimer frameTimer;
 
     void init();
 
-    QGraphicsScene scene;
+    QDeclarativeScene scene;
 };
 
 void QDeclarativeViewPrivate::execute()
@@ -171,7 +170,7 @@ void QDeclarativeViewPrivate::execute()
         component = 0;
     }
     if (!source.isEmpty()) {
-        component = new QDeclarativeComponent(&engine, source, q);
+        component = new QDeclarativeComponent(engine, source, q);
         if (!component->isLoading()) {
             q->continueExecute();
         } else {
@@ -195,45 +194,46 @@ void QDeclarativeViewPrivate::itemGeometryChanged(QDeclarativeItem *resizeItem, 
   \since 4.7
     \brief The QDeclarativeView class provides a widget for displaying a Qt Declarative user interface.
 
-    Any QGraphicsObject or QDeclarativeItem
-    created via QML can be placed on a standard QGraphicsScene and viewed with a standard
-    QGraphicsView.
+    QDeclarativeItem objects can be placed on a standard QGraphicsScene and 
+    displayed with QGraphicsView. QDeclarativeView is a QGraphicsView subclass 
+    provided as a convenience for displaying QML files, and connecting between 
+    QML and C++ Qt objects.
 
-    QDeclarativeView is a QGraphicsView subclass provided as a convenience for displaying QML
-    files, and connecting between QML and C++ Qt objects.
-
-    QDeclarativeView performs the following functions:
+    QDeclarativeView provides:
 
     \list
-    \o Manages QDeclarativeComponent loading and object creation.
-    \o Initializes QGraphicsView for optimal performance with QML:
+    \o Management of QDeclarativeComponent loading and object creation
+    \o Initialization of QGraphicsView for optimal performance with QML using these settings:
         \list
-        \o QGraphicsView::setOptimizationFlags(QGraphicsView::DontSavePainterState);
-        \o QGraphicsView::setViewportUpdateMode(QGraphicsView::BoundingRectViewportUpdate);
-        \o QGraphicsScene::setItemIndexMethod(QGraphicsScene::NoIndex);
+        \o QGraphicsView::setOptimizationFlags(QGraphicsView::DontSavePainterState)
+        \o QGraphicsView::setViewportUpdateMode(QGraphicsView::BoundingRectViewportUpdate)
+        \o QGraphicsScene::setItemIndexMethod(QGraphicsScene::NoIndex)
         \endlist
-    \o Initializes QGraphicsView for QML key handling:
+    \o Initialization of QGraphicsView for QML key handling using these settings:
         \list
-        \o QGraphicsView::viewport()->setFocusPolicy(Qt::NoFocus);
-        \o QGraphicsView::setFocusPolicy(Qt::StrongFocus);
-        \o QGraphicsScene::setStickyFocus(true);
+        \o QGraphicsView::viewport()->setFocusPolicy(Qt::NoFocus)
+        \o QGraphicsView::setFocusPolicy(Qt::StrongFocus)
+        \o QGraphicsScene::setStickyFocus(true)
         \endlist
     \endlist
 
     Typical usage:
-    \code
-    ...
-    QDeclarativeView *view = new QDeclarativeView(this);
-    vbox->addWidget(view);
 
-    QUrl url = QUrl::fromLocalFile(fileName);
-    view->setSource(url);
+    \code
+    QDeclarativeView *view = new QDeclarativeView;
+    view->setSource(QUrl::fromLocalFile("myqmlfile.qml"));
     view->show();
     \endcode
+
+    Since QDeclarativeView is a QWidget-based class, it can be used to
+    display QML interfaces within QWidget-based GUI applications that do not
+    use the Graphics View framework.
 
     To receive errors related to loading and executing QML with QDeclarativeView,
     you can connect to the statusChanged() signal and monitor for QDeclarativeView::Error.
     The errors are available via QDeclarativeView::errors().
+
+    \sa {Integrating QML with existing Qt UI code}, {Using QML in C++ Applications}
 */
 
 
@@ -275,6 +275,7 @@ QDeclarativeView::QDeclarativeView(const QUrl &source, QWidget *parent)
 void QDeclarativeViewPrivate::init()
 {
     Q_Q(QDeclarativeView);
+    engine = new QDeclarativeEngine();
     q->setScene(&scene);
 
     q->setOptimizationFlags(QGraphicsView::DontSavePainterState);
@@ -338,10 +339,10 @@ QUrl QDeclarativeView::source() const
   Returns a pointer to the QDeclarativeEngine used for instantiating
   QML Components.
  */
-QDeclarativeEngine* QDeclarativeView::engine()
+QDeclarativeEngine* QDeclarativeView::engine() const
 {
-    Q_D(QDeclarativeView);
-    return &d->engine;
+    Q_D(const QDeclarativeView);
+    return d->engine;
 }
 
 /*!
@@ -351,10 +352,10 @@ QDeclarativeEngine* QDeclarativeView::engine()
   arranged hierarchically and this hierarchy is managed by the
   QDeclarativeEngine.
  */
-QDeclarativeContext* QDeclarativeView::rootContext()
+QDeclarativeContext* QDeclarativeView::rootContext() const
 {
-    Q_D(QDeclarativeView);
-    return d->engine.rootContext();
+    Q_D(const QDeclarativeView);
+    return d->engine->rootContext();
 }
 
 /*!
@@ -364,7 +365,7 @@ QDeclarativeContext* QDeclarativeView::rootContext()
     \value Null This QDeclarativeView has no source set.
     \value Ready This QDeclarativeView has loaded and created the QML component.
     \value Loading This QDeclarativeView is loading network data.
-    \value Error An error has occured.  Call errorDescription() to retrieve a description.
+    \value Error An error has occurred.  Call errorDescription() to retrieve a description.
 */
 
 /*! \enum QDeclarativeView::ResizeMode
@@ -390,7 +391,7 @@ QDeclarativeView::Status QDeclarativeView::status() const
 }
 
 /*!
-    Return the list of errors that occured during the last compile or create
+    Return the list of errors that occurred during the last compile or create
     operation.  An empty list is returned if isError() is not set.
 */
 QList<QDeclarativeError> QDeclarativeView::errors() const
@@ -588,9 +589,11 @@ void QDeclarativeView::setRootObject(QObject *obj)
     }
 
     if (d->root) {
-        QSize initialSize = d->rootObjectSize();
-        if (initialSize != size()) {
-            resize(initialSize);
+        d->initialSize = d->rootObjectSize();
+        if (d->initialSize != size()) {
+            if (!(parentWidget() && parentWidget()->layout())) {
+                resize(d->initialSize);
+            }
         }
         d->initResize();
     }
@@ -610,7 +613,7 @@ void QDeclarativeView::timerEvent(QTimerEvent* e)
     }
 }
 
-/*! \reimp */
+/*! \internal */
 bool QDeclarativeView::eventFilter(QObject *watched, QEvent *e)
 {
     Q_D(QDeclarativeView);
@@ -637,6 +640,15 @@ QSize QDeclarativeView::sizeHint() const
     } else {
         return rootObjectSize;
     }
+}
+
+/*!
+  Returns the initial size of the root object
+*/
+QSize QDeclarativeView::initialSize() const
+{
+    Q_D(const QDeclarativeView);
+    return d->initialSize;
 }
 
 /*!
@@ -676,12 +688,18 @@ void QDeclarativeView::resizeEvent(QResizeEvent *e)
 void QDeclarativeView::paintEvent(QPaintEvent *event)
 {
     Q_D(QDeclarativeView);
+
+    QDeclarativeDebugTrace::addEvent(QDeclarativeDebugTrace::FramePaint);
+    QDeclarativeDebugTrace::startRange(QDeclarativeDebugTrace::Painting);
+
     int time = 0;
-    if (frameRateDebug() || QDeclarativeViewDebugServer::isDebuggingEnabled())
+    if (frameRateDebug()) 
         time = d->frameTimer.restart();
+
     QGraphicsView::paintEvent(event);
-    if (QDeclarativeViewDebugServer::isDebuggingEnabled())
-        qfxViewDebugServer()->addTiming(d->frameTimer.elapsed(), time);
+
+    QDeclarativeDebugTrace::endRange(QDeclarativeDebugTrace::Painting);
+
     if (frameRateDebug())
         qDebug() << "paintEvent:" << d->frameTimer.elapsed() << "time since last frame:" << time;
 }

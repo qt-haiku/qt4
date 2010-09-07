@@ -84,7 +84,9 @@ class QInputContext;
 class QObject;
 class QWidget;
 class QSocketNotifier;
+#ifndef QT_NO_GESTURES
 class QGestureManager;
+#endif
 
 extern bool qt_is_gui_used;
 #ifndef QT_NO_CLIPBOARD
@@ -200,6 +202,7 @@ typedef BOOL (WINAPI *PtrRegisterTouchWindow)(HWND, ULONG);
 typedef BOOL (WINAPI *PtrGetTouchInputInfo)(HANDLE, UINT, PVOID, int);
 typedef BOOL (WINAPI *PtrCloseTouchInputHandle)(HANDLE);
 
+#ifndef QT_NO_GESTURES
 typedef BOOL (WINAPI *PtrGetGestureInfo)(HANDLE, PVOID);
 typedef BOOL (WINAPI *PtrGetGestureExtraArgs)(HANDLE, UINT, PBYTE);
 typedef BOOL (WINAPI *PtrCloseGestureInfoHandle)(HANDLE);
@@ -262,6 +265,8 @@ typedef struct tagGESTURECONFIG
 #undef GID_ROLLOVER
 #define GID_ROLLOVER 0xf003
 #endif
+
+#endif // QT_NO_GESTURES
 
 #endif // Q_WS_WIN
 
@@ -418,6 +423,7 @@ public:
     static QPalette *set_pal;
     static QGraphicsSystem *graphics_system;
     static QString graphics_system_name;
+    static bool runtime_graphics_system;
 
 private:
     static QFont *app_font; // private for a reason! Always use QApplication::font() instead!
@@ -519,17 +525,20 @@ public:
     int symbianHandleCommand(const QSymbianEvent *symbianEvent);
     int symbianResourceChange(const QSymbianEvent *symbianEvent);
 
+    void _q_aboutToQuit();
 #endif
 #if defined(Q_WS_WIN) || defined(Q_WS_X11) || defined (Q_WS_QWS) || defined(Q_WS_MAC)
     void sendSyntheticEnterLeave(QWidget *widget);
 #endif
 
+#ifndef QT_NO_GESTURES
     QGestureManager *gestureManager;
     QWidget *gestureWidget;
 #if defined(Q_WS_X11) || defined(Q_WS_WIN)
     QPixmap *move_cursor;
     QPixmap *copy_cursor;
     QPixmap *link_cursor;
+#endif
 #endif
 #if defined(Q_WS_WIN)
     QPixmap *ignore_cursor;
@@ -559,6 +568,7 @@ public:
     QHash<DWORD, int> touchInputIDToTouchPointID;
     bool translateTouchEvent(const MSG &msg);
 
+#ifndef QT_NO_GESTURES
     PtrGetGestureInfo GetGestureInfo;
     PtrGetGestureExtraArgs GetGestureExtraArgs;
     PtrCloseGestureInfoHandle CloseGestureInfoHandle;
@@ -567,6 +577,7 @@ public:
     PtrBeginPanningFeedback BeginPanningFeedback;
     PtrUpdatePanningFeedback UpdatePanningFeedback;
     PtrEndPanningFeedback EndPanningFeedback;
+#endif // QT_NO_GESTURES
 #endif
 
 #ifdef QT_RX71_MULTITOUCH
@@ -587,7 +598,8 @@ public:
     void _q_readRX71MultiTouchEvents();
 #endif
 
-#if defined(Q_WS_S60)
+#if defined(Q_OS_SYMBIAN)
+    int pressureSupported;
     int maxTouchPressure;
     QList<QTouchEvent::TouchPoint> appAllTouchPoints;
 #endif
@@ -598,7 +610,7 @@ private:
 #endif
 
 #ifdef Q_OS_SYMBIAN
-    static QHash<TInt, TUint> scanCodeCache;
+    QHash<TInt, TUint> scanCodeCache;
 #endif
 
     static QApplicationPrivate *self;

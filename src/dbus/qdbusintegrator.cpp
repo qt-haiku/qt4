@@ -508,7 +508,7 @@ static bool shouldWatchService(const QString &service)
     return !service.isEmpty() && !service.startsWith(QLatin1Char(':'));
 }
 
-extern QDBUS_EXPORT void qDBusAddSpyHook(QDBusSpyHook);
+extern Q_DBUS_EXPORT void qDBusAddSpyHook(QDBusSpyHook);
 void qDBusAddSpyHook(QDBusSpyHook hook)
 {
     qDBusSpyHookList()->append(hook);
@@ -525,7 +525,7 @@ qDBusSignalFilter(DBusConnection *connection, DBusMessage *message, void *data)
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 
     QDBusMessage amsg = QDBusMessagePrivate::fromDBusMessage(message);
-    qDBusDebug() << d << "got message:" << amsg;
+    qDBusDebug() << d << "got message (signal):" << amsg;
 
     return d->handleMessage(amsg) ?
         DBUS_HANDLER_RESULT_HANDLED :
@@ -618,7 +618,7 @@ static int findSlot(const QMetaObject *mo, const QByteArray &name, int flags,
             continue;
 
         // check type:
-        if (mm.methodType() != QMetaMethod::Slot)
+        if (mm.methodType() != QMetaMethod::Slot && mm.methodType() != QMetaMethod::Method)
             continue;
 
         // check name:
@@ -682,10 +682,17 @@ static int findSlot(const QMetaObject *mo, const QByteArray &name, int flags,
         if (isAsync && metaTypes.count() > i + 1)
             continue;
 
-        if (isScriptable && (flags & QDBusConnection::ExportScriptableSlots) == 0)
-            continue;           // not exported
-        if (!isScriptable && (flags & QDBusConnection::ExportNonScriptableSlots) == 0)
-            continue;           // not exported
+        if (mm.methodType() == QMetaMethod::Slot) {
+            if (isScriptable && (flags & QDBusConnection::ExportScriptableSlots) == 0)
+                continue;           // scriptable slots not exported
+            if (!isScriptable && (flags & QDBusConnection::ExportNonScriptableSlots) == 0)
+                continue;           // non-scriptable slots not exported
+        } else {
+            if (isScriptable && (flags & QDBusConnection::ExportScriptableInvokables) == 0)
+                continue;           // scriptable invokables not exported
+            if (!isScriptable && (flags & QDBusConnection::ExportNonScriptableInvokables) == 0)
+                continue;           // non-scriptable invokables not exported
+        }
 
         // if we got here, this slot matched
         return idx;
@@ -1379,7 +1386,8 @@ void QDBusConnectionPrivate::activateObject(ObjectTreeNode &node, const QDBusMes
         return;                 // internal filters have already run or an error has been sent
 
     // try the object itself:
-    if (node.flags & (QDBusConnection::ExportScriptableSlots|QDBusConnection::ExportNonScriptableSlots)) {
+    if (node.flags & (QDBusConnection::ExportScriptableSlots|QDBusConnection::ExportNonScriptableSlots) ||
+        node.flags & (QDBusConnection::ExportScriptableInvokables|QDBusConnection::ExportNonScriptableInvokables)) {
         bool interfaceFound = true;
         if (!msg.interface().isEmpty())
             interfaceFound = qDBusInterfaceInObject(node.obj, msg.interface());
@@ -1692,14 +1700,30 @@ static void qDBusResultReceived(DBusPendingCall *pending, void *user_data)
 void QDBusConnectionPrivate::waitForFinished(QDBusPendingCallPrivate *pcall)
 {
     Q_ASSERT(pcall->pending);
-    QDBusDispatchLocker locker(PendingCallBlockAction, this);
-    q_dbus_pending_call_block(pcall->pending);
-    // QDBusConnectionPrivate::processFinishedCall() is called automatically
+    Q_ASSERT(!pcall->autoDelete);
+    //Q_ASSERT(pcall->mutex.isLocked()); // there's no such function
+
+    if (pcall->waitingForFinished) {
+        // another thread is already waiting
+        pcall->waitForFinishedCondition.wait(&pcall->mutex);
+    } else {
+        pcall->waitingForFinished = true;
+        pcall->mutex.unlock();
+
+        {
+            QDBusDispatchLocker locker(PendingCallBlockAction, this);
+            q_dbus_pending_call_block(pcall->pending);
+            // QDBusConnectionPrivate::processFinishedCall() is called automatically
+        }
+        pcall->mutex.lock();
+    }
 }
 
 void QDBusConnectionPrivate::processFinishedCall(QDBusPendingCallPrivate *call)
 {
     QDBusConnectionPrivate *connection = const_cast<QDBusConnectionPrivate *>(call->connection);
+
+    QMutexLocker locker(&call->mutex);
 
     QDBusMessage &msg = call->replyMessage;
     if (call->pending) {
@@ -1730,6 +1754,12 @@ void QDBusConnectionPrivate::processFinishedCall(QDBusPendingCallPrivate *call)
             qDBusDebug() << "Deliver failed!";
     }
 
+    if (call->pending)
+        q_dbus_pending_call_unref(call->pending);
+    call->pending = 0;
+
+    locker.unlock();
+
     // Are there any watchers?
     if (call->watcherHelper)
         call->watcherHelper->emitSignals(msg, call->sentMessage);
@@ -1737,12 +1767,10 @@ void QDBusConnectionPrivate::processFinishedCall(QDBusPendingCallPrivate *call)
     if (msg.type() == QDBusMessage::ErrorMessage)
         emit connection->callWithCallbackFailed(QDBusError(msg), call->sentMessage);
 
-    if (call->pending)
-        q_dbus_pending_call_unref(call->pending);
-    call->pending = 0;
-
-    if (call->autoDelete)
+    if (call->autoDelete) {
+        Q_ASSERT(!call->waitingForFinished); // can't wait on a call with autoDelete!
         delete call;
+    }
 }
 
 int QDBusConnectionPrivate::send(const QDBusMessage& message)
@@ -1884,17 +1912,14 @@ QDBusPendingCallPrivate *QDBusConnectionPrivate::sendWithReplyAsync(const QDBusM
 {
     if (isServiceRegisteredByThread(message.service())) {
         // special case for local calls
-        QDBusPendingCallPrivate *pcall = new QDBusPendingCallPrivate;
-        pcall->sentMessage = message;
+        QDBusPendingCallPrivate *pcall = new QDBusPendingCallPrivate(message, this);
         pcall->replyMessage = sendWithReplyLocal(message);
-        pcall->connection = this;
 
         return pcall;
     }
 
     checkThread();
-    QDBusPendingCallPrivate *pcall = new QDBusPendingCallPrivate;
-    pcall->sentMessage = message;
+    QDBusPendingCallPrivate *pcall = new QDBusPendingCallPrivate(message, this);
     pcall->ref = 0;
 
     QDBusError error;
@@ -1918,7 +1943,6 @@ QDBusPendingCallPrivate *QDBusConnectionPrivate::sendWithReplyAsync(const QDBusM
             q_dbus_message_unref(msg);
 
             pcall->pending = pending;
-            pcall->connection = this;
             q_dbus_pending_call_set_notify(pending, qDBusResultReceived, pcall, 0);
 
             return pcall;

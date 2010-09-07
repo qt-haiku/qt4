@@ -39,6 +39,7 @@
 **
 ****************************************************************************/
 
+#include <QtDeclarative/qdeclarativeprivate.h>
 #include "private/qdeclarativemetatype_p.h"
 
 #include "private/qdeclarativeproxymetaobject_p.h"
@@ -112,6 +113,8 @@ struct QDeclarativeMetaTypeData
     QBitArray objects;
     QBitArray interfaces;
     QBitArray lists;
+
+    QList<QDeclarativePrivate::AutoParentFunction> parentFunctions;
 };
 Q_GLOBAL_STATIC(QDeclarativeMetaTypeData, metaTypeData)
 Q_GLOBAL_STATIC(QReadWriteLock, metaTypeDataLock)
@@ -483,7 +486,17 @@ int QDeclarativeType::index() const
     return d->m_index;
 }
 
-int QDeclarativePrivate::registerType(const QDeclarativePrivate::RegisterInterface &interface)
+int registerAutoParentFunction(QDeclarativePrivate::RegisterAutoParent &autoparent)
+{
+    QWriteLocker lock(metaTypeDataLock());
+    QDeclarativeMetaTypeData *data = metaTypeData();
+
+    data->parentFunctions.append(autoparent.function);
+
+    return data->parentFunctions.count() - 1;
+}
+
+int registerInterface(const QDeclarativePrivate::RegisterInterface &interface)
 {
     if (interface.version > 0) 
         qFatal("qmlRegisterType(): Cannot mix incompatible QML versions.");
@@ -512,7 +525,7 @@ int QDeclarativePrivate::registerType(const QDeclarativePrivate::RegisterInterfa
     return index;
 }
 
-int QDeclarativePrivate::registerType(const QDeclarativePrivate::RegisterType &type)
+int registerType(const QDeclarativePrivate::RegisterType &type)
 {
     if (type.elementName) {
         for (int ii = 0; type.elementName[ii]; ++ii) {
@@ -564,6 +577,22 @@ int QDeclarativePrivate::registerType(const QDeclarativePrivate::RegisterType &t
 }
 
 /*
+This method is "over generalized" to allow us to (potentially) register more types of things in
+the future without adding exported symbols.
+*/
+int QDeclarativePrivate::qmlregister(RegistrationType type, void *data)
+{
+    if (type == TypeRegistration) {
+        return registerType(*reinterpret_cast<RegisterType *>(data));
+    } else if (type == InterfaceRegistration) {
+        return registerInterface(*reinterpret_cast<RegisterInterface *>(data));
+    } else if (type == AutoParentRegistration) {
+        return registerAutoParentFunction(*reinterpret_cast<RegisterAutoParent *>(data));
+    }
+    return -1;
+}
+
+/*
     Have any types been registered for \a module with at least versionMajor.versionMinor, and types
     for \a module with at most versionMajor.versionMinor.
 
@@ -581,6 +610,13 @@ bool QDeclarativeMetaType::isModule(const QByteArray &module, int versionMajor, 
                     ((*it).vmajor_max == versionMajor && (*it).vminor_max >= versionMinor))
                 && ((*it).vmajor_min < versionMajor ||
                     ((*it).vmajor_min == versionMajor && (*it).vminor_min <= versionMinor))));
+}
+
+QList<QDeclarativePrivate::AutoParentFunction> QDeclarativeMetaType::parentFunctions()
+{
+    QReadLocker lock(metaTypeDataLock());
+    QDeclarativeMetaTypeData *data = metaTypeData();
+    return data->parentFunctions;
 }
 
 QObject *QDeclarativeMetaType::toQObject(const QVariant &v, bool *ok)
@@ -1133,7 +1169,7 @@ bool QDeclarativeMetaType::copy(int type, void *data, const void *copy)
             *static_cast<float *>(data) = float(0);
             return true;
         case QMetaType::Double:
-            *static_cast<double *>(data) = double();
+            *static_cast<double *>(data) = double(0);
             return true;
         case QMetaType::QChar:
             *static_cast<NS(QChar) *>(data) = NS(QChar)();

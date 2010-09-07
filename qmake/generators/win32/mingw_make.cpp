@@ -191,10 +191,7 @@ void createArObjectScriptFile(const QString &fileName, const QString &target, co
         QTextStream t(&file);
         t << "CREATE " << target << endl;
         for (QStringList::ConstIterator it = objList.constBegin(); it != objList.constEnd(); ++it) {
-            if (QDir::isRelativePath(*it))
-		t << "ADDMOD " << *it << endl;
-	    else
-		t << *it << endl;
+            t << "ADDMOD " << *it << endl;
         }
         t << "SAVE" << endl;
 	t.flush();
@@ -371,7 +368,12 @@ void MingwMakefileGenerator::writeObjectsPart(QTextStream &t)
 	    ar_script_file += "." + var("BUILD_NAME");
 	}
 	createArObjectScriptFile(ar_script_file, var("DEST_TARGET"), project->values("OBJECTS"));
-        objectsLinkLine = "ar -M < " + ar_script_file;
+        // QMAKE_LIB is used for win32, including mingw, whereas QMAKE_AR is used on Unix.
+        // Strip off any options since the ar commands will be read from file.
+        QString ar_cmd = var("QMAKE_LIB").section(" ", 0, 0);;
+        if (ar_cmd.isEmpty())
+            ar_cmd = "ar";
+        objectsLinkLine = ar_cmd + " -M < " + ar_script_file;
     } else {
         QString ld_script_file = var("QMAKE_LINK_OBJECT_SCRIPT") + "." + var("TARGET");
 	if (!var("BUILD_NAME").isEmpty()) {

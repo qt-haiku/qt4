@@ -560,7 +560,7 @@ void QXmlStreamReader::clear()
     chunk of XML can be added with addData(), if the XML is being read
     from a QByteArray, or by waiting for more data to arrive if the
     XML is being read from a QIODevice. Either way, atEnd() will
-    return false once more adata is available.
+    return false once more data is available.
 
     \sa hasError(), error(), device(), QIODevice::atEnd()
  */
@@ -1523,7 +1523,7 @@ ushort QXmlStreamReaderPrivate::getChar_helper()
         decoder = codec->makeDecoder();
     }
 
-    decoder->toUnicode(&readBuffer, rawReadBuffer.data(), nbytesread);
+    decoder->toUnicode(&readBuffer, rawReadBuffer.constData(), nbytesread);
 
     if(lockEncoding && decoder->hasFailure()) {
         raiseWellFormedError(QXmlStream::tr("Encountered incorrectly encoded content."));
@@ -3716,7 +3716,8 @@ void QXmlStreamWriter::writeProcessingInstruction(const QString &target, const Q
 {
     Q_D(QXmlStreamWriter);
     Q_ASSERT(!data.contains(QLatin1String("?>")));
-    d->finishStartElement();
+    if (!d->finishStartElement(false) && d->autoFormatting)
+        d->indent(d->tagStack.size());
     d->write("<?");
     d->write(target);
     if (!data.isNull()) {

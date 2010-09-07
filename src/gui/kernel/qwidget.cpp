@@ -67,6 +67,7 @@
 # include "qt_mac_p.h"
 # include "qt_cocoa_helpers_mac_p.h"
 # include "qmainwindow.h"
+# include "qtoolbar.h"
 #endif
 #if defined(Q_WS_QWS)
 # include "qwsdisplay_qws.h"
@@ -161,6 +162,80 @@ static inline bool hasBackingStoreSupport()
 extern bool qt_sendSpontaneousEvent(QObject*, QEvent*); // qapplication.cpp
 extern QDesktopWidget *qt_desktopWidget; // qapplication.cpp
 
+/*!
+    \internal
+    \class QWidgetBackingStoreTracker
+    \brief Class which allows tracking of which widgets are using a given backing store
+
+    QWidgetBackingStoreTracker is a thin wrapper around a QWidgetBackingStore pointer,
+    which maintains a list of the QWidgets which are currently using the backing
+    store.  This list is modified via the registerWidget and unregisterWidget functions.
+ */
+
+QWidgetBackingStoreTracker::QWidgetBackingStoreTracker()
+    :   m_ptr(0)
+{
+
+}
+
+QWidgetBackingStoreTracker::~QWidgetBackingStoreTracker()
+{
+    delete m_ptr;
+}
+
+/*!
+    \internal
+    Destroy the contained QWidgetBackingStore, if not null, and clear the list of
+    widgets using the backing store, then create a new QWidgetBackingStore, providing
+    the QWidget.
+ */
+void QWidgetBackingStoreTracker::create(QWidget *widget)
+{
+    destroy();
+    m_ptr = new QWidgetBackingStore(widget);
+}
+
+/*!
+    \internal
+    Destroy the contained QWidgetBackingStore, if not null, and clear the list of
+    widgets using the backing store.
+ */
+void QWidgetBackingStoreTracker::destroy()
+{
+    delete m_ptr;
+    m_ptr = 0;
+    m_widgets.clear();
+}
+
+/*!
+    \internal
+    Add the widget to the list of widgets currently using the backing store.
+    If the widget was already in the list, this function is a no-op.
+ */
+void QWidgetBackingStoreTracker::registerWidget(QWidget *w)
+{
+    Q_ASSERT(m_ptr);
+    Q_ASSERT(w->internalWinId());
+    Q_ASSERT(qt_widget_private(w)->maybeBackingStore() == m_ptr);
+    m_widgets.insert(w);
+}
+
+/*!
+    \internal
+    Remove the widget from the list of widgets currently using the backing store.
+    If the widget was in the list, and removing it causes the list to be empty,
+    the backing store is deleted.
+    If the widget was not in the list, this function is a no-op.
+ */
+void QWidgetBackingStoreTracker::unregisterWidget(QWidget *w)
+{
+    if (m_widgets.remove(w) && m_widgets.isEmpty()) {
+        delete m_ptr;
+        m_ptr = 0;
+    }
+}
+
+
 QWidgetPrivate::QWidgetPrivate(int version)
     : QObjectPrivate(version)
       , extra(0)
@@ -202,7 +277,9 @@ QWidgetPrivate::QWidgetPrivate(int version)
       , picture(0)
 #elif defined(Q_WS_WIN)
       , noPaintOnScreen(0)
+  #ifndef QT_NO_GESTURES
       , nativeGesturePanEnabled(0)
+  #endif
 #elif defined(Q_WS_MAC)
       , needWindowChange(0)
       , hasAlienChildren(0)
@@ -248,9 +325,14 @@ QWidgetPrivate::~QWidgetPrivate()
 QWindowSurface *QWidgetPrivate::createDefaultWindowSurface()
 {
     Q_Q(QWidget);
+
+    QWindowSurface *surface;
     if (QApplicationPrivate::graphicsSystem())
-        return QApplicationPrivate::graphicsSystem()->createWindowSurface(q);
-    return createDefaultWindowSurface_sys();
+        surface = QApplicationPrivate::graphicsSystem()->createWindowSurface(q);
+    else
+        surface = createDefaultWindowSurface_sys();
+
+    return surface;
 }
 
 /*!
@@ -285,8 +367,10 @@ QInputContext *QWidgetPrivate::inputContext() const
 #ifndef QT_NO_IM
     if (ic)
         return ic;
-#endif
     return qApp->inputContext();
+#else
+    return 0;
+#endif
 }
 
 /*!
@@ -312,6 +396,8 @@ QInputContext *QWidget::inputContext()
   This function sets the input context \a context
   on this widget.
 
+  Qt takes ownership of the given input \a context.
+
   \sa inputContext()
 */
 void QWidget::setInputContext(QInputContext *context)
@@ -320,9 +406,13 @@ void QWidget::setInputContext(QInputContext *context)
     if (!testAttribute(Qt::WA_InputMethodEnabled))
         return;
 #ifndef QT_NO_IM
+    if (context == d->ic)
+        return;
     if (d->ic)
         delete d->ic;
     d->ic = context;
+    if (d->ic)
+        d->ic->setParent(this);
 #endif
 }
 
@@ -670,8 +760,8 @@ void QWidget::setAutoFillBackground(bool enabled)
     (to move the keyboard focus), and passes on most of the other events to
     one of the more specialized handlers above.
 
-    Events and the mechanism used to deliver them are covered in the
-    \l{Events and Event Filters} document.
+    Events and the mechanism used to deliver them are covered in 
+    \l{The Event System}.
 
     \section1 Groups of Functions and Properties
 
@@ -1010,7 +1100,6 @@ struct QWidgetExceptionCleaner
 
     \sa windowFlags
 */
-
 QWidget::QWidget(QWidget *parent, Qt::WindowFlags f)
     : QObject(*new QWidgetPrivate, 0), QPaintDevice()
 {
@@ -1185,7 +1274,16 @@ void QWidgetPrivate::init(QWidget *parentWidget, Qt::WindowFlags f)
     q->setAttribute(Qt::WA_WState_Hidden);
 
     //give potential windows a bigger "pre-initial" size; create_sys() will give them a new size later
+#ifdef Q_OS_SYMBIAN
+    if(q->inherits("QGLWidget")) {
+        // Don't waste GPU mem for unnecessary large egl surface
+        data.crect = parentWidget ? QRect(0,0,2,2) : QRect(0,0,2,2);
+    } else {
+        data.crect = parentWidget ? QRect(0,0,100,30) : QRect(0,0,360,640);
+    }
+#else
     data.crect = parentWidget ? QRect(0,0,100,30) : QRect(0,0,640,480);
+#endif
 
     focus_next = focus_prev = q;
 
@@ -1353,11 +1451,9 @@ if (windowType() != Qt::Desktop){ //temporary hack, Desktop don't have native vi
 
     // a real toplevel window needs a backing store
     if (isWindow() && windowType() != Qt::Desktop) {
-        delete d->topData()->backingStore;
-        // QWidgetBackingStore will check this variable, hence it must be 0
-        d->topData()->backingStore = 0;
+        d->topData()->backingStore.destroy();
         if (hasBackingStoreSupport())
-            d->topData()->backingStore = new QWidgetBackingStore(this);
+            d->topData()->backingStore.create(this);
     }
 
     d->setModal_sys();
@@ -1402,8 +1498,10 @@ QWidget::~QWidget()
         qWarning("QWidget: %s (%s) deleted while being painted", className(), name());
 #endif
 
+#ifndef QT_NO_GESTURES
     foreach (Qt::GestureType type, d->gestureContext.keys())
         ungrabGesture(type);
+#endif
 
     // force acceptDrops false before winId is destroyed.
     d->registerDropSite(false);
@@ -1483,8 +1581,7 @@ QWidget::~QWidget()
         // the backing store will delete its window surface, which may or may
         // not have a reference to this widget that will be used later to
         // notify the window it no longer has a surface.
-        delete d->extra->topextra->backingStore;
-        d->extra->topextra->backingStore = 0;
+        d->extra->topextra->backingStore.destroy();
     }
 #endif
     if (QWidgetBackingStore *bs = d->maybeBackingStore()) {
@@ -1581,7 +1678,6 @@ void QWidgetPrivate::createTLExtra()
         QTLWExtra* x = extra->topextra = new QTLWExtra;
         x->icon = 0;
         x->iconPixmap = 0;
-        x->backingStore = 0;
         x->windowSurface = 0;
         x->sharedPainter = 0;
         x->incw = x->inch = 0;
@@ -1595,6 +1691,11 @@ void QWidgetPrivate::createTLExtra()
         x->inTopLevelResize = false;
         x->inRepaint = false;
         x->embedded = 0;
+#ifdef Q_WS_MAC
+#ifdef QT_MAC_USE_COCOA
+        x->wasMaximized = false;
+#endif // QT_MAC_USE_COCOA
+#endif // Q_WS_MAC
         createTLSysExtra();
 #ifdef QWIDGET_EXTRA_DEBUG
         static int count = 0;
@@ -1660,7 +1761,7 @@ void QWidgetPrivate::deleteExtra()
 #endif
         if (extra->topextra) {
             deleteTLSysExtra();
-            delete extra->topextra->backingStore;
+            extra->topextra->backingStore.destroy();
             delete extra->topextra->icon;
             delete extra->topextra->iconPixmap;
 #if defined(Q_WS_QWS) && !defined(QT_NO_QWS_MANAGER)
@@ -4783,6 +4884,11 @@ void QWidget::setLayoutDirection(Qt::LayoutDirection direction)
 {
     Q_D(QWidget);
 
+    if (direction == Qt::LayoutDirectionAuto) {
+        unsetLayoutDirection();
+        return;
+    }
+
     setAttribute(Qt::WA_SetLayoutDirection);
     d->setLayoutDirection_helper(direction);
 }
@@ -6734,6 +6840,18 @@ void QWidget::setGeometry(const QRect &r)
 */
 QByteArray QWidget::saveGeometry() const
 {
+#ifdef QT_MAC_USE_COCOA
+    // We check if the window was maximized during this invocation. If so, we need to record the
+    // starting position as 0,0.
+    Q_D(const QWidget);
+    QRect newFramePosition = frameGeometry();
+    QRect newNormalPosition = normalGeometry();
+    if(d->topData()->wasMaximized && !(windowState() & Qt::WindowMaximized)) {
+        // Change the starting position
+        newFramePosition.moveTo(0, 0);
+        newNormalPosition.moveTo(0, 0);
+    }
+#endif // QT_MAC_USE_COCOA
     QByteArray array;
     QDataStream stream(&array, QIODevice::WriteOnly);
     stream.setVersion(QDataStream::Qt_4_0);
@@ -6743,8 +6861,13 @@ QByteArray QWidget::saveGeometry() const
     stream << magicNumber
            << majorVersion
            << minorVersion
+#ifdef QT_MAC_USE_COCOA
+           << newFramePosition
+           << newNormalPosition
+#else
            << frameGeometry()
            << normalGeometry()
+#endif // QT_MAC_USE_COCOA
            << qint32(QApplication::desktop()->screenNumber(this))
            << quint8(windowState() & Qt::WindowMaximized)
            << quint8(windowState() & Qt::WindowFullScreen);
@@ -8522,9 +8645,11 @@ bool QWidget::event(QEvent *event)
 #endif // Q_WS_MAC
         break;
     }
+#ifndef QT_NO_GESTURES
     case QEvent::Gesture:
         event->ignore();
         break;
+#endif
 #ifndef QT_NO_PROPERTIES
     case QEvent::DynamicPropertyChange: {
         const QByteArray &propName = static_cast<QDynamicPropertyChangeEvent *>(event)->propertyName();
@@ -9647,46 +9772,58 @@ QWidget *QWidget::childAt(const QPoint &p) const
 
 QWidget *QWidgetPrivate::childAt_helper(const QPoint &p, bool ignoreChildrenInDestructor) const
 {
-    Q_Q(const QWidget);
-#ifdef Q_WS_MAC
-    bool includeFrame = q->isWindow() && qobject_cast<const QMainWindow *>(q)
-                        && static_cast<const QMainWindow *>(q)->unifiedTitleAndToolBarOnMac();
-#endif
-
-    if (
-#ifdef Q_WS_MAC
-            !includeFrame &&
-#endif
-            !q->rect().contains(p))
+    if (children.isEmpty())
         return 0;
 
-    for (int i = children.size(); i > 0 ;) {
-        --i;
-        QWidget *w = qobject_cast<QWidget *>(children.at(i));
-        if (w && !w->isWindow() && !w->isHidden()
-                && (w->geometry().contains(p)
 #ifdef Q_WS_MAC
-                    || (includeFrame && w->geometry().contains(qt_mac_nativeMapFromParent(w, p)))
+    Q_Q(const QWidget);
+    // Unified tool bars on the Mac require special handling since they live outside
+    // QMainWindow's geometry(). See commit: 35667fd45ada49269a5987c235fdedfc43e92bb8
+    bool includeFrame = q->isWindow() && qobject_cast<const QMainWindow *>(q)
+                        && static_cast<const QMainWindow *>(q)->unifiedTitleAndToolBarOnMac();
+    if (includeFrame)
+        return childAtRecursiveHelper(p, ignoreChildrenInDestructor, includeFrame);
 #endif
-               )) {
-            if (ignoreChildrenInDestructor && w->data->in_destructor)
-                continue;
-            if (w->testAttribute(Qt::WA_TransparentForMouseEvents))
-                continue;
-            QPoint childPoint = w->mapFromParent(p);
-#ifdef Q_WS_MAC
-            if (includeFrame && !w->geometry().contains(p))
-                childPoint = qt_mac_nativeMapFromParent(w, p);
+
+    if (!pointInsideRectAndMask(p))
+        return 0;
+    return childAtRecursiveHelper(p, ignoreChildrenInDestructor);
+}
+
+QWidget *QWidgetPrivate::childAtRecursiveHelper(const QPoint &p, bool ignoreChildrenInDestructor, bool includeFrame) const
+{
+#ifndef Q_WS_MAC
+    Q_UNUSED(includeFrame);
 #endif
-            if (QWidget *t = w->d_func()->childAt_helper(childPoint, ignoreChildrenInDestructor))
-                return t;
-            // if WMouseNoMask is set the widget mask is ignored, if
-            // the widget has no mask then the WMouseNoMask flag has no
-            // effect
-            if (w->testAttribute(Qt::WA_MouseNoMask) || w->mask().contains(childPoint)
-                || w->mask().isEmpty())
-                return w;
+    for (int i = children.size() - 1; i >= 0; --i) {
+        QWidget *child = qobject_cast<QWidget *>(children.at(i));
+        if (!child || child->isWindow() || child->isHidden() || child->testAttribute(Qt::WA_TransparentForMouseEvents)
+            || (ignoreChildrenInDestructor && child->data->in_destructor)) {
+            continue;
         }
+
+        // Map the point 'p' from parent coordinates to child coordinates.
+        QPoint childPoint = p;
+#ifdef Q_WS_MAC
+        // 'includeFrame' is true if the child's parent is a top-level QMainWindow with an unified tool bar.
+        // An unified tool bar on the Mac lives outside QMainWindow's geometry(), so a normal
+        // QWidget::mapFromParent won't do the trick.
+        if (includeFrame && qobject_cast<QToolBar *>(child))
+            childPoint = qt_mac_nativeMapFromParent(child, p);
+        else
+#endif
+        childPoint -= child->data->crect.topLeft();
+
+        // Check if the point hits the child.
+        if (!child->d_func()->pointInsideRectAndMask(childPoint))
+            continue;
+
+        // Do the same for the child's descendants.
+        if (QWidget *w = child->d_func()->childAtRecursiveHelper(childPoint, ignoreChildrenInDestructor))
+            return w;
+
+        // We have found our target; namely the child at position 'p'.
+        return child;
     }
     return 0;
 }
@@ -9843,7 +9980,7 @@ void QWidget::setParent(QWidget *parent, Qt::WindowFlags f)
         desktopWidget = parent;
     bool newParent = (parent != parentWidget()) || !wasCreated || desktopWidget;
 
-#if defined(Q_WS_X11) || defined(Q_WS_WIN) || defined(Q_WS_MAC)
+#if defined(Q_WS_X11) || defined(Q_WS_WIN) || defined(Q_WS_MAC) || defined(Q_OS_SYMBIAN)
     if (newParent && parent && !desktopWidget) {
         if (testAttribute(Qt::WA_NativeWindow) && !qApp->testAttribute(Qt::AA_DontCreateNativeWidgetSiblings))
             parent->d_func()->enforceNativeChildren();
@@ -10497,7 +10634,7 @@ void QWidget::setAttribute(Qt::WidgetAttribute attribute, bool on)
     }
     case Qt::WA_PaintOnScreen:
         d->updateIsOpaque();
-#if defined(Q_WS_WIN) || defined(Q_WS_X11) || defined(Q_WS_MAC)
+#if defined(Q_WS_WIN) || defined(Q_WS_X11) || defined(Q_WS_MAC) || defined(Q_OS_SYMBIAN)
         // Recreate the widget if it's already created as an alien widget and
         // WA_PaintOnScreen is enabled. Paint on screen widgets must have win id.
         // So must their children.
@@ -10612,7 +10749,7 @@ void QWidget::setAttribute(Qt::WidgetAttribute attribute, bool on)
 
         break;
     case Qt::WA_AcceptTouchEvents:
-#if defined(Q_WS_WIN) || defined(Q_WS_MAC) || defined(Q_WS_S60)
+#if defined(Q_WS_WIN) || defined(Q_WS_MAC) || defined(Q_OS_SYMBIAN)
         if (on)
             d->registerTouchWindow();
 #endif
@@ -11940,6 +12077,7 @@ QGraphicsProxyWidget *QWidget::graphicsProxyWidget() const
     Synonym for QList<QWidget *>.
 */
 
+#ifndef QT_NO_GESTURES
 /*!
     Subscribes the widget to a given \a gesture with specific \a flags.
 
@@ -11963,11 +12101,11 @@ void QWidget::ungrabGesture(Qt::GestureType gesture)
 {
     Q_D(QWidget);
     if (d->gestureContext.remove(gesture)) {
-        QGestureManager *manager = QGestureManager::instance();
-        manager->cleanupCachedGestures(this, gesture);
+        if (QGestureManager *manager = QGestureManager::instance())
+            manager->cleanupCachedGestures(this, gesture);
     }
 }
-
+#endif // QT_NO_GESTURES
 
 /*!
     \typedef WId

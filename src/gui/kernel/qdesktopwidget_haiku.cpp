@@ -7,12 +7,12 @@
 QDesktopWidget::QDesktopWidget()
     : QWidget(0, Qt::Desktop)
 {
-	fprintf(stderr, "Unimplemented: QDesktopWidget::QDesktopWidget\n");
+	//fprintf(stderr, "Unimplemented: QDesktopWidget::QDesktopWidget\n");
 }
 
 QDesktopWidget::~QDesktopWidget()
 {
-	fprintf(stderr, "Unimplemented: QDesktopWidget::~QDesktopWidget\n");
+	//fprintf(stderr, "Unimplemented: QDesktopWidget::~QDesktopWidget\n");
 }
 
 void
@@ -51,25 +51,25 @@ int QDesktopWidget::screenNumber(const QPoint &point) const
 
 bool QDesktopWidget::isVirtualDesktop() const
 {
-	fprintf(stderr, "Unimplemented: QDesktopWidget::isVirtualDesktop\n");
+	//fprintf(stderr, "Unimplemented: QDesktopWidget::isVirtualDesktop\n");
 	return true;
 }
 
 int QDesktopWidget::primaryScreen() const
 {
-	fprintf(stderr, "Unimplemented: QDesktopWidget::primaryScreen\n");
+	//fprintf(stderr, "Unimplemented: QDesktopWidget::primaryScreen\n");
 	return 0;
 }
 
 int QDesktopWidget::numScreens() const
 {
-	fprintf(stderr, "Unimplemented: QDesktopWidget::numScreens\n");
+	//fprintf(stderr, "Unimplemented: QDesktopWidget::numScreens\n");
 	return 1;
 }
 
 QWidget *QDesktopWidget::screen(int /* screen */)
 {
-	fprintf(stderr, "Unimplemented: QDesktopWidget::screen\n");
+	//fprintf(stderr, "Unimplemented: QDesktopWidget::screen\n");
 	// It seems that a Qt::WType_Desktop cannot be moved?
 	return this;
 }

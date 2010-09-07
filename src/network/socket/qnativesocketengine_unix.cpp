@@ -562,7 +562,7 @@ int QNativeSocketEnginePrivate::nativeAccept()
 #else
     int acceptedDescriptor = qt_safe_accept(socketDescriptor, 0, 0);
 #endif
-    //check if we have vaild descriptor at all
+    //check if we have valid descriptor at all
     if(acceptedDescriptor > 0) {
         // Ensure that the socket is closed on exec*()
         ::fcntl(acceptedDescriptor, F_SETFD, FD_CLOEXEC);
@@ -857,11 +857,7 @@ qint64 QNativeSocketEnginePrivate::nativeWrite(const char *data, qint64 len)
     // Symbian does not support signals natively and Open C returns EINTR when moving to offline
     writtenBytes = ::write(socketDescriptor, data, len);
 #else
-    // loop while ::write() returns -1 and errno == EINTR, in case
-    // of an interrupting signal.
-    do {
-        writtenBytes = qt_safe_write(socketDescriptor, data, len);
-    } while (writtenBytes < 0 && errno == EINTR);
+    writtenBytes = qt_safe_write(socketDescriptor, data, len);
 #endif
 
     if (writtenBytes < 0) {
@@ -905,9 +901,7 @@ qint64 QNativeSocketEnginePrivate::nativeRead(char *data, qint64 maxSize)
 #ifdef Q_OS_SYMBIAN
     r = ::read(socketDescriptor, data, maxSize);
 #else
-    do {
-        r = qt_safe_read(socketDescriptor, data, maxSize);
-    } while (r == -1 && errno == EINTR);
+    r = qt_safe_read(socketDescriptor, data, maxSize);
 #endif
 
     if (r < 0) {

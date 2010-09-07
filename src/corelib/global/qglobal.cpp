@@ -1622,7 +1622,7 @@ bool qSharedBuild()
   \macro Q_WS_S60
   \relates <QtGlobal>
 
-  Defined on S60.
+  Defined on S60 with the Avkon UI framework.
 
   \sa Q_WS_MAC, Q_WS_WIN, Q_WS_X11, Q_WS_QWS
  */
@@ -1813,7 +1813,6 @@ const QSysInfo::WinVersion QSysInfo::WindowsVersion = QSysInfo::windowsVersion()
 #endif
 
 #ifdef Q_OS_SYMBIAN
-# ifdef Q_WS_S60
 static QSysInfo::S60Version cachedS60Version = QSysInfo::S60Version(-1);
 
 QSysInfo::S60Version QSysInfo::s60Version()
@@ -1878,24 +1877,13 @@ QSysInfo::SymbianVersion QSysInfo::symbianVersion()
     case SV_S60_5_0:
         return SV_9_4;
     case SV_S60_5_1:
-        return SV_9_4;
+        return SV_SF_2;
     case SV_S60_5_2:
-        return SV_9_4;
+        return SV_SF_3;
     default:
         return SV_Unknown;
     }
 }
-#else
-QSysInfo::S60Version QSysInfo::s60Version()
-{
-    return SV_S60_None;
-}
-
-QSysInfo::SymbianVersion QSysInfo::symbianVersion()
-{
-    return SV_Unknown;
-}
-# endif // ifdef Q_WS_S60
 #endif // ifdef Q_OS_SYMBIAN
 
 /*!
@@ -2386,7 +2374,7 @@ void qDebug(const char *msg, ...)
     This syntax inserts a space between each item, and
     appends a newline at the end.
 
-    To supress the output at runtime, install your own message handler
+    To suppress the output at runtime, install your own message handler
     with qInstallMsgHandler().
 
     \sa qDebug(), qCritical(), qFatal(), qInstallMsgHandler(),
@@ -2422,7 +2410,7 @@ void qWarning(const char *msg, ...)
     A space is inserted between the items, and a newline is
     appended at the end.
 
-    To supress the output at runtime, install your own message handler
+    To suppress the output at runtime, install your own message handler
     with qInstallMsgHandler().
 
     \sa qDebug(), qWarning(), qFatal(), qInstallMsgHandler(),
@@ -2487,7 +2475,7 @@ void qErrnoWarning(int code, const char *msg, ...)
     Example:
     \snippet doc/src/snippets/code/src_corelib_global_qglobal.cpp 30
 
-    To supress the output at runtime, install your own message handler
+    To suppress the output at runtime, install your own message handler
     with qInstallMsgHandler().
 
     \sa qDebug(), qCritical(), qWarning(), qInstallMsgHandler(),
@@ -2503,6 +2491,19 @@ void qFatal(const char *msg, ...)
 
 // getenv is declared as deprecated in VS2005. This function
 // makes use of the new secure getenv function.
+/*!
+    \relates <QtGlobal>
+
+    Returns the value of the environment variable with name \a
+    varName. To get the variable string, use QByteArray::constData().
+
+    \note qgetenv() was introduced because getenv() from the standard
+    C library was deprecated in VC2005 (and later versions). qgetenv()
+    uses the new replacement function in VC, and calls the standard C
+    library's implementation on all other platforms.
+
+    \sa qputenv()
+*/
 QByteArray qgetenv(const char *varName)
 {
 #if defined(_MSC_VER) && _MSC_VER >= 1400
@@ -2522,6 +2523,20 @@ QByteArray qgetenv(const char *varName)
 #endif
 }
 
+/*!
+    \relates <QtGlobal>
+
+    This function sets the \a value of the environment variable named
+    \a varName. It will create the variable if it does not exist. It
+    returns 0 if the variable could not be set.
+
+    \note qputenv() was introduced because putenv() from the standard
+    C library was deprecated in VC2005 (and later versions). qputenv()
+    uses the replacement function in VC, and calls the standard C
+    library's implementation on all other platforms.
+
+    \sa qgetenv()
+*/
 bool qputenv(const char *varName, const QByteArray& value)
 {
 #if defined(_MSC_VER) && _MSC_VER >= 1400
@@ -2589,55 +2604,6 @@ void qsrand(uint seed)
     // this is also valid for QT_NO_THREAD
     srand(seed);
 #endif
-}
-
-/*! \internal
-    \relates <QtGlobal>
-    \since 4.6
-
-    Seed the PRNG, but only if it has not already been seeded.
-
-    The default seed is a combination of current time, a stack address and a
-    serial counter (since thread stack addresses are re-used).
-*/
-void qsrand()
-{
-#if (defined(Q_OS_UNIX) || defined(Q_OS_WIN)) && !defined(QT_NO_THREAD)
-    SeedStorage *seedStorage = randTLS();
-    if (seedStorage) {
-        SeedStorageType *pseed = seedStorage->localData();
-        if (pseed) {
-            // already seeded
-            return;
-        }
-        seedStorage->setLocalData(pseed = new SeedStorageType);
-        // start beyond 1 to avoid the sequence reset
-        static QBasicAtomicInt serial = Q_BASIC_ATOMIC_INITIALIZER(2);
-        *pseed = QDateTime::currentDateTime().toTime_t()
-                 + quintptr(&pseed)
-                 + serial.fetchAndAddRelaxed(1);
-#if defined(Q_OS_WIN) || defined(Q_OS_SYMBIAN)
-        // for Windows and Symbian the srand function must still be called.
-        srand(*pseed);
-#endif
-    }
-
-//QT_NO_THREAD implementations
-#else
-    static unsigned int seed = 0;
-
-    if (seed)
-        return;
-
-#if defined(Q_OS_SYMBIAN)
-    seed = Math::Random();
-#elif defined(Q_OS_WIN)
-    seed = GetTickCount();
-#else
-    seed = quintptr(&seed) + QDateTime::currentDateTime().toTime_t();
-#endif
-    srand(seed);
-#endif // defined(Q_OS_UNIX) || defined(Q_OS_WIN)) && !defined(QT_NO_THREAD)
 }
 
 /*!
@@ -2948,8 +2914,9 @@ int qrand()
     \relates <QtGlobal>
 
     You can use this macro to specify information about a custom type
-    \a Type. With accurate type information, Qt's \l{generic
-    containers} can choose appropriate storage methods and algorithms.
+    \a Type. With accurate type information, Qt's \l{Container Classes}
+    {generic containers} can choose appropriate storage methods and
+    algorithms.
 
     \a Flags can be one of the following:
 

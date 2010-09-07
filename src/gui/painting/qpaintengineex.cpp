@@ -494,11 +494,9 @@ void QPaintEngineEx::stroke(const QVectorPath &path, const QPen &pen)
         } else {
             d->activeStroker->moveTo(points[0], points[1]);
             points += 2;
-            ++types;
             while (points < lastPoint) {
                 d->activeStroker->lineTo(points[0], points[1]);
                 points += 2;
-                ++types;
             }
             if (path.hasImplicitClose())
                 d->activeStroker->lineTo(path.points()[0], path.points()[1]);
@@ -561,12 +559,10 @@ void QPaintEngineEx::stroke(const QVectorPath &path, const QPen &pen)
                 QPointF p = ((QPointF *)points)[0] * state()->matrix;
                 d->activeStroker->moveTo(p.x(), p.y());
                 points += 2;
-                ++types;
                 while (points < lastPoint) {
                     QPointF p = ((QPointF *)points)[0] * state()->matrix;
                     d->activeStroker->lineTo(p.x(), p.y());
                     points += 2;
-                    ++types;
                 }
                 if (path.hasImplicitClose())
                     d->activeStroker->lineTo(p.x(), p.y());
@@ -835,7 +831,7 @@ void QPaintEngineEx::drawEllipse(const QRectF &r)
 
     int point_count = 0;
     x.points[0] = qt_curves_for_arc(r, 0, -360, x.points + 1, &point_count);
-    QVectorPath vp((qreal *) pts, 13, qpaintengineex_ellipse_types, QVectorPath::EllipseHint);
+    QVectorPath vp((qreal *) pts, point_count, qpaintengineex_ellipse_types, QVectorPath::EllipseHint);
     draw(vp);
 }
 

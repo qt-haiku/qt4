@@ -48,8 +48,14 @@
 
 #include <QtCore/qtimer.h>
 #include <QtCore/qdebug.h>
+#include <QtCore/qtranslator.h>
 
 #include "../../../shared/util.h"
+
+#ifdef Q_OS_SYMBIAN
+// In Symbian OS test data is located in applications private dir
+#define SRCDIR "."
+#endif
 
 class tst_qdeclarativelistmodel : public QObject
 {
@@ -119,14 +125,17 @@ void tst_qdeclarativelistmodel::waitForWorker(QDeclarativeItem *item)
 void tst_qdeclarativelistmodel::static_i18n()
 {
     QString expect = QString::fromUtf8("na\303\257ve");
-    QString componentStr = "import Qt 4.7\nListModel { ListElement { prop1: \""+expect+"\" } }";
+
+    QString componentStr = "import Qt 4.7\nListModel { ListElement { prop1: \""+expect+"\"; prop2: QT_TR_NOOP(\""+expect+"\") } }";
     QDeclarativeEngine engine;
     QDeclarativeComponent component(&engine);
     component.setData(componentStr.toUtf8(), QUrl::fromLocalFile(""));
     QDeclarativeListModel *obj = qobject_cast<QDeclarativeListModel*>(component.create());
     QVERIFY(obj != 0);
-    QString prop = obj->get(0).property(QLatin1String("prop1")).toString();
-    QCOMPARE(prop,expect);
+    QString prop1 = obj->get(0).property(QLatin1String("prop1")).toString();
+    QCOMPARE(prop1,expect);
+    QString prop2 = obj->get(0).property(QLatin1String("prop2")).toString();
+    QCOMPARE(prop2,expect); // (no, not translated, QT_TR_NOOP is a no-op)
     delete obj;
 }
 
@@ -184,8 +193,9 @@ void tst_qdeclarativelistmodel::dynamic_data()
 
     QTest::newRow("count") << "count" << 0 << "";
 
-    QTest::newRow("get1") << "{get(0)}" << 0 << "<Unknown File>: QML ListModel: get: index 0 out of range";
-    QTest::newRow("get2") << "{get(-1)}" << 0 << "<Unknown File>: QML ListModel: get: index -1 out of range";
+    QTest::newRow("get1") << "{get(0) === undefined}" << 1 << "";
+    QTest::newRow("get2") << "{get(-1) === undefined}" << 1 << "";
+    QTest::newRow("get3") << "{append({'foo':123});get(0) != undefined}" << 1 << "";
 
     QTest::newRow("append1") << "{append({'foo':123});count}" << 1 << "";
     QTest::newRow("append2") << "{append({'foo':123,'bar':456});count}" << 1 << "";
@@ -196,13 +206,13 @@ void tst_qdeclarativelistmodel::dynamic_data()
 
     QTest::newRow("clear1") << "{append({'foo':456});clear();count}" << 0 << "";
     QTest::newRow("clear2") << "{append({'foo':123});append({'foo':456});clear();count}" << 0 << "";
-    QTest::newRow("clear3") << "{append({'foo':123});clear();get(0).foo}" << 0 << "<Unknown File>: QML ListModel: get: index 0 out of range";
+    QTest::newRow("clear3") << "{append({'foo':123});clear()}" << 0 << "";
 
     QTest::newRow("remove1") << "{append({'foo':123});remove(0);count}" << 0 << "";
     QTest::newRow("remove2a") << "{append({'foo':123});append({'foo':456});remove(0);count}" << 1 << "";
     QTest::newRow("remove2b") << "{append({'foo':123});append({'foo':456});remove(0);get(0).foo}" << 456 << "";
     QTest::newRow("remove2c") << "{append({'foo':123});append({'foo':456});remove(1);get(0).foo}" << 123 << "";
-    QTest::newRow("remove3") << "{append({'foo':123});remove(0);get(0).foo}" << 0 << "<Unknown File>: QML ListModel: get: index 0 out of range";
+    QTest::newRow("remove3") << "{append({'foo':123});remove(0)}" << 0 << "";
     QTest::newRow("remove3a") << "{append({'foo':123});remove(-1);count}" << 1 << "<Unknown File>: QML ListModel: remove: index -1 out of range";
     QTest::newRow("remove4a") << "{remove(0)}" << 0 << "<Unknown File>: QML ListModel: remove: index 0 out of range";
     QTest::newRow("remove4b") << "{append({'foo':123});remove(0);remove(0);count}" << 0 << "<Unknown File>: QML ListModel: remove: index 0 out of range";
@@ -261,6 +271,9 @@ void tst_qdeclarativelistmodel::dynamic_data()
     QTest::newRow("nested-insert") << "{append({'foo':123});insert(0,{'bars':[{'a':1},{'b':2},{'c':3}]});get(0).bars.get(0).a}" << 1 << "";
     QTest::newRow("nested-set") << "{append({'foo':123});set(0,{'foo':[{'x':123}]});get(0).foo.get(0).x}" << 123 << "";
 
+    QTest::newRow("nested-count") << "{append({'foo':123,'bars':[{'a':1},{'a':2},{'a':3}]}); get(0).bars.count}" << 3 << "";
+    QTest::newRow("nested-clear") << "{append({'foo':123,'bars':[{'a':1},{'a':2},{'a':3}]}); get(0).bars.clear(); get(0).bars.count}" << 0 << "";
+
     // XXX
     //QTest::newRow("nested-setprop") << "{append({'foo':123});setProperty(0,'foo',[{'x':123}]);get(0).foo.get(0).x}" << 123 << "";
 }
@@ -275,7 +288,7 @@ void tst_qdeclarativelistmodel::dynamic()
     QDeclarativeListModel model;
     QDeclarativeEngine::setContextForObject(&model,engine.rootContext());
     engine.rootContext()->setContextObject(&model);
-    QDeclarativeExpression e(engine.rootContext(), script, &model);
+    QDeclarativeExpression e(engine.rootContext(), &model, script);
     if (!warning.isEmpty())
         QTest::ignoreMessage(QtWarningMsg, warning.toLatin1());
 
@@ -283,8 +296,6 @@ void tst_qdeclarativelistmodel::dynamic()
     if (e.hasError())
         qDebug() << e.error(); // errors not expected
 
-    if (QTest::currentDataTag() != QLatin1String("clear3") && QTest::currentDataTag() != QLatin1String("remove3"))
-        QVERIFY(!e.hasError());
     QCOMPARE(actual,result);
 }
 
@@ -298,6 +309,9 @@ void tst_qdeclarativelistmodel::dynamic_worker()
     QFETCH(QString, script);
     QFETCH(int, result);
     QFETCH(QString, warning);
+
+    // This is same as dynamic() except it applies the test to a ListModel called 
+    // from a WorkerScript (i.e. testing the internal NestedListModel class)
 
     QDeclarativeListModel model;
     QDeclarativeEngine eng;
@@ -328,20 +342,12 @@ void tst_qdeclarativelistmodel::dynamic_worker()
         if (QByteArray(QTest::currentDataTag()).startsWith("nested"))
             QTest::ignoreMessage(QtWarningMsg, "<Unknown File>: QML ListModel: Cannot add nested list values when modifying or after modification from a worker script");
 
-        if (QByteArray(QTest::currentDataTag()).startsWith("nested-append")) {
-            int callsToGet = script.count(QLatin1String(";get("));
-            for (int i=0; i<callsToGet; i++)
-                QTest::ignoreMessage(QtWarningMsg, "<Unknown File>: QML ListModel: get: index 0 out of range");
-        }
-
         QVERIFY(QMetaObject::invokeMethod(item, "evalExpressionViaWorker", 
                 Q_ARG(QVariant, operations.mid(0, operations.length()-1))));
         waitForWorker(item);
 
-        QDeclarativeExpression e(eng.rootContext(), operations.last().toString(), &model);
-        if (QByteArray(QTest::currentDataTag()).startsWith("nested"))
-            QVERIFY(e.evaluate().toInt() != result);
-        else
+        QDeclarativeExpression e(eng.rootContext(), &model, operations.last().toString());
+        if (!QByteArray(QTest::currentDataTag()).startsWith("nested"))
             QCOMPARE(e.evaluate().toInt(), result);
     }
 
@@ -556,6 +562,18 @@ void tst_qdeclarativelistmodel::error_data()
     QTest::newRow("QML elements not allowed in ListElement")
         << "import Qt 4.7\nListModel { ListElement { a: Item { } } }"
         << "ListElement: cannot contain nested elements";
+
+    QTest::newRow("qualified ListElement supported")
+        << "import Qt 4.7 as Foo\nFoo.ListModel { Foo.ListElement { a: 123 } }"
+        << "";
+
+    QTest::newRow("qualified ListElement required")
+        << "import Qt 4.7 as Foo\nFoo.ListModel { ListElement { a: 123 } }"
+        << "ListElement is not a type";
+
+    QTest::newRow("unknown qualified ListElement not allowed")
+        << "import Qt 4.7\nListModel { Foo.ListElement { a: 123 } }"
+        << "Foo.ListElement - Foo is not a namespace";
 }
 
 void tst_qdeclarativelistmodel::error()

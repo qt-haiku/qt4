@@ -121,7 +121,9 @@ private slots:
     void originatingObjectInNetworkRequests();
     void testJSPrompt();
     void showModalDialog();
-
+    void testStopScheduledPageRefresh();
+    void findText();
+    
 private:
     QWebView* m_view;
     QWebPage* m_page;
@@ -217,6 +219,9 @@ public slots:
 
 void tst_QWebPage::infiniteLoopJS()
 {
+#ifdef Q_WS_MAEMO_5
+    QSKIP("Test never terminates on Maemo 5 : https://bugs.webkit.org/show_bug.cgi?id=38538", SkipAll);
+#endif
     JSTestPage* newPage = new JSTestPage(m_view);
     m_view->setPage(newPage);
     m_view->setHtml(QString("<html><bodytest</body></html>"), QUrl());
@@ -1450,10 +1455,15 @@ void tst_QWebPage::inputMethods()
     QString selectionValue = variant.value<QString>();
     QCOMPARE(selectionValue, QString("eb"));
 
-    //Set selection with negative length
-    inputAttributes << QInputMethodEvent::Attribute(QInputMethodEvent::Selection, 6, -5, QVariant());
+    //Cancel current composition first
+    inputAttributes << QInputMethodEvent::Attribute(QInputMethodEvent::Selection, 0, 0, QVariant());
     QInputMethodEvent eventSelection2("",inputAttributes);
     page->event(&eventSelection2);
+
+    //Set selection with negative length
+    inputAttributes << QInputMethodEvent::Attribute(QInputMethodEvent::Selection, 6, -5, QVariant());
+    QInputMethodEvent eventSelection3("",inputAttributes);
+    page->event(&eventSelection3);
 
     //ImAnchorPosition
     variant = page->inputMethodQuery(Qt::ImAnchorPosition);
@@ -1491,6 +1501,98 @@ void tst_QWebPage::inputMethods()
     value = variant.value<QString>();
     QCOMPARE(value, QString("QtWebKit"));
 #endif
+
+    // Cancel current composition first
+    inputAttributes << QInputMethodEvent::Attribute(QInputMethodEvent::Selection, 0, 0, QVariant());
+    QInputMethodEvent eventSelection4("", inputAttributes);
+    page->event(&eventSelection4);
+
+    // START - Tests for Selection when the Editor is NOT in Composition mode
+
+    // LEFT to RIGHT selection
+    // Deselect the selection by sending MouseButtonPress events
+    // This moves the current cursor to the end of the text
+    page->event(&evpres);
+    page->event(&evrel);
+
+    //Move to the start of the line
+    page->triggerAction(QWebPage::MoveToStartOfLine);
+
+    QKeyEvent keyRightEventPress(QEvent::KeyPress, Qt::Key_Right, Qt::NoModifier);
+    QKeyEvent keyRightEventRelease(QEvent::KeyRelease, Qt::Key_Right, Qt::NoModifier);
+
+    //Move 2 characters RIGHT
+    for (int j = 0; j < 2; ++j) {
+        page->event(&keyRightEventPress);
+        page->event(&keyRightEventRelease);
+    }
+
+    //Select to the end of the line
+    page->triggerAction(QWebPage::SelectEndOfLine);
+
+    //ImAnchorPosition QtWebKit
+    variant = page->inputMethodQuery(Qt::ImAnchorPosition);
+    anchorPosition =  variant.toInt();
+    QCOMPARE(anchorPosition, 2);
+
+    //ImCursorPosition
+    variant = page->inputMethodQuery(Qt::ImCursorPosition);
+    cursorPosition =  variant.toInt();
+    QCOMPARE(cursorPosition, 8);
+
+    //ImCurrentSelection
+    variant = page->inputMethodQuery(Qt::ImCurrentSelection);
+    selectionValue = variant.value<QString>();
+    QCOMPARE(selectionValue, QString("WebKit"));
+
+    //RIGHT to LEFT selection
+    //Deselect the selection (this moves the current cursor to the end of the text)
+    page->event(&evpres);
+    page->event(&evrel);
+
+    //ImAnchorPosition
+    variant = page->inputMethodQuery(Qt::ImAnchorPosition);
+    anchorPosition =  variant.toInt();
+    QCOMPARE(anchorPosition, 8);
+
+    //ImCursorPosition
+    variant = page->inputMethodQuery(Qt::ImCursorPosition);
+    cursorPosition =  variant.toInt();
+    QCOMPARE(cursorPosition, 8);
+
+    //ImCurrentSelection
+    variant = page->inputMethodQuery(Qt::ImCurrentSelection);
+    selectionValue = variant.value<QString>();
+    QCOMPARE(selectionValue, QString(""));
+
+    QKeyEvent keyLeftEventPress(QEvent::KeyPress, Qt::Key_Left, Qt::NoModifier);
+    QKeyEvent keyLeftEventRelease(QEvent::KeyRelease, Qt::Key_Left, Qt::NoModifier);
+
+    //Move 2 characters LEFT
+    for (int i = 0; i < 2; ++i) {
+        page->event(&keyLeftEventPress);
+        page->event(&keyLeftEventRelease);
+    }
+
+    //Select to the start of the line
+    page->triggerAction(QWebPage::SelectStartOfLine);
+
+    //ImAnchorPosition
+    variant = page->inputMethodQuery(Qt::ImAnchorPosition);
+    anchorPosition =  variant.toInt();
+    QCOMPARE(anchorPosition, 6);
+
+    //ImCursorPosition
+    variant = page->inputMethodQuery(Qt::ImCursorPosition);
+    cursorPosition =  variant.toInt();
+    QCOMPARE(cursorPosition, 0);
+
+    //ImCurrentSelection
+    variant = page->inputMethodQuery(Qt::ImCurrentSelection);
+    selectionValue = variant.value<QString>();
+    QCOMPARE(selectionValue, QString("QtWebK"));
+
+    //END - Tests for Selection when the Editor is not in Composition mode
 
     //ImhHiddenText
     QMouseEvent evpresPassword(QEvent::MouseButtonPress, inputs.at(1).geometry().center(), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
@@ -1996,6 +2098,47 @@ void tst_QWebPage::showModalDialog()
     page.mainFrame()->setHtml(QString("<html></html>"));
     QString res = page.mainFrame()->evaluateJavaScript("window.showModalDialog('javascript:window.returnValue=dialogArguments; window.close();', 'This is a test');").toString();
     QCOMPARE(res, QString("This is a test"));
+}
+
+void tst_QWebPage::testStopScheduledPageRefresh()
+{    
+    // Without QWebPage::StopScheduledPageRefresh
+    QWebPage page1;
+    page1.setNetworkAccessManager(new TestNetworkManager(&page1));
+    page1.mainFrame()->setHtml("<html><head>"
+                                "<meta http-equiv=\"refresh\"content=\"0;URL=http://qt.nokia.com/favicon.ico\">"
+                                "</head><body><h1>Page redirects immediately...</h1>"
+                                "</body></html>");
+    QVERIFY(::waitForSignal(&page1, SIGNAL(loadFinished(bool))));
+    QTest::qWait(500);
+    QCOMPARE(page1.mainFrame()->url().toString(), QString("http://qt.nokia.com/favicon.ico"));
+    
+    // With QWebPage::StopScheduledPageRefresh
+    QWebPage page2;
+    page2.setNetworkAccessManager(new TestNetworkManager(&page2));
+    page2.mainFrame()->setHtml("<html><head>"
+                               "<meta http-equiv=\"refresh\"content=\"1;URL=http://qt.nokia.com/favicon.ico\">"
+                               "</head><body><h1>Page redirect test with 1 sec timeout...</h1>"
+                               "</body></html>");
+    page2.triggerAction(QWebPage::StopScheduledPageRefresh);
+    QTest::qWait(1500);
+    QCOMPARE(page2.mainFrame()->url().toString(), QString("about:blank"));
+}
+
+void tst_QWebPage::findText()
+{
+    m_view->setHtml(QString("<html><head></head><body><div>foo bar</div></body></html>"));
+    m_page->triggerAction(QWebPage::SelectAll);
+    QVERIFY(!m_page->selectedText().isEmpty());
+    m_page->findText("");
+    QVERIFY(m_page->selectedText().isEmpty());
+    QStringList words = (QStringList() << "foo" << "bar");
+    foreach (QString subString, words) {
+        m_page->findText(subString, QWebPage::FindWrapsAroundDocument);
+        QCOMPARE(m_page->selectedText(), subString);
+        m_page->findText("");
+        QVERIFY(m_page->selectedText().isEmpty());
+    }
 }
 
 QTEST_MAIN(tst_QWebPage)

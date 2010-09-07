@@ -219,6 +219,7 @@ private slots:
     void update2_data();
     void update2();
     void update_ancestorClipsChildrenToShape();
+    void update_ancestorClipsChildrenToShape2();
     void inputMethodSensitivity();
     void inputContextReset();
     void indirectPainting();
@@ -243,6 +244,9 @@ private slots:
     void QTBUG_4151_clipAndIgnore();
     void QTBUG_5859_exposedRect();
     void QTBUG_7438_cursor();
+
+public slots:
+    void dummySlot() {}
 };
 
 void tst_QGraphicsView::initTestCase()
@@ -3201,14 +3205,18 @@ void tst_QGraphicsView::scrollAfterResize()
 void tst_QGraphicsView::moveItemWhileScrolling_data()
 {
     QTest::addColumn<bool>("adjustForAntialiasing");
+    QTest::addColumn<bool>("changedConnected");
 
-    QTest::newRow("no adjust") << false;
-    QTest::newRow("adjust") << true;
+    QTest::newRow("no adjust") << false << false;
+    QTest::newRow("adjust") << true << false;
+    QTest::newRow("no adjust changedConnected") << false << true;
+    QTest::newRow("adjust changedConnected") << true << true;
 }
 
 void tst_QGraphicsView::moveItemWhileScrolling()
 {
     QFETCH(bool, adjustForAntialiasing);
+    QFETCH(bool, changedConnected);
 
     class MoveItemScrollView : public QGraphicsView
     {
@@ -3252,6 +3260,8 @@ void tst_QGraphicsView::moveItemWhileScrolling()
     view.resize(200, 200);
     view.painted = false;
     view.show();
+    if (changedConnected)
+        QObject::connect(view.scene(), SIGNAL(changed(QList<QRectF>)), this, SLOT(dummySlot()));
     QTest::qWaitForWindowShown(&view);
     QApplication::processEvents();
     QTRY_VERIFY(view.painted);
@@ -3690,24 +3700,32 @@ void tst_QGraphicsView::update2_data()
 {
     QTest::addColumn<qreal>("penWidth");
     QTest::addColumn<bool>("antialiasing");
+    QTest::addColumn<bool>("changedConnected");
 
     // Anti-aliased.
-    QTest::newRow("pen width: 0.0, antialiasing: true") << 0.0 << true;
-    QTest::newRow("pen width: 1.5, antialiasing: true") << 1.5 << true;
-    QTest::newRow("pen width: 2.0, antialiasing: true") << 2.0 << true;
-    QTest::newRow("pen width: 3.0, antialiasing: true") << 3.0 << true;
+    QTest::newRow("pen width: 0.0, antialiasing: true") << 0.0 << true << false;
+    QTest::newRow("pen width: 1.5, antialiasing: true") << 1.5 << true << false;
+    QTest::newRow("pen width: 2.0, antialiasing: true") << 2.0 << true << false;
+    QTest::newRow("pen width: 3.0, antialiasing: true") << 3.0 << true << false;
 
     // Aliased.
-    QTest::newRow("pen width: 0.0, antialiasing: false") << 0.0 << false;
-    QTest::newRow("pen width: 1.5, antialiasing: false") << 1.5 << false;
-    QTest::newRow("pen width: 2.0, antialiasing: false") << 2.0 << false;
-    QTest::newRow("pen width: 3.0, antialiasing: false") << 3.0 << false;
+    QTest::newRow("pen width: 0.0, antialiasing: false") << 0.0 << false << false;
+    QTest::newRow("pen width: 1.5, antialiasing: false") << 1.5 << false << false;
+    QTest::newRow("pen width: 2.0, antialiasing: false") << 2.0 << false << false;
+    QTest::newRow("pen width: 3.0, antialiasing: false") << 3.0 << false << false;
+
+    // changed() connected
+    QTest::newRow("pen width: 0.0, antialiasing: false, changed") << 0.0 << false << true;
+    QTest::newRow("pen width: 1.5, antialiasing: true, changed") << 1.5 << true << true;
+    QTest::newRow("pen width: 2.0, antialiasing: false, changed") << 2.0 << false << true;
+    QTest::newRow("pen width: 3.0, antialiasing: true, changed") << 3.0 << true << true;
 }
 
 void tst_QGraphicsView::update2()
 {
     QFETCH(qreal, penWidth);
     QFETCH(bool, antialiasing);
+    QFETCH(bool, changedConnected);
 
     // Create a rect item.
     const QRectF rawItemRect(-50.4, -50.3, 100.2, 100.1);
@@ -3718,6 +3736,9 @@ void tst_QGraphicsView::update2()
 
     // Add item to a scene.
     QGraphicsScene scene(-100, -100, 200, 200);
+    if (changedConnected)
+        QObject::connect(&scene, SIGNAL(changed(QList<QRectF>)), this, SLOT(dummySlot()));
+
     scene.addItem(rect);
 
     // Create a view on the scene.
@@ -3807,6 +3828,78 @@ void tst_QGraphicsView::update_ancestorClipsChildrenToShape()
 
     child->update();
     QTRY_VERIFY(view.painted);
+
+#ifndef QT_MAC_USE_COCOA //cocoa doesn't support drawing regions
+    QTRY_VERIFY(view.painted);
+    QCOMPARE(view.lastUpdateRegions.size(), 1);
+    QCOMPARE(view.lastUpdateRegions.at(0), QRegion(expected.toAlignedRect()));
+#endif
+}
+
+void tst_QGraphicsView::update_ancestorClipsChildrenToShape2()
+{
+    QGraphicsScene scene(-150, -150, 300, 300);
+
+    /*
+    Add two rects:
+
+    +------------------+
+    | child            |
+    | +--------------+ |
+    | | parent       | |
+    | |              | |
+    | |              | |
+    | |              | |
+    | +--------------+ |
+    +------------------+
+
+    ... where the parent has no contents and clips the child to shape.
+    */
+    QApplication::processEvents(); // Get rid of pending update.
+
+    QGraphicsRectItem *parent = static_cast<QGraphicsRectItem *>(scene.addRect(-50, -50, 100, 100));
+    parent->setBrush(QColor(0, 0, 255, 125));
+    parent->setFlag(QGraphicsItem::ItemClipsChildrenToShape);
+    parent->setFlag(QGraphicsItem::ItemHasNoContents);
+
+    QGraphicsRectItem *child = static_cast<QGraphicsRectItem *>(scene.addRect(-100, -100, 200, 200));
+    child->setBrush(QColor(255, 0, 0, 125));
+    child->setParentItem(parent);
+
+    CustomView view(&scene);
+    view.show();
+    QTest::qWaitForWindowShown(&view);
+    QTRY_VERIFY(view.painted);
+
+    view.lastUpdateRegions.clear();
+    view.painted = false;
+
+    // Call child->update() and make sure the updated area is within its parent's clip.
+    QRectF expected = child->deviceTransform(view.viewportTransform()).mapRect(child->boundingRect());
+    expected &= parent->deviceTransform(view.viewportTransform()).mapRect(parent->boundingRect());
+
+    child->update();
+    QTRY_VERIFY(view.painted);
+
+#ifndef QT_MAC_USE_COCOA //cocoa doesn't support drawing regions
+    QTRY_VERIFY(view.painted);
+    QCOMPARE(view.lastUpdateRegions.size(), 1);
+    QCOMPARE(view.lastUpdateRegions.at(0), QRegion(expected.toAlignedRect()));
+#endif
+
+    QTest::qWait(50);
+
+    view.lastUpdateRegions.clear();
+    view.painted = false;
+
+    // Invalidate the parent's geometry and trigger an update.
+    // The update area should be clipped to the parent's bounding rect for 'normal' items,
+    // but in this case the item has no contents (ItemHasNoContents) and its geometry
+    // is invalidated, which means we cannot clip the child update. So, the expected
+    // area is exactly the same as the child's bounding rect (adjusted for antialiasing).
+    parent->setRect(parent->rect().adjusted(-10, -10, -10, -10));
+    expected = child->deviceTransform(view.viewportTransform()).mapRect(child->boundingRect());
+    expected.adjust(-2, -2, 2, 2); // Antialiasing
 
 #ifndef QT_MAC_USE_COCOA //cocoa doesn't support drawing regions
     QTRY_VERIFY(view.painted);

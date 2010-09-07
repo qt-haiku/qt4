@@ -199,11 +199,26 @@ public:
         return widget;
     }
 
+    // destroys the share widget and prevents recreation
     void cleanup() {
         QGLWidget *w = widget;
         cleanedUp = true;
         widget = 0;
         delete w;
+    }
+
+    // destroys the share widget, but allows it to be recreated later on
+    void destroy() {
+        if (cleanedUp)
+            return;
+
+        QGLWidget *w = widget;
+
+        // prevent potential recursions
+        cleanedUp = true;
+        widget = 0;
+        delete w;
+        cleanedUp = false;
     }
 
     static bool cleanedUp;
@@ -233,6 +248,10 @@ QGLWidget* qt_gl_share_widget()
     return _qt_gl_share_widget()->shareWidget();
 }
 
+void qt_destroy_gl_share_widget()
+{
+    _qt_gl_share_widget()->destroy();
+}
 
 struct QGLWindowSurfacePrivate
 {
@@ -354,8 +373,22 @@ void QGLWindowSurface::hijackWindow(QWidget *widget)
     ctx->create(qt_gl_share_widget()->context());
 
 #ifndef QT_NO_EGL
-    if (ctx->d_func()->eglContext->configAttrib(EGL_SWAP_BEHAVIOR) != EGL_BUFFER_PRESERVED)
+    static bool checkedForNOKSwapRegion = false;
+    static bool haveNOKSwapRegion = false;
+
+    if (!checkedForNOKSwapRegion) {
+        haveNOKSwapRegion = QEgl::hasExtension("EGL_NOK_swap_region2");
+        checkedForNOKSwapRegion = true;
+
+        if (haveNOKSwapRegion)
+            qDebug() << "Found EGL_NOK_swap_region2 extension. Using partial updates.";
+    }
+
+    if (ctx->d_func()->eglContext->configAttrib(EGL_SWAP_BEHAVIOR) != EGL_BUFFER_PRESERVED &&
+        ! haveNOKSwapRegion)
         setPartialUpdateSupport(false); // Force full-screen updates
+    else
+        setPartialUpdateSupport(true);
 #endif
 
     widgetPrivate->extraData()->glContext = ctx;
@@ -480,8 +513,13 @@ void QGLWindowSurface::flush(QWidget *widget, const QRegion &rgn, const QPoint &
                 }
             }
 #endif
+            if (d_ptr->paintedRegion.boundingRect() != geometry() && 
+                hasPartialUpdateSupport()) {
+                context()->d_func()->swapRegion(&d_ptr->paintedRegion);             
+            } else
+                context()->swapBuffers();
+
             d_ptr->paintedRegion = QRegion();
-            context()->swapBuffers();
         } else {
             glFlush();
         }

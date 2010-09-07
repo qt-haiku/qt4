@@ -70,27 +70,32 @@ public:
 
 /*!
     \qmlclass Timer QDeclarativeTimer
+    \ingroup qml-utility-elements
     \since 4.7
     \brief The Timer item triggers a handler at a specified interval.
 
-    A timer can be used to trigger an action either once, or repeatedly
+    A Timer can be used to trigger an action either once, or repeatedly
     at a given interval.
 
-    Here is a timer that shows the current date and time, and updates
-    the text every 500 milliseconds:
+    Here is a Timer that shows the current date and time, and updates
+    the text every 500 milliseconds. It uses the JavaScript \c Date
+    object to access the current time.
 
     \qml
-    Timer {
-        interval: 500; running: true; repeat: true
-        onTriggered: time.text = Date().toString()
-    }
-    Text {
-        id: time
+    import Qt 4.7
+
+    Item {
+        Timer {
+            interval: 500; running: true; repeat: true
+            onTriggered: time.text = Date().toString()
+        }
+
+        Text { id: time }
     }
     \endqml
 
-    QDeclarativeTimer is synchronized with the animation timer.  Since the animation
-    timer is usually set to 60fps, the resolution of QDeclarativeTimer will be
+    The Timer element is synchronized with the animation timer.  Since the animation
+    timer is usually set to 60fps, the resolution of Timer will be
     at best 16ms.
 
     If the Timer is running and one of its properties is changed, the
@@ -99,7 +104,7 @@ public:
     elapsed time will be reset to 0, and the Timer will be triggered
     1000ms later.
 
-    \sa {QtDeclarative}
+    \sa {declarative/toys/clocks}{Clocks example}
 */
 
 QDeclarativeTimer::QDeclarativeTimer(QObject *parent)

@@ -80,10 +80,12 @@ QDeclarativeContextPrivate::QDeclarativeContextPrivate()
 
     \code
     QDeclarativeEngine engine;
+    QStringListModel modelData;
     QDeclarativeContext *context = new QDeclarativeContext(engine.rootContext());
-    context->setContextProperty("myModel", modelData);
+    context->setContextProperty("myModel", &modelData);
 
-    QDeclarativeComponent component(&engine, "ListView { model=myModel }");
+    QDeclarativeComponent component(&engine);
+    component.setData("import Qt 4.7\nListView { model: myModel }", QUrl());
     component.create(context);
     \endcode
 
@@ -104,19 +106,20 @@ QDeclarativeContextPrivate::QDeclarativeContextPrivate()
         ...
     };
 
-    MyDataSet *myDataSet = new MyDataSet;
+    MyDataSet myDataSet;
     QDeclarativeEngine engine;
     QDeclarativeContext *context = new QDeclarativeContext(engine.rootContext());
-    context->setContextObject(myDataSet);
+    context->setContextObject(&myDataSet);
 
-    QDeclarativeComponent component(&engine, "ListView { model=myModel }");
+    QDeclarativeComponent component(&engine);
+    component.setData("import Qt 4.7\nListView { model: myModel }", QUrl());
     component.create(context);
     \endcode
 
     All properties added explicitly by QDeclarativeContext::setContextProperty() take 
     precedence over the context object's properties.
 
-    Contexts form a hierarchy.  The root of this heirarchy is the QDeclarativeEngine's
+    Contexts form a hierarchy.  The root of this hierarchy is the QDeclarativeEngine's
     \l {QDeclarativeEngine::rootContext()}{root context}.  A component instance can 
     access the data in its own context, as well as all its ancestor contexts.  Data
     can be made available to all instances by modifying the 
@@ -145,6 +148,8 @@ QDeclarativeContextPrivate::QDeclarativeContextPrivate()
     has been created in that context is an expensive operation (essentially forcing all bindings
     to reevaluate). Thus whenever possible you should complete "setup" of the context
     before using it to create any objects.
+
+    \sa {Using QML in C++ Applications}
 */
 
 /*! \internal */
@@ -660,10 +665,9 @@ void QDeclarativeContextData::addImportedScript(const QDeclarativeParser::Object
             QScriptContext *scriptContext = QScriptDeclarativeClass::pushCleanContext(scriptEngine);
 
             scriptContext->pushScope(enginePriv->contextClass->newUrlContext(url));
-            scriptContext->pushScope(enginePriv->globalClass->globalObject());
+            scriptContext->pushScope(enginePriv->globalClass->staticGlobalObject());
         
-            QScriptValue scope = scriptEngine->newObject();
-            scriptContext->setActivationObject(scope);
+            QScriptValue scope = QScriptDeclarativeClass::newStaticScopeObject(scriptEngine);
             scriptContext->pushScope(scope);
 
             scriptEngine->evaluate(code, url, 1);
@@ -686,10 +690,9 @@ void QDeclarativeContextData::addImportedScript(const QDeclarativeParser::Object
         QScriptContext *scriptContext = QScriptDeclarativeClass::pushCleanContext(scriptEngine);
 
         scriptContext->pushScope(enginePriv->contextClass->newUrlContext(this, 0, url));
-        scriptContext->pushScope(enginePriv->globalClass->globalObject());
-        
-        QScriptValue scope = scriptEngine->newObject();
-        scriptContext->setActivationObject(scope);
+        scriptContext->pushScope(enginePriv->globalClass->staticGlobalObject());
+
+        QScriptValue scope = QScriptDeclarativeClass::newStaticScopeObject(scriptEngine);
         scriptContext->pushScope(scope);
 
         scriptEngine->evaluate(code, url, 1);

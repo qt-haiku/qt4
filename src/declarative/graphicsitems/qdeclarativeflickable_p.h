@@ -52,7 +52,7 @@ QT_MODULE(Declarative)
 
 class QDeclarativeFlickablePrivate;
 class QDeclarativeFlickableVisibleArea;
-class Q_DECLARATIVE_EXPORT QDeclarativeFlickable : public QDeclarativeItem
+class Q_AUTOTEST_EXPORT QDeclarativeFlickable : public QDeclarativeItem
 {
     Q_OBJECT
 
@@ -60,11 +60,11 @@ class Q_DECLARATIVE_EXPORT QDeclarativeFlickable : public QDeclarativeItem
     Q_PROPERTY(qreal contentHeight READ contentHeight WRITE setContentHeight NOTIFY contentHeightChanged)
     Q_PROPERTY(qreal contentX READ contentX WRITE setContentX NOTIFY contentXChanged)
     Q_PROPERTY(qreal contentY READ contentY WRITE setContentY NOTIFY contentYChanged)
+    Q_PROPERTY(QDeclarativeItem *contentItem READ contentItem CONSTANT)
 
     Q_PROPERTY(qreal horizontalVelocity READ horizontalVelocity NOTIFY horizontalVelocityChanged)
     Q_PROPERTY(qreal verticalVelocity READ verticalVelocity NOTIFY verticalVelocityChanged)
 
-    Q_PROPERTY(bool overShoot READ overShoot WRITE setOverShoot NOTIFY overShootChanged) // deprecated
     Q_PROPERTY(BoundsBehavior boundsBehavior READ boundsBehavior WRITE setBoundsBehavior NOTIFY boundsBehaviorChanged)
     Q_PROPERTY(qreal maximumFlickVelocity READ maximumFlickVelocity WRITE setMaximumFlickVelocity NOTIFY maximumFlickVelocityChanged)
     Q_PROPERTY(qreal flickDeceleration READ flickDeceleration WRITE setFlickDeceleration NOTIFY flickDecelerationChanged)
@@ -74,7 +74,6 @@ class Q_DECLARATIVE_EXPORT QDeclarativeFlickable : public QDeclarativeItem
     Q_PROPERTY(bool flicking READ isFlicking NOTIFY flickingChanged)
     Q_PROPERTY(bool flickingHorizontally READ isFlickingHorizontally NOTIFY flickingHorizontallyChanged)
     Q_PROPERTY(bool flickingVertically READ isFlickingVertically NOTIFY flickingVerticallyChanged)
-    Q_PROPERTY(FlickableDirection flickDirection READ flickDirection WRITE setFlickDirection NOTIFY flickableDirectionChanged) // deprecated
     Q_PROPERTY(FlickableDirection flickableDirection READ flickableDirection WRITE setFlickableDirection NOTIFY flickableDirectionChanged)
 
     Q_PROPERTY(bool interactive READ isInteractive WRITE setInteractive NOTIFY interactiveChanged)
@@ -101,9 +100,6 @@ public:
     QDeclarativeListProperty<QObject> flickableData();
     QDeclarativeListProperty<QGraphicsObject> flickableChildren();
 
-    bool overShoot() const;
-    void setOverShoot(bool);
-
     enum BoundsBehavior { StopAtBounds, DragOverBounds, DragAndOvershootBounds };
     BoundsBehavior boundsBehavior() const;
     void setBoundsBehavior(BoundsBehavior);
@@ -115,10 +111,10 @@ public:
     void setContentHeight(qreal);
 
     qreal contentX() const;
-    void setContentX(qreal pos);
+    virtual void setContentX(qreal pos);
 
     qreal contentY() const;
-    void setContentY(qreal pos);
+    virtual void setContentY(qreal pos);
 
     bool isMoving() const;
     bool isMovingHorizontally() const;
@@ -147,11 +143,9 @@ public:
     bool isAtYEnd() const;
     bool isAtYBeginning() const;
 
-    QDeclarativeItem *viewport();
+    QDeclarativeItem *contentItem();
 
     enum FlickableDirection { AutoFlickDirection=0x00, HorizontalFlick=0x01, VerticalFlick=0x02, HorizontalAndVerticalFlick=0x03 };
-    FlickableDirection flickDirection() const; // deprecated
-    void setFlickDirection(FlickableDirection); // deprecated
     FlickableDirection flickableDirection() const;
     void setFlickableDirection(FlickableDirection);
 
@@ -172,7 +166,6 @@ Q_SIGNALS:
     void pageChanged();
     void flickableDirectionChanged();
     void interactiveChanged();
-    void overShootChanged();
     void boundsBehaviorChanged();
     void maximumFlickVelocityChanged();
     void flickDecelerationChanged();

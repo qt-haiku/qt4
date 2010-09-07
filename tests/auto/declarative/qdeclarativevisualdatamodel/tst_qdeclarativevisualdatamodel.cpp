@@ -52,6 +52,11 @@
 #include <private/qdeclarativevaluetype_p.h>
 #include <math.h>
 
+#ifdef Q_OS_SYMBIAN
+// In Symbian OS test data is located in applications private dir
+#define SRCDIR "."
+#endif
+
 static void initStandardTreeModel(QStandardItemModel *model)
 {
     QStandardItem *item;
@@ -168,11 +173,14 @@ void tst_qdeclarativevisualdatamodel::objectListModel()
     QDeclarativeListView *listview = qobject_cast<QDeclarativeListView*>(view.rootObject());
     QVERIFY(listview != 0);
 
-    QDeclarativeItem *viewport = listview->viewport();
-    QVERIFY(viewport != 0);
+    QDeclarativeItem *contentItem = listview->contentItem();
+    QVERIFY(contentItem != 0);
 
-    QDeclarativeText *name = findItem<QDeclarativeText>(viewport, "name", 0);
+    QDeclarativeText *name = findItem<QDeclarativeText>(contentItem, "name", 0);
     QCOMPARE(name->text(), QString("Item 1"));
+
+    QDeclarativeText *section = findItem<QDeclarativeText>(contentItem, "section", 0);
+    QCOMPARE(section->text(), QString("Item 1"));
 
     dataList[0]->setProperty("name", QLatin1String("Changed"));
     QCOMPARE(name->text(), QString("Changed"));
@@ -190,7 +198,7 @@ T *tst_qdeclarativevisualdatamodel::findItem(QGraphicsObject *parent, const QStr
         //qDebug() << "try" << item;
         if (mo.cast(item) && (objectName.isEmpty() || item->objectName() == objectName)) {
             if (index != -1) {
-                QDeclarativeExpression e(qmlContext(item), "index", item);
+                QDeclarativeExpression e(qmlContext(item), item, "index");
                 if (e.evaluate().toInt() == index)
                     return static_cast<T*>(item);
             } else {

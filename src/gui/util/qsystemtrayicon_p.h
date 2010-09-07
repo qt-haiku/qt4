@@ -83,7 +83,9 @@ public:
     void updateMenu_sys();
     QRect geometry_sys() const;
     void showMessage_sys(const QString &msg, const QString &title, QSystemTrayIcon::MessageIcon icon, int secs);
+
     static bool isSystemTrayAvailable_sys();
+    static bool supportsMessages_sys();
 
     QPointer<QMenu> menu;
     QIcon icon;
@@ -175,6 +177,12 @@ private:
     Colormap colormap;
 };
 #endif // Q_WS_X11
+
+#if defined(Q_WS_HAIKU)
+QT_BEGIN_INCLUDE_NAMESPACE
+#include "qsystemtrayicon_haiku.h"
+QT_END_INCLUDE_NAMESPACE
+#endif // Q_WS_HAIKU
 
 QT_END_NAMESPACE
 
