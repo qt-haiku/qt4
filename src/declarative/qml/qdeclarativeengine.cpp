@@ -259,7 +259,7 @@ QDeclarativeEnginePrivate::QDeclarativeEnginePrivate(QDeclarativeEngine *e)
   objectClass(0), valueTypeClass(0), globalClass(0), cleanup(0), erroredBindings(0),
   inProgressCreations(0), scriptEngine(this), workerScriptEngine(0), componentAttached(0),
   inBeginCreate(false), networkAccessManager(0), networkAccessManagerFactory(0),
-  typeManager(e), importDatabase(e), uniqueId(1)
+  typeLoader(e), importDatabase(e), uniqueId(1)
 {
     if (!qt_QmlQtModule_registered) {
         qt_QmlQtModule_registered = true;
@@ -272,8 +272,8 @@ QDeclarativeEnginePrivate::QDeclarativeEnginePrivate(QDeclarativeEngine *e)
 }
 
 /*!
-  \qmlmethod url Qt::resolvedUrl(url)
-  Returns \c url resolved relative to the URL of the caller.
+  \qmlmethod url Qt::resolvedUrl(url url)
+  Returns \a url resolved relative to the URL of the caller.
 */
 QUrl QDeclarativeScriptEngine::resolvedUrl(QScriptContext *context, const QUrl& url)
 {
@@ -438,8 +438,6 @@ void QDeclarativeEnginePrivate::clear(SimpleList<QDeclarativeParserStatus> &pss)
     pss.clear();
 }
 
-Q_GLOBAL_STATIC(QDeclarativeEngineDebugServer, qmlEngineDebugServer);
-
 void QDeclarativePrivate::qdeclarativeelement_destructor(QObject *o)
 {
     QObjectPrivate *p = QObjectPrivate::get(o);
@@ -481,9 +479,8 @@ void QDeclarativeEnginePrivate::init()
 
     if (QCoreApplication::instance()->thread() == q->thread() &&
         QDeclarativeEngineDebugServer::isDebuggingEnabled()) {
-        qmlEngineDebugServer();
         isDebugging = true;
-        QDeclarativeEngineDebugServer::addEngine(q);
+        QDeclarativeEngineDebugServer::instance()->addEngine(q);
     }
 }
 
@@ -547,7 +544,7 @@ QDeclarativeEngine::~QDeclarativeEngine()
 {
     Q_D(QDeclarativeEngine);
     if (d->isDebugging)
-        QDeclarativeEngineDebugServer::remEngine(this);
+        QDeclarativeEngineDebugServer::instance()->remEngine(this);
 }
 
 /*! \fn void QDeclarativeEngine::quit()
@@ -568,7 +565,7 @@ QDeclarativeEngine::~QDeclarativeEngine()
 void QDeclarativeEngine::clearComponentCache()
 {
     Q_D(QDeclarativeEngine);
-    d->typeManager.clearCache();
+    d->typeLoader.clearCache();
 }
 
 /*!
@@ -909,7 +906,7 @@ QDeclarativeEngine::ObjectOwnership QDeclarativeEngine::objectOwnership(QObject 
         return ddata->indestructible?CppOwnership:JavaScriptOwnership;
 }
 
-void qmlExecuteDeferred(QObject *object)
+Q_AUTOTEST_EXPORT void qmlExecuteDeferred(QObject *object)
 {
     QDeclarativeData *data = QDeclarativeData::get(object);
 
@@ -1719,6 +1716,9 @@ void QDeclarativeEnginePrivate::sendQuit()
 {
     Q_Q(QDeclarativeEngine);
     emit q->quit();
+    if (q->receivers(SIGNAL(quit())) == 0) {
+        qWarning("Signal QDeclarativeEngine::quit() emitted, but no receivers connected to handle it.");
+    }
 }
 
 static void dumpwarning(const QDeclarativeError &error)
@@ -2079,7 +2079,7 @@ void QDeclarativeEnginePrivate::registerCompositeType(QDeclarativeCompiledData *
     QByteArray name = data->root->className();
 
     QByteArray ptr = name + '*';
-    QByteArray lst = "QDeclarativeListProperty<" + name + ">";
+    QByteArray lst = "QDeclarativeListProperty<" + name + '>';
 
     int ptr_type = QMetaType::registerType(ptr.constData(), voidptr_destructor,
                                            voidptr_constructor);
@@ -2113,7 +2113,7 @@ bool QDeclarativeEnginePrivate::isQObject(int t)
 QObject *QDeclarativeEnginePrivate::toQObject(const QVariant &v, bool *ok) const
 {
     int t = v.userType();
-    if (m_compositeTypes.contains(t)) {
+    if (t == QMetaType::QObjectStar || m_compositeTypes.contains(t)) {
         if (ok) *ok = true;
         return *(QObject **)(v.constData());
     } else {

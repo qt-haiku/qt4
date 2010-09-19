@@ -583,7 +583,7 @@ int QPixmap::height() const
 */
 QSize QPixmap::size() const
 {
-    return data ? QSize(data->width(), data->height()) : QSize();
+    return data ? QSize(data->width(), data->height()) : QSize(0, 0);
 }
 
 /*!

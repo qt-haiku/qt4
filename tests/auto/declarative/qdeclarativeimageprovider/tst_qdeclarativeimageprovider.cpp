@@ -45,25 +45,14 @@
 #include <private/qdeclarativeimage_p.h>
 #include <QImageReader>
 #include <QWaitCondition>
+#include "../../../shared/util.h"
 
 #ifdef Q_OS_SYMBIAN
 // In Symbian OS test data is located in applications private dir
 #define SRCDIR "."
 #endif
 
-// QDeclarativeImageProvider::request() is run in an idle thread where possible
-// Be generous in our timeout.
-#define TRY_WAIT(expr) \
-    do { \
-        for (int ii = 0; ii < 10; ++ii) { \
-            if ((expr)) break; \
-            QTest::qWait(100); \
-        } \
-        QVERIFY((expr)); \
-    } while (false)
-
 Q_DECLARE_METATYPE(QDeclarativeImageProvider*);
-
 
 class tst_qdeclarativeimageprovider : public QObject
 {
@@ -212,24 +201,24 @@ void tst_qdeclarativeimageprovider::runTest(bool async, QDeclarativeImageProvide
     QVERIFY(obj != 0);
 
     if (async) 
-        TRY_WAIT(obj->status() == QDeclarativeImage::Loading);
+        QTRY_VERIFY(obj->status() == QDeclarativeImage::Loading);
 
     QCOMPARE(obj->source(), QUrl(source));
 
     if (error.isEmpty()) {
         if (async)
-            TRY_WAIT(obj->status() == QDeclarativeImage::Ready);
+            QTRY_VERIFY(obj->status() == QDeclarativeImage::Ready);
         else
             QVERIFY(obj->status() == QDeclarativeImage::Ready);
-        QCOMPARE(obj->width(), 100.0);
-        QCOMPARE(obj->height(), 100.0);
+        QCOMPARE(obj->width(), qreal(size.width()));
+        QCOMPARE(obj->height(), qreal(size.height()));
         QCOMPARE(obj->pixmap().width(), size.width());
         QCOMPARE(obj->pixmap().height(), size.height());
         QCOMPARE(obj->fillMode(), QDeclarativeImage::Stretch);
         QCOMPARE(obj->progress(), 1.0);
     } else {
         if (async)
-            TRY_WAIT(obj->status() == QDeclarativeImage::Error);
+            QTRY_VERIFY(obj->status() == QDeclarativeImage::Error);
         else
             QVERIFY(obj->status() == QDeclarativeImage::Error);
     }
@@ -389,8 +378,9 @@ void tst_qdeclarativeimageprovider::threadTest()
     }
     provider->ok = true;
     provider->cond.wakeAll();
+    QTest::qWait(250);
     foreach(QDeclarativeImage *img, images) {
-        TRY_WAIT(img->status() == QDeclarativeImage::Ready);
+        QTRY_VERIFY(img->status() == QDeclarativeImage::Ready);
     }
 }
 
