@@ -123,8 +123,8 @@ HQApplication::ArgvReceived(int32 argc, char **argv)
 bool 
 HQApplication::QuitRequested() {
     QEvent quitEvent(QEvent::Quit);
-    QApplication::sendEvent(qApp, &quitEvent);	
-	return false;
+    QApplication::sendEvent(qApp, &quitEvent);	    
+	return true;
 }
 
 
@@ -173,11 +173,6 @@ void qt_init(QApplicationPrivate *priv, int)
 void qt_cleanup()
 {
 	qDebug("qt_cleanup()");
-	if (happ)
-	{
-		happ->Lock();
-		happ->Quit();
-	}
 }
 
 void QApplicationPrivate::_q_alertTimeOut()
