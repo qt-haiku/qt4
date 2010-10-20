@@ -483,7 +483,7 @@ bool QApplicationPrivate::modalState()
 
 void QApplicationPrivate::enterModal_sys(QWidget *widget)
 {
-	qDebug()<<"Unimplemented: QApplicationPrivate::enterModal_sys(). Widget:"<<widget;
+//	qDebug()<<"Unimplemented: QApplicationPrivate::enterModal_sys(). Widget:"<<widget;
 
     if (!qt_modal_stack)
         qt_modal_stack = new QWidgetList;
@@ -503,7 +503,7 @@ void QApplicationPrivate::enterModal_sys(QWidget *widget)
 
 void QApplicationPrivate::leaveModal_sys(QWidget *widget)
 {
-	qDebug()<<"Unimplemented: QApplicationPrivate::leaveModal_sys(). Widget:"<<widget;
+	//qDebug()<<"Unimplemented: QApplicationPrivate::leaveModal_sys(). Widget:"<<widget;
 
     if (qt_modal_stack && qt_modal_stack->removeAll(widget)) {
         if (qt_modal_stack->isEmpty()) {
@@ -551,7 +551,7 @@ void QApplication::setMainWidget(QWidget *mainWidget)
 
 void QApplication::setDoubleClickInterval(int ms)
 {
-	qDebug("Reimplemented: QApplicationPrivate::setDoubleClickInterval - %d\n", ms);	
+//	qDebug("Reimplemented: QApplicationPrivate::setDoubleClickInterval - %d\n", ms);	
 #if 0	//change system dblclick interval currently disabled
 	QApplicationPrivate::mouse_double_click_time = ms;
 	bigtime_t	interval = ms*1000;

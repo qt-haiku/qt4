@@ -178,7 +178,7 @@ void QtHaikuView::MouseUp(BPoint point)
 		
 	QWidget *wat = QApplication::widgetAt(QPoint(glob_pos.x,glob_pos.y));
 	
-	qDebug() << "MouseUp " << fWidget << widget << wat;
+//	qDebug() << "MouseUp " << fWidget << widget << wat;
 	if(wat && wat!=widget) {
 		QPoint lpoint = wat->mapFromGlobal(QPoint(glob_pos.x,glob_pos.y));
 		if(fWidget->nativeView()->Window()==wat->nativeView()->Window()) {
@@ -218,7 +218,7 @@ void QtHaikuView::MouseDown(BPoint point)
 		
 	QWidget *wat = QApplication::widgetAt(QPoint(glob_pos.x,glob_pos.y));
 	
-	qDebug() << "MouseDown " << fWidget << widget << wat;
+//	qDebug() << "MouseDown " << fWidget << widget << wat;
 	if(wat && wat!=widget) {
 		QPoint lpoint = wat->mapFromGlobal(QPoint(glob_pos.x,glob_pos.y));
 		if(fWidget->nativeView()->Window()==wat->nativeView()->Window()) {
@@ -990,7 +990,7 @@ void QWidgetPrivate::setWSGeometry(bool dontShow, const QRect &)
 {
 	Q_UNUSED(dontShow);
 	Q_Q(QWidget);
-	qDebug() << "Unimplemented: QWidgetPrivate::setWSGeomerty() "<<  q ;
+//	qDebug() << "Unimplemented: QWidgetPrivate::setWSGeomerty() "<<  q ;
 }
 
 void QWidgetPrivate::setGeometry_sys(int x,int y,int w,int h,bool  isMove)
@@ -1266,7 +1266,7 @@ void QWidget::activateWindow()
 
 void QWidget::setWindowState(Qt::WindowStates newstate)
 {
-	qDebug() << "QWidgetPrivate::setWindowState() "<<  this<<"	"<<newstate ;
+//	qDebug() << "QWidgetPrivate::setWindowState() "<<  this<<"	"<<newstate ;
 
 	Q_D(QWidget);
 	Qt::WindowStates oldstate = windowState();
