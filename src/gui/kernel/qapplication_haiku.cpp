@@ -56,6 +56,7 @@ public:
 	virtual void MessageReceived(BMessage *message);
 	void	ArgvReceived(int32 argc, char **argv);
 	void	RefsReceived(BMessage *pmsg);
+	virtual	bool QuitRequested();
 	bool	RefHandled;
 	entry_ref Ref;
 private:
@@ -117,6 +118,13 @@ HQApplication::RefsReceived(BMessage *pmsg)
 void
 HQApplication::ArgvReceived(int32 argc, char **argv)
 {
+}
+
+bool 
+HQApplication::QuitRequested() {
+    QEvent quitEvent(QEvent::Quit);
+    QApplication::sendEvent(qApp, &quitEvent);	
+	return false;
 }
 
 
