@@ -2461,7 +2461,6 @@ QT3_SUPPORT Q_CORE_EXPORT const char *qInstallPathSysconf();
 #endif
 #endif
 
-
 //Symbian does not support data imports from a DLL
 #define Q_NO_DATA_RELOCATION
 

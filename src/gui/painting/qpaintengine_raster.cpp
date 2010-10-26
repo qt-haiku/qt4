@@ -1104,7 +1104,7 @@ void QRasterPaintEnginePrivate::updateMatrixData(QSpanData *spanData, const QBru
     Q_Q(QRasterPaintEngine);
     bool bilinear = q->state()->flags.bilinear;
 
-    if (b.d->transform.type() > QTransform::TxNone) { // FALCON: optimise
+    if (b.d->transform.type() > QTransform::TxNone) { // FALCON: optimize
         spanData->setupMatrix(b.transform() * m, bilinear);
     } else {
         if (m.type() <= QTransform::TxTranslate) {
@@ -3166,10 +3166,8 @@ void QRasterPaintEngine::drawGlyphsS60(const QPointF &p, const QTextItemInt &ti)
         const TUint8 *glyphBitmapBytes;
         TSize glyphBitmapSize;
         fe->getCharacterData(glyphs[i], tmetrics, glyphBitmapBytes, glyphBitmapSize);
-        const glyph_metrics_t metrics = ti.fontEngine->boundingBox(glyphs[i]);
-        const int x = qFloor(positions[i].x + metrics.x + aliasDelta);
-        const int y = qFloor(positions[i].y + metrics.y + aliasDelta);
-
+        const int x = qFloor(positions[i].x + tmetrics.HorizBearingX() + aliasDelta);
+        const int y = qFloor(positions[i].y - tmetrics.HorizBearingY() + aliasDelta);
         alphaPenBlt(glyphBitmapBytes, glyphBitmapSize.iWidth, 8, x, y, glyphBitmapSize.iWidth, glyphBitmapSize.iHeight);
     }
 
@@ -4150,6 +4148,10 @@ void QRasterPaintEnginePrivate::rasterize(QT_FT_Outline *outline,
     rasterize(outline, callback, (void *)spanData, rasterBuffer);
 }
 
+extern "C" {
+    int q_gray_rendered_spans(QT_FT_Raster raster);
+}
+
 void QRasterPaintEnginePrivate::rasterize(QT_FT_Outline *outline,
                                           ProcessSpans callback,
                                           void *userData, QRasterBuffer *)
@@ -4214,10 +4216,13 @@ void QRasterPaintEnginePrivate::rasterize(QT_FT_Outline *outline,
     bool done = false;
     int error;
 
+    int rendered_spans = 0;
+
     while (!done) {
 
         rasterParams.flags |= (QT_FT_RASTER_FLAG_AA | QT_FT_RASTER_FLAG_DIRECT);
         rasterParams.gray_spans = callback;
+        rasterParams.skip_spans = rendered_spans;
         error = qt_ft_grays_raster.raster_render(*grayRaster.data(), &rasterParams);
 
         // Out of memory, reallocate some more and try again...
@@ -4227,6 +4232,8 @@ void QRasterPaintEnginePrivate::rasterize(QT_FT_Outline *outline,
                 qWarning("QPainter: Rasterization of primitive failed");
                 break;
             }
+
+            rendered_spans += q_gray_rendered_spans(*grayRaster.data());
 
 #if defined(Q_WS_WIN64)
             _aligned_free(rasterPoolBase);

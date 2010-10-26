@@ -178,8 +178,15 @@ void SymbianCommonGenerator::generatePkgFile(const QString &iconFile, bool epocB
     QTextStream ts(&stubPkgFile);
 
     QString installerSisHeader = project->values("DEPLOYMENT.installer_header").join("\n");
-    if (installerSisHeader.isEmpty())
-        installerSisHeader = "0xA000D7CE"; // Use default self-signable UID if not defined
+    if (installerSisHeader.isEmpty()) {
+        // Use correct protected UID for publishing if application UID is in protected range,
+        // otherwise use self-signable test UID.
+        QRegExp protUidMatcher("0[xX][0-7].*");
+        if (protUidMatcher.exactMatch(uid3))
+            installerSisHeader = QLatin1String("0x2002CCCF");
+        else
+            installerSisHeader = QLatin1String("0xA000D7CE"); // Use default self-signable UID
+    }
 
     QString wrapperStreamBuffer;
     QTextStream tw(&wrapperStreamBuffer);
@@ -421,9 +428,9 @@ void SymbianCommonGenerator::generatePkgFile(const QString &iconFile, bool epocB
                     t << QString("\"%1epoc32/data/z%2\" - \"!:%3\"")
                          .arg(epocRoot())
                          .arg(iconFile)
-                         .arg(QDir::toNativeSeparators(iconFile)) << endl << endl;
+                         .arg(QString(iconFile).replace('/', '\\')) << endl << endl;
                     ts << QString("\"\" - \"%1\"")
-                         .arg(romPath(QDir::toNativeSeparators(iconFile))) << endl << endl;
+                         .arg(romPath(QString(iconFile).replace('/', '\\'))) << endl << endl;
                 } else {
                     QDir mifIconDir(project->first("DESTDIR"));
                     QFileInfo mifIcon(mifIconDir.relativeFilePath(project->first("TARGET")));
@@ -432,9 +439,9 @@ void SymbianCommonGenerator::generatePkgFile(const QString &iconFile, bool epocB
                     t << QString("\"%1/%2\" - \"!:%3\"")
                          .arg(mifIcon.path())
                          .arg(mifIconFileName)
-                         .arg(QDir::toNativeSeparators(iconFile)) << endl << endl;
+                         .arg(QString(iconFile).replace('/', '\\')) << endl << endl;
                     ts << QString("\"\" - \"%1\"")
-                         .arg(romPath(QDir::toNativeSeparators(iconFile))) << endl << endl;
+                         .arg(romPath(QString(iconFile).replace('/', '\\'))) << endl << endl;
                 }
             }
         }
@@ -531,7 +538,7 @@ void SymbianCommonGenerator::generatePkgFile(const QString &iconFile, bool epocB
         // Wrapped files deployment
         QString currentPath = qmake_getpwd();
         QString sisName = QString("%1.sis").arg(fixedTarget);
-        twf << "\"" << currentPath << "/" << sisName << "\" - \"c:\\private\\2002CCCE\\import\\" << sisName << "\"" << endl;
+        twf << "\"" << currentPath << "/" << sisName << "\" - \"!:\\private\\2002CCCE\\import\\" << sisName << "\"" << endl;
 
         QString bootStrapPath = QLibraryInfo::location(QLibraryInfo::PrefixPath);
         bootStrapPath.append("/smartinstaller.sis");

@@ -150,7 +150,7 @@ void tst_qdeclarativelistmodel::static_i18n()
 {
     QString expect = QString::fromUtf8("na\303\257ve");
 
-    QString componentStr = "import Qt 4.7\nListModel { ListElement { prop1: \""+expect+"\"; prop2: QT_TR_NOOP(\""+expect+"\") } }";
+    QString componentStr = "import QtQuick 1.0\nListModel { ListElement { prop1: \""+expect+"\"; prop2: QT_TR_NOOP(\""+expect+"\") } }";
     QDeclarativeEngine engine;
     QDeclarativeComponent component(&engine);
     component.setData(componentStr.toUtf8(), QUrl::fromLocalFile(""));
@@ -173,7 +173,7 @@ void tst_qdeclarativelistmodel::static_nestedElements()
     QString elementsStr = elements.join(",\n") + "\n";
 
     QString componentStr = 
-        "import Qt 4.7\n"
+        "import QtQuick 1.0\n"
         "ListModel {\n"
         "   ListElement {\n"
         "       attributes: [\n";
@@ -320,11 +320,16 @@ void tst_qdeclarativelistmodel::dynamic()
     if (!warning.isEmpty())
         QTest::ignoreMessage(QtWarningMsg, warning.toLatin1());
 
+    QSignalSpy spyCount(&model, SIGNAL(countChanged()));
+
     int actual = e.evaluate().toInt();
     if (e.hasError())
         qDebug() << e.error(); // errors not expected
 
     QCOMPARE(actual,result);
+
+    if (model.count() > 0)
+        QVERIFY(spyCount.count() > 0);
 }
 
 void tst_qdeclarativelistmodel::dynamic_worker_data()
@@ -351,6 +356,8 @@ void tst_qdeclarativelistmodel::dynamic_worker()
     QDeclarativeItem *item = createWorkerTest(&eng, &component, &model);
     QVERIFY(item != 0);
 
+    QSignalSpy spyCount(&model, SIGNAL(countChanged()));
+
     if (script[0] == QLatin1Char('{') && script[script.length()-1] == QLatin1Char('}'))
         script = script.mid(1, script.length() - 2);
     QVariantList operations;
@@ -366,6 +373,9 @@ void tst_qdeclarativelistmodel::dynamic_worker()
             Q_ARG(QVariant, operations)));
     waitForWorker(item);
     QCOMPARE(QDeclarativeProperty(item, "result").read().toInt(), result);
+
+    if (model.count() > 0)
+        QVERIFY(spyCount.count() > 0);
 
     delete item;
     qApp->processEvents();
@@ -550,7 +560,7 @@ void tst_qdeclarativelistmodel::static_types()
     QFETCH(QString, qml);
     QFETCH(QVariant, value);
 
-    qml = "import Qt 4.7\nListModel { " + qml + " }";
+    qml = "import QtQuick 1.0\nListModel { " + qml + " }";
 
     QDeclarativeEngine engine;
     QDeclarativeComponent component(&engine);
@@ -599,47 +609,47 @@ void tst_qdeclarativelistmodel::error_data()
     QTest::addColumn<QString>("error");
 
     QTest::newRow("id not allowed in ListElement")
-        << "import Qt 4.7\nListModel { ListElement { id: fred } }"
+        << "import QtQuick 1.0\nListModel { ListElement { id: fred } }"
         << "ListElement: cannot use reserved \"id\" property";
 
     QTest::newRow("id allowed in ListModel")
-        << "import Qt 4.7\nListModel { id:model }"
+        << "import QtQuick 1.0\nListModel { id:model }"
         << "";
 
     QTest::newRow("random properties not allowed in ListModel")
-        << "import Qt 4.7\nListModel { foo:123 }"
+        << "import QtQuick 1.0\nListModel { foo:123 }"
         << "ListModel: undefined property 'foo'";
 
     QTest::newRow("random properties allowed in ListElement")
-        << "import Qt 4.7\nListModel { ListElement { foo:123 } }"
+        << "import QtQuick 1.0\nListModel { ListElement { foo:123 } }"
         << "";
 
     QTest::newRow("bindings not allowed in ListElement")
-        << "import Qt 4.7\nRectangle { id: rect; ListModel { ListElement { foo: rect.color } } }"
+        << "import QtQuick 1.0\nRectangle { id: rect; ListModel { ListElement { foo: rect.color } } }"
         << "ListElement: cannot use script for property value";
 
     QTest::newRow("random object list properties allowed in ListElement")
-        << "import Qt 4.7\nListModel { ListElement { foo: [ ListElement { bar: 123 } ] } }"
+        << "import QtQuick 1.0\nListModel { ListElement { foo: [ ListElement { bar: 123 } ] } }"
         << "";
 
     QTest::newRow("default properties not allowed in ListElement")
-        << "import Qt 4.7\nListModel { ListElement { Item { } } }"
+        << "import QtQuick 1.0\nListModel { ListElement { Item { } } }"
         << "ListElement: cannot contain nested elements";
 
     QTest::newRow("QML elements not allowed in ListElement")
-        << "import Qt 4.7\nListModel { ListElement { a: Item { } } }"
+        << "import QtQuick 1.0\nListModel { ListElement { a: Item { } } }"
         << "ListElement: cannot contain nested elements";
 
     QTest::newRow("qualified ListElement supported")
-        << "import Qt 4.7 as Foo\nFoo.ListModel { Foo.ListElement { a: 123 } }"
+        << "import QtQuick 1.0 as Foo\nFoo.ListModel { Foo.ListElement { a: 123 } }"
         << "";
 
     QTest::newRow("qualified ListElement required")
-        << "import Qt 4.7 as Foo\nFoo.ListModel { ListElement { a: 123 } }"
+        << "import QtQuick 1.0 as Foo\nFoo.ListModel { ListElement { a: 123 } }"
         << "ListElement is not a type";
 
     QTest::newRow("unknown qualified ListElement not allowed")
-        << "import Qt 4.7\nListModel { Foo.ListElement { a: 123 } }"
+        << "import QtQuick 1.0\nListModel { Foo.ListElement { a: 123 } }"
         << "Foo.ListElement - Foo is not a namespace";
 }
 
@@ -664,7 +674,7 @@ void tst_qdeclarativelistmodel::error()
 
 void tst_qdeclarativelistmodel::syncError()
 {
-    QString qml = "import Qt 4.7\nListModel { id: lm; Component.onCompleted: lm.sync() }";
+    QString qml = "import QtQuick 1.0\nListModel { id: lm; Component.onCompleted: lm.sync() }";
     QString error = "file:dummy.qml:2:1: QML ListModel: List sync() can only be called from a WorkerScript";
 
     QDeclarativeEngine engine;
@@ -716,7 +726,7 @@ void tst_qdeclarativelistmodel::get()
     QDeclarativeEngine eng;
     QDeclarativeComponent component(&eng);
     component.setData(
-        "import Qt 4.7\n"
+        "import QtQuick 1.0\n"
         "ListModel { \n"
             "ListElement { roleA: 100 }\n"
             "ListElement { roleA: 200; roleB: 400 } \n"
@@ -829,7 +839,7 @@ void tst_qdeclarativelistmodel::get_nested()
     QDeclarativeEngine eng;
     QDeclarativeComponent component(&eng);
     component.setData(
-        "import Qt 4.7\n"
+        "import QtQuick 1.0\n"
         "ListModel { \n"
             "ListElement {\n"
                 "listRoleA: [\n"

@@ -158,7 +158,7 @@ public:
 
     virtual QFixed emSquareSize() const { return ascent(); }
 
-    /* returns 0 as glyph index for non existant glyphs */
+    /* returns 0 as glyph index for non existent glyphs */
     virtual bool stringToCMap(const QChar *str, int len, QGlyphLayout *glyphs, int *nglyphs, QTextEngine::ShaperFlags flags) const = 0;
 
     /**
@@ -226,6 +226,8 @@ public:
 
     static const uchar *getCMap(const uchar *table, uint tableSize, bool *isSymbolFont, int *cmapSize);
     static quint32 getTrueTypeGlyphIndex(const uchar *cmap, uint unicode);
+
+    static QByteArray convertToPostscriptFontFamilyName(const QByteArray &fontFamily);
 
     QAtomicInt ref;
     QFontDef fontDef;
