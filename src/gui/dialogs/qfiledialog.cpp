@@ -2247,9 +2247,9 @@ void QFileDialogPrivate::createWidgets()
 #ifndef QT_NO_FSCOMPLETER
     completer = new QFSCompleter(model, q);
     qFileDialogUi->fileNameEdit->setCompleter(completer);
+#endif // QT_NO_FSCOMPLETER
     QObject::connect(qFileDialogUi->fileNameEdit, SIGNAL(textChanged(QString)),
             q, SLOT(_q_autoCompleteFileName(QString)));
-#endif // QT_NO_FSCOMPLETER
     QObject::connect(qFileDialogUi->fileNameEdit, SIGNAL(textChanged(QString)),
                      q, SLOT(_q_updateOkButton()));
 
@@ -3300,7 +3300,10 @@ QString QFSCompleter::pathFromIndex(const QModelIndex &index) const
         if (currentLocation == QDir::separator())
             return path.mid(currentLocation.length());
 #endif
-        return path.mid(currentLocation.length() + 1);
+        if (currentLocation.endsWith('/'))
+            return path.mid(currentLocation.length());
+        else
+            return path.mid(currentLocation.length()+1);
     }
     return index.data(QFileSystemModel::FilePathRole).toString();
 }

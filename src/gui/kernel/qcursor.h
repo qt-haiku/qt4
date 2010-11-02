@@ -100,6 +100,10 @@ public:
     QCursor(const QCursor &cursor);
     ~QCursor();
     QCursor &operator=(const QCursor &cursor);
+#ifdef Q_COMPILER_RVALUE_REFS
+    inline QCursor &operator=(QCursor &&other)
+    { qSwap(d, other.d); return *this; }
+#endif
     operator QVariant() const;
 
     Qt::CursorShape shape() const;
@@ -130,7 +134,7 @@ public:
     static int x11Screen();
 #elif defined(Q_WS_MAC)
     Qt::HANDLE handle() const;
-#elif defined(Q_WS_QWS)
+#elif defined(Q_WS_QWS) || defined(Q_WS_QPA)
     int handle() const;
 #elif defined(Q_OS_SYMBIAN)
     Qt::HANDLE handle() const;

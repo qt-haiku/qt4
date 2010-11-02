@@ -926,14 +926,7 @@ void QTableViewPrivate::drawCell(QPainter *painter, const QStyleOptionViewItemV4
 
     q->style()->drawPrimitive(QStyle::PE_PanelItemViewRow, &opt, painter, q);
 
-    if (const QWidget *widget = editorForIndex(index).editor) {
-        painter->save();
-        painter->setClipRect(widget->geometry());
-        q->itemDelegate(index)->paint(painter, opt, index);
-        painter->restore();
-    } else {
-        q->itemDelegate(index)->paint(painter, opt, index);
-    }
+    q->itemDelegate(index)->paint(painter, opt, index);
 }
 
 /*!
@@ -2166,7 +2159,7 @@ int QTableView::sizeHintForRow(int row) const
             option.rect.setWidth(columnWidth(index.column()));
         }
         
-        QWidget *editor = d->editorForIndex(index).editor;
+        QWidget *editor = d->editorForIndex(index).widget.data();
         if (editor && d->persistent.contains(editor)) {
             hint = qMax(hint, editor->sizeHint().height());
             int min = editor->minimumSize().height();
@@ -2219,7 +2212,7 @@ int QTableView::sizeHintForColumn(int column) const
             continue;
         index = d->model->index(logicalRow, column, d->root);
         
-        QWidget *editor = d->editorForIndex(index).editor;
+        QWidget *editor = d->editorForIndex(index).widget.data();
         if (editor && d->persistent.contains(editor)) {
             hint = qMax(hint, editor->sizeHint().width());
             int min = editor->minimumSize().width();

@@ -146,7 +146,7 @@ QNonContiguousByteDevice* QNetworkAccessBackend::createUploadByteDevice()
 // and the special backends need to access this.
 void QNetworkAccessBackend::emitReplyUploadProgress(qint64 bytesSent, qint64 bytesTotal)
 {
-    if (reply->isFinished())
+    if (reply->isFinished)
         return;
     reply->emitUploadProgress(bytesSent, bytesTotal);
 }
@@ -252,6 +252,17 @@ void QNetworkAccessBackend::writeDownstreamData(QIODevice *data)
     reply->appendDownstreamData(data);
 }
 
+// not actually appending data, it was already written to the user buffer
+void QNetworkAccessBackend::writeDownstreamDataDownloadBuffer(qint64 bytesReceived, qint64 bytesTotal)
+{
+    reply->appendDownstreamDataDownloadBuffer(bytesReceived, bytesTotal);
+}
+
+char* QNetworkAccessBackend::getDownloadBuffer(qint64 size)
+{
+    return reply->getDownloadBuffer(size);
+}
+
 QVariant QNetworkAccessBackend::header(QNetworkRequest::KnownHeaders header) const
 {
     return reply->q_func()->header(header);
@@ -329,7 +340,7 @@ void QNetworkAccessBackend::authenticationRequired(QAuthenticator *authenticator
 
 void QNetworkAccessBackend::cacheCredentials(QAuthenticator *authenticator)
 {
-    manager->addCredentials(this->reply->url, authenticator);
+    manager->cacheCredentials(this->reply->url, authenticator);
 }
 
 void QNetworkAccessBackend::metaDataChanged()

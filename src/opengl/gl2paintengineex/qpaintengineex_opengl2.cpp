@@ -1474,11 +1474,12 @@ void QGL2PaintEngineExPrivate::drawCachedGlyphs(QFontEngineGlyphCache::Type glyp
 
     QOpenGL2PaintEngineState *s = q->state();
 
+    void *cacheKey = const_cast<QGLContext *>(QGLContextPrivate::contextGroup(ctx)->context());
     QGLTextureGlyphCache *cache =
-        (QGLTextureGlyphCache *) staticTextItem->fontEngine->glyphCache(ctx, glyphType, QTransform());
+            (QGLTextureGlyphCache *) staticTextItem->fontEngine->glyphCache(cacheKey, glyphType, QTransform());
     if (!cache || cache->cacheType() != glyphType) {
         cache = new QGLTextureGlyphCache(ctx, glyphType, QTransform());
-        staticTextItem->fontEngine->setGlyphCache(ctx, cache);
+        staticTextItem->fontEngine->setGlyphCache(cacheKey, cache);
     }
 
     bool recreateVertexArrays = false;
@@ -1496,6 +1497,7 @@ void QGL2PaintEngineExPrivate::drawCachedGlyphs(QFontEngineGlyphCache::Type glyp
         cache->setPaintEnginePrivate(this);
         cache->populate(staticTextItem->fontEngine, staticTextItem->numGlyphs, staticTextItem->glyphs,
                         staticTextItem->glyphPositions);
+        cache->fillInPendingGlyphs();
     }
 
     if (cache->width() == 0 || cache->height() == 0)
@@ -1541,8 +1543,15 @@ void QGL2PaintEngineExPrivate::drawCachedGlyphs(QFontEngineGlyphCache::Type glyp
         vertexCoordinates->clear();
         textureCoordinates->clear();
 
+        bool supportsSubPixelPositions = staticTextItem->fontEngine->supportsSubPixelPositions();
         for (int i=0; i<staticTextItem->numGlyphs; ++i) {
-            const QTextureGlyphCache::Coord &c = cache->coords.value(staticTextItem->glyphs[i]);
+            QFixed subPixelPosition;
+            if (supportsSubPixelPositions)
+                subPixelPosition = cache->subPixelPositionForX(staticTextItem->glyphPositions[i].x);
+
+            QTextureGlyphCache::GlyphAndSubPixelPosition glyph(staticTextItem->glyphs[i], subPixelPosition);
+
+            const QTextureGlyphCache::Coord &c = cache->coords.value(glyph);
             int x = staticTextItem->glyphPositions[i].x.toInt() + c.baseLineX - margin;
             int y = staticTextItem->glyphPositions[i].y.toInt() - c.baseLineY - margin;
 

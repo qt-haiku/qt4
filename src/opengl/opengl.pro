@@ -11,7 +11,7 @@ unix:QMAKE_PKGCONFIG_REQUIRES = QtCore QtGui
 
 include(../qbase.pri)
 
-!win32:!embedded:!mac:!symbian:CONFIG	   += x11
+!win32:!embedded:!mac:!symbian:!qpa:CONFIG	   += x11
 contains(QT_CONFIG, opengl):CONFIG += opengl
 contains(QT_CONFIG, opengles1):CONFIG += opengles1
 contains(QT_CONFIG, opengles2):CONFIG += opengles2
@@ -20,6 +20,7 @@ contains(QT_CONFIG, egl):CONFIG += egl
 HEADERS += qgl.h \
            qgl_p.h \
            qglcolormap.h \
+           qglfunctions.h \
            qglpixelbuffer.h \
            qglpixelbuffer_p.h \
            qglframebufferobject.h  \
@@ -29,8 +30,9 @@ HEADERS += qgl.h \
            qglbuffer.h \
 
 
-SOURCES	+= qgl.cpp \
+SOURCES += qgl.cpp \
            qglcolormap.cpp \
+           qglfunctions.cpp \
            qglpixelbuffer.cpp \
            qglframebufferobject.cpp \
            qglextensions.cpp \
@@ -75,6 +77,11 @@ SOURCES	+= qgl.cpp \
                 gl2paintengineex/qtriangulator.cpp \
                 gl2paintengineex/qtextureglyphcache_gl.cpp
 
+}
+
+qpa {
+    SOURCES +=  qgl_qpa.cpp \
+                qglpixelbuffer_stub.cpp
 }
 
 x11 {

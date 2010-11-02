@@ -103,7 +103,7 @@ static bool qt_pixmap_thread_test()
         return false;
     }
 #ifndef Q_WS_WIN
-    if (qApp->thread() != QThread::currentThread()) {
+    if (!QApplication::testAttribute(Qt::AA_X11InitThreads) && qApp->thread() != QThread::currentThread()) {
         qWarning("QPixmap: It is not safe to use pixmaps outside the GUI thread");
         return false;
     }
@@ -1179,7 +1179,12 @@ QPixmap QPixmap::grabWidget(QWidget * widget, const QRect &rect)
 
     \warning This function is X11 specific; using it is non-portable.
 
+    \warning Since 4.8, pixmaps do not have an X11 handle unless
+    created with \l {QPixmap::}{fromX11Pixmap()}, or if the native
+    graphics system is explicitly enabled.
+
     \sa detach()
+    \sa QApplication::setGraphicsSystem()
 */
 
 Qt::HANDLE QPixmap::handle() const
@@ -1965,6 +1970,8 @@ int QPixmap::defaultDepth()
     return 32;
 #elif defined(Q_OS_SYMBIAN)
     return S60->screenDepth;
+#elif defined(Q_WS_QPA)
+    return 32; //LITE: use graphicssystem (we should do that in general)
 #endif
 }
 

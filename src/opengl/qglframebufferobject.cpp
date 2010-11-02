@@ -674,6 +674,13 @@ void QGLFramebufferObjectPrivate::init(QGLFramebufferObject *q, const QSize &sz,
     as a texture, you first need to copy from it to a regular framebuffer
     object using QGLContext::blitFramebuffer().
 
+    \section Threading
+
+    As of Qt 4.8, it's possible to draw into a QGLFramebufferObject
+    using a QPainter in a separate thread. Note that OpenGL 2.0 or
+    OpenGL ES 2.0 is required for this to work. Also, under X11, it's
+    necessary to set the Qt::AA_X11InitThreads application attribute.
+
     \sa {Framebuffer Object Example}
 */
 
@@ -1044,11 +1051,11 @@ QImage QGLFramebufferObject::toImage() const
 }
 
 #if !defined(QT_OPENGL_ES_1)
-Q_GLOBAL_STATIC(QGL2PaintEngineEx, qt_buffer_2_engine)
+Q_GLOBAL_STATIC(QGLEngineThreadStorage<QGL2PaintEngineEx>, qt_buffer_2_engine)
 #endif
 
 #ifndef QT_OPENGL_ES_2
-Q_GLOBAL_STATIC(QOpenGLPaintEngine, qt_buffer_engine)
+Q_GLOBAL_STATIC(QGLEngineThreadStorage<QOpenGLPaintEngine>, qt_buffer_engine)
 #endif
 
 /*! \reimp */
@@ -1062,7 +1069,7 @@ QPaintEngine *QGLFramebufferObject::paintEngine() const
 #if !defined (QT_OPENGL_ES_2)
     if (qt_gl_preferGL2Engine()) {
 #endif
-        QPaintEngine *engine = qt_buffer_2_engine();
+        QPaintEngine *engine = qt_buffer_2_engine()->engine();
         if (engine->isActive() && engine->paintDevice() != this) {
             d->engine = new QGL2PaintEngineEx;
             return d->engine;
@@ -1074,7 +1081,7 @@ QPaintEngine *QGLFramebufferObject::paintEngine() const
 #endif
 
 #if !defined(QT_OPENGL_ES_2)
-    QPaintEngine *engine = qt_buffer_engine();
+    QPaintEngine *engine = qt_buffer_engine()->engine();
     if (engine->isActive() && engine->paintDevice() != this) {
         d->engine = new QOpenGLPaintEngine;
         return d->engine;

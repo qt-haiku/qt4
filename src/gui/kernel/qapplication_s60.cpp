@@ -1391,7 +1391,7 @@ bool QSymbianControl::isControlActive()
     This function is only available on S60.
 */
 QApplication::QApplication(QApplication::QS60MainApplicationFactory factory, int &argc, char **argv)
-    : QCoreApplication(*new QApplicationPrivate(argc, argv, GuiClient))
+    : QCoreApplication(*new QApplicationPrivate(argc, argv, GuiClient, 0x040000))
 {
     Q_D(QApplication);
     S60->s60ApplicationFactory = factory;
@@ -1399,7 +1399,7 @@ QApplication::QApplication(QApplication::QS60MainApplicationFactory factory, int
 }
 
 QApplication::QApplication(QApplication::QS60MainApplicationFactory factory, int &argc, char **argv, int _internal)
-    : QCoreApplication(*new QApplicationPrivate(argc, argv, GuiClient))
+    : QCoreApplication(*new QApplicationPrivate(argc, argv, GuiClient, _internal))
 {
     Q_D(QApplication);
     S60->s60ApplicationFactory = factory;
@@ -2055,6 +2055,17 @@ int QApplicationPrivate::symbianProcessWsEvent(const QSymbianEvent *symbianEvent
         }
 #endif
         break;
+#ifdef Q_SYMBIAN_SUPPORTS_SURFACES
+    case EEventUser:
+        {
+            // GOOM is looking for candidates to kill so indicate that we are
+            // capable of cleaning up by handling this event
+            TInt32 *data = reinterpret_cast<TInt32 *>(event->EventData());
+            if (data[0] == EApaSystemEventShutdown && data[1] == KGoomMemoryLowEvent)
+                return 1;
+        }
+        break;
+#endif
     default:
         break;
     }

@@ -184,10 +184,6 @@ QFontEngine::QFontEngine()
 
 QFontEngine::~QFontEngine()
 {
-    for (QLinkedList<GlyphCacheEntry>::const_iterator it = m_glyphCaches.constBegin(),
-            end = m_glyphCaches.constEnd(); it != end; ++it) {
-        delete it->cache;
-    }
     m_glyphCaches.clear();
     qHBFreeFace(hbFace);
 }
@@ -239,6 +235,24 @@ glyph_metrics_t QFontEngine::boundingBox(glyph_t glyph, const QTransform &matrix
         return metrics.transformed(matrix);
     }
     return metrics;
+}
+
+QFont QFontEngine::createExplicitFont() const
+{
+    return createExplicitFontWithName(fontDef.family);
+}
+
+QFont QFontEngine::createExplicitFontWithName(const QString &familyName) const
+{
+    QFont font(familyName);
+    font.setStyleStrategy(QFont::NoFontMerging);
+    font.setWeight(fontDef.weight);
+    font.setItalic(fontDef.style == QFont::StyleItalic);
+    if (fontDef.pointSize < 0)
+        font.setPixelSize(fontDef.pixelSize);
+    else
+        font.setPointSizeF(fontDef.pointSize);
+    return font;
 }
 
 QFixed QFontEngine::xHeight() const
@@ -480,7 +494,7 @@ static void collectSingleContour(qreal x0, qreal y0, uint *grid, int x, int y, i
     path->closeSubpath();
 }
 
-void qt_addBitmapToPath(qreal x0, qreal y0, const uchar *image_data, int bpl, int w, int h, QPainterPath *path)
+Q_GUI_EXPORT void qt_addBitmapToPath(qreal x0, qreal y0, const uchar *image_data, int bpl, int w, int h, QPainterPath *path)
 {
     uint *grid = new uint[(w+1)*(h+1)];
     // set up edges
@@ -601,7 +615,7 @@ QImage QFontEngine::alphaMapForGlyph(glyph_t glyph, const QTransform &t)
     return i;
 }
 
-QImage QFontEngine::alphaRGBMapForGlyph(glyph_t glyph, int /* margin */, const QTransform &t)
+QImage QFontEngine::alphaRGBMapForGlyph(glyph_t glyph, QFixed /*subPixelPosition*/, int /* margin */, const QTransform &t)
 {
     QImage alphaMask = alphaMapForGlyph(glyph, t);
     QImage rgbMask(alphaMask.width(), alphaMask.height(), QImage::Format_RGB32);
@@ -711,14 +725,16 @@ void QFontEngine::setGlyphCache(void *key, QFontEngineGlyphCache *data)
 {
     Q_ASSERT(data);
 
-    GlyphCacheEntry entry = { key, data };
+    GlyphCacheEntry entry;
+    entry.context = key;
+    entry.cache = data;
     if (m_glyphCaches.contains(entry))
         return;
 
     // Limit the glyph caches to 4. This covers all 90 degree rotations and limits
     // memory use when there is continuous or random rotation
     if (m_glyphCaches.size() == 4)
-        delete m_glyphCaches.takeLast().cache;
+        m_glyphCaches.removeLast();
 
     m_glyphCaches.push_front(entry);
 
@@ -727,7 +743,7 @@ void QFontEngine::setGlyphCache(void *key, QFontEngineGlyphCache *data)
 QFontEngineGlyphCache *QFontEngine::glyphCache(void *key, QFontEngineGlyphCache::Type type, const QTransform &transform) const
 {
     for (QLinkedList<GlyphCacheEntry>::const_iterator it = m_glyphCaches.constBegin(), end = m_glyphCaches.constEnd(); it != end; ++it) {
-        QFontEngineGlyphCache *c = it->cache;
+        QFontEngineGlyphCache *c = it->cache.data();
         if (key == it->context
             && type == c->cacheType()
             && qtransform_equals_no_translate(c->m_transform, transform)) {
@@ -737,7 +753,7 @@ QFontEngineGlyphCache *QFontEngine::glyphCache(void *key, QFontEngineGlyphCache:
     return 0;
 }
 
-#if defined(Q_WS_WIN) || defined(Q_WS_X11) || defined(Q_WS_QWS) || defined(Q_OS_SYMBIAN)  || defined(Q_WS_HAIKU)
+#if defined(Q_WS_WIN) || defined(Q_WS_X11) || defined(Q_WS_QWS) || defined(Q_WS_QPA) || defined(Q_OS_SYMBIAN) || defined(Q_WS_HAIKU)
 static inline QFixed kerning(int left, int right, const QFontEngine::KernPair *pairs, int numPairs)
 {
     uint left_right = (left << 16) + right;
@@ -1181,7 +1197,7 @@ glyph_metrics_t QFontEngineBox::boundingBox(const QGlyphLayout &glyphs)
     return overall;
 }
 
-#if defined(Q_WS_QWS)
+#if defined(Q_WS_QWS) || defined(Q_WS_QPA)
 void QFontEngineBox::draw(QPaintEngine *p, qreal x, qreal y, const QTextItemInt &ti)
 {
     if (!ti.glyphs.numGlyphs)

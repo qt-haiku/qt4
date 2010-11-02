@@ -2544,8 +2544,8 @@ void QGraphicsScene::addItem(QGraphicsItem *item)
     // Notify the item that its scene is changing, and allow the item to
     // react.
     const QVariant newSceneVariant(item->itemChange(QGraphicsItem::ItemSceneChange,
-                                                    qVariantFromValue<QGraphicsScene *>(this)));
-    QGraphicsScene *targetScene = qVariantValue<QGraphicsScene *>(newSceneVariant);
+                                                    QVariant::fromValue<QGraphicsScene *>(this)));
+    QGraphicsScene *targetScene = qvariant_cast<QGraphicsScene *>(newSceneVariant);
     if (targetScene != this) {
         if (targetScene && item->d_ptr->scene != targetScene)
             targetScene->addItem(item);
@@ -2956,8 +2956,8 @@ void QGraphicsScene::removeItem(QGraphicsItem *item)
     // Notify the item that it's scene is changing to 0, allowing the item to
     // react.
     const QVariant newSceneVariant(item->itemChange(QGraphicsItem::ItemSceneChange,
-                                                    qVariantFromValue<QGraphicsScene *>(0)));
-    QGraphicsScene *targetScene = qVariantValue<QGraphicsScene *>(newSceneVariant);
+                                                    QVariant::fromValue<QGraphicsScene *>(0)));
+    QGraphicsScene *targetScene = qvariant_cast<QGraphicsScene *>(newSceneVariant);
     if (targetScene != 0 && targetScene != this) {
         targetScene->addItem(item);
         return;
@@ -3461,7 +3461,8 @@ bool QGraphicsScene::event(QEvent *event)
         break;
     }
     case QEvent::Leave:
-        d->leaveScene();
+        // hackieshly unpacking the viewport pointer from the leave event.
+        d->leaveScene(reinterpret_cast<QWidget *>(event->d));
         break;
     case QEvent::GraphicsSceneHelp:
         helpEvent(static_cast<QGraphicsSceneHelpEvent *>(event));
@@ -3933,20 +3934,19 @@ bool QGraphicsScenePrivate::dispatchHoverEvent(QGraphicsSceneHoverEvent *hoverEv
     Handles all actions necessary to clean up the scene when the mouse leaves
     the view.
 */
-void QGraphicsScenePrivate::leaveScene()
+void QGraphicsScenePrivate::leaveScene(QWidget *viewport)
 {
-    Q_Q(QGraphicsScene);
 #ifndef QT_NO_TOOLTIP
     QToolTip::hideText();
 #endif
+    QGraphicsView *view = qobject_cast<QGraphicsView *>(viewport->parent());
     // Send HoverLeave events to all existing hover items, topmost first.
-    QGraphicsView *senderWidget = qobject_cast<QGraphicsView *>(q->sender());
     QGraphicsSceneHoverEvent hoverEvent;
-    hoverEvent.setWidget(senderWidget);
+    hoverEvent.setWidget(viewport);
 
-    if (senderWidget) {
+    if (view) {
         QPoint cursorPos = QCursor::pos();
-        hoverEvent.setScenePos(senderWidget->mapToScene(senderWidget->mapFromGlobal(cursorPos)));
+        hoverEvent.setScenePos(view->mapToScene(viewport->mapFromGlobal(cursorPos)));
         hoverEvent.setLastScenePos(hoverEvent.scenePos());
         hoverEvent.setScreenPos(cursorPos);
         hoverEvent.setLastScreenPos(hoverEvent.screenPos());

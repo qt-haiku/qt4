@@ -76,6 +76,9 @@
 # include "qpaintengine.h" // for PorterDuff
 # include "private/qwindowsurface_qws_p.h"
 #endif
+#if defined(Q_WS_QPA)
+#include "qplatformwindow_qpa.h"
+#endif
 #include "qpainter.h"
 #include "qtooltip.h"
 #include "qwhatsthis.h"
@@ -236,6 +239,17 @@ void QWidgetBackingStoreTracker::unregisterWidget(QWidget *w)
     }
 }
 
+/*!
+    \internal
+    Recursively remove widget and all of its descendents.
+ */
+void QWidgetBackingStoreTracker::unregisterWidgetSubtree(QWidget *widget)
+{
+    unregisterWidget(widget);
+    foreach (QObject *child, widget->children())
+        if (QWidget *childWidget = qobject_cast<QWidget *>(child))
+            unregisterWidgetSubtree(childWidget);
+}
 
 QWidgetPrivate::QWidgetPrivate(int version)
     : QObjectPrivate(version)
@@ -289,6 +303,8 @@ QWidgetPrivate::QWidgetPrivate(int version)
       , hasAlienChildren(0)
       , window_event(0)
       , qd_hd(0)
+#elif defined (Q_WS_QPA)
+      , screenNumber(0)
 #endif
 {
     if (!qApp) {
@@ -305,6 +321,9 @@ QWidgetPrivate::QWidgetPrivate(int version)
     drawRectOriginalAdded = false;
     originalDrawMethod = true;
     changeMethods = false;
+    hasOwnContext = false;
+    isInUnifiedToolbar = false;
+    unifiedSurface = 0;
 #endif // QT_MAC_USE_COCOA
 #ifdef QWIDGET_EXTRA_DEBUG
     static int count = 0;
@@ -326,15 +345,27 @@ QWidgetPrivate::~QWidgetPrivate()
 #endif //QT_NO_GRAPHICSEFFECT
 }
 
+class QDummyWindowSurface : public QWindowSurface
+{
+public:
+    QDummyWindowSurface(QWidget *window) : QWindowSurface(window) {}
+    QPaintDevice *paintDevice() { return window(); }
+    void flush(QWidget *, const QRegion &, const QPoint &) {}
+};
+
 QWindowSurface *QWidgetPrivate::createDefaultWindowSurface()
 {
     Q_Q(QWidget);
 
     QWindowSurface *surface;
-    if (QApplicationPrivate::graphicsSystem())
-        surface = QApplicationPrivate::graphicsSystem()->createWindowSurface(q);
-    else
-        surface = createDefaultWindowSurface_sys();
+    if (q->property("_q_DummyWindowSurface").toBool()) {
+        surface = new QDummyWindowSurface(q);
+    } else {
+        if (QApplicationPrivate::graphicsSystem())
+            surface = QApplicationPrivate::graphicsSystem()->createWindowSurface(q);
+        else
+            surface = createDefaultWindowSurface_sys();
+    }
 
     return surface;
 }
@@ -1244,6 +1275,12 @@ void QWidgetPrivate::init(QWidget *parentWidget, Qt::WindowFlags f)
         // programmer specified desktop widget
         xinfo = desktopWidget->d_func()->xinfo;
     }
+#elif defined(Q_WS_QPA)
+    if (desktopWidget) {
+        int screen = desktopWidget->d_func()->screenNumber;
+        QPlatformIntegration *platform = QApplicationPrivate::platformIntegration();
+        platform->moveToScreen(q, screen);
+    }
 #else
     Q_UNUSED(desktopWidget);
 #endif
@@ -1375,6 +1412,7 @@ void QWidget::create(WId window, bool initializeWindow, bool destroyOldWindow)
         flags |= Qt::Window;
     }
 
+#ifndef Q_WS_QPA
     if (QWidget *parent = parentWidget()) {
 #ifdef Q_WS_MAC
         if (testAttribute(Qt::WA_NativeWindow) == false)
@@ -1395,6 +1433,7 @@ void QWidget::create(WId window, bool initializeWindow, bool destroyOldWindow)
             return;
         }
     }
+#endif //Q_WS_QPA
 
 #ifdef QT3_SUPPORT
     if (flags & Qt::WStaticContents)
@@ -1567,13 +1606,13 @@ QWidget::~QWidget()
         }
     }
 
-#if defined(Q_WS_WIN) || defined(Q_WS_X11) || defined (Q_WS_QWS) || defined(Q_WS_MAC)
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)|| defined(Q_WS_MAC)
     else if (!internalWinId() && isVisible()) {
         qApp->d_func()->sendSyntheticEnterLeave(this);
-#ifdef Q_WS_QWS
-    } else if (isVisible()) {
+    }
+#elif defined(Q_WS_QWS) || defined(Q_WS_QPA)
+    else if (isVisible()) {
         qApp->d_func()->sendSyntheticEnterLeave(this);
-#endif
     }
 #endif
 
@@ -1598,7 +1637,8 @@ QWidget::~QWidget()
     d->needsFlush = 0;
 
     // set all QPointers for this object to zero
-    QObjectPrivate::clearGuards(this);
+    if (d->hasGuards)
+        QObjectPrivate::clearGuards(this);
 
     if (d->declarativeData) {
         QAbstractDeclarativeData::destroyed(d->declarativeData, this);
@@ -1704,6 +1744,10 @@ void QWidgetPrivate::createTLExtra()
 #ifdef QWIDGET_EXTRA_DEBUG
         static int count = 0;
         qDebug() << "tlextra" << ++count;
+#endif
+#if defined(Q_WS_QPA)
+        x->platformWindow = 0;
+        x->platformWindowFormat = QPlatformWindowFormat::defaultFormat();
 #endif
     }
 }
@@ -1826,13 +1870,7 @@ void QWidgetPrivate::syncBackingStore()
         repaint_sys(dirty);
         dirty = QRegion();
     } else if (QWidgetBackingStore *bs = maybeBackingStore()) {
-#ifdef QT_MAC_USE_COCOA
-        Q_UNUSED(bs);
-        void qt_mac_set_needs_display(QWidget *, QRegion);
-        qt_mac_set_needs_display(q_func(), QRegion());
-#else
         bs->sync();
-#endif
     }
 }
 
@@ -1841,13 +1879,7 @@ void QWidgetPrivate::syncBackingStore(const QRegion &region)
     if (paintOnScreen())
         repaint_sys(region);
     else if (QWidgetBackingStore *bs = maybeBackingStore()) {
-#ifdef QT_MAC_USE_COCOA
-        Q_UNUSED(bs);
-        void qt_mac_set_needs_display(QWidget *, QRegion);
-        qt_mac_set_needs_display(q_func(), region);
-#else
         bs->sync(q_func(), region);
-#endif
     }
 }
 
@@ -2451,7 +2483,9 @@ WId QWidget::winId() const
         qDebug() << "QWidget::winId: creating native window for" << this;
 #endif
         QWidget *that = const_cast<QWidget*>(this);
+#ifndef Q_WS_QPA
         that->setAttribute(Qt::WA_NativeWindow);
+#endif
         that->d_func()->createWinId();
         return that->data->winid;
     }
@@ -2468,6 +2502,7 @@ void QWidgetPrivate::createWinId(WId winid)
 #endif
     const bool forceNativeWindow = q->testAttribute(Qt::WA_NativeWindow);
     if (!q->testAttribute(Qt::WA_WState_Created) || (forceNativeWindow && !q->internalWinId())) {
+#ifndef Q_WS_QPA
         if (!q->isWindow()) {
             QWidget *parent = q->parentWidget();
             QWidgetPrivate *pd = parent->d_func();
@@ -2495,6 +2530,11 @@ void QWidgetPrivate::createWinId(WId winid)
         } else {
             q->create();
         }
+#else
+        Q_UNUSED(winid);
+        q->create();
+#endif //Q_WS_QPA
+
     }
 }
 
@@ -5378,6 +5418,14 @@ void QWidgetPrivate::drawWidget(QPaintDevice *pdev, const QRegion &rgn, const QP
     if (rgn.isEmpty())
         return;
 
+#if defined(Q_WS_MAC) && defined(QT_MAC_USE_COCOA)
+    // We disable the rendering of QToolBar in the backingStore if
+    // it's supposed to be in the unified toolbar on Mac OS X.
+    if (backingStore && isInUnifiedToolbar)
+        return;
+#endif // Q_WS_MAC && QT_MAC_USE_COCOA
+
+
     Q_Q(QWidget);
 #ifndef QT_NO_GRAPHICSEFFECT
     if (graphicsEffect && graphicsEffect->isEnabled()) {
@@ -5440,6 +5488,7 @@ void QWidgetPrivate::drawWidget(QPaintDevice *pdev, const QRegion &rgn, const QP
             QPaintEngine *paintEngine = pdev->paintEngine();
             if (paintEngine) {
                 setRedirected(pdev, -offset);
+
 #ifdef Q_WS_MAC
                 // (Alien support) Special case for Mac when redirecting: If the paint device
                 // is of the Widget type we need to set WA_WState_InPaintEvent since painting
@@ -5482,7 +5531,7 @@ void QWidgetPrivate::drawWidget(QPaintDevice *pdev, const QRegion &rgn, const QP
             //actually send the paint event
             QPaintEvent e(toBePainted);
             QCoreApplication::sendSpontaneousEvent(q, &e);
-#if !defined(Q_WS_MAC) && !defined(Q_WS_QWS)
+#if !defined(Q_WS_QWS) && !defined(Q_WS_QPA)
             if (backingStore && !onScreen && !asRoot && (q->internalWinId() || !q->nativeParentWidget()->isWindow()))
                 backingStore->markDirtyOnScreen(toBePainted, q, offset);
 #endif
@@ -6629,7 +6678,7 @@ void QWidget::setTabOrder(QWidget* first, QWidget *second)
         // that can take keyboard focus so that second is inserted after
         // that last child, and the focus order within first is (more
         // likely to be) preserved.
-        QList<QWidget *> l = qFindChildren<QWidget *>(first);
+        QList<QWidget *> l = first->findChildren<QWidget *>();
         for (int i = l.size()-1; i >= 0; --i) {
             QWidget * next = l.at(i);
             if (next->window() == fp->window()) {
@@ -7520,7 +7569,7 @@ void QWidgetPrivate::hide_helper()
     // next bit tries to move the focus if the focus widget is now
     // hidden.
     if (wasVisible) {
-#if defined(Q_WS_WIN) || defined(Q_WS_X11) || defined (Q_WS_QWS) || defined(Q_WS_MAC)
+#if defined(Q_WS_WIN) || defined(Q_WS_X11) || defined (Q_WS_QWS) || defined(Q_WS_MAC) || defined(Q_WS_QPA)
         qApp->d_func()->sendSyntheticEnterLeave(q);
 #endif
 
@@ -7652,7 +7701,7 @@ void QWidget::setVisible(bool visible)
 
             d->show_helper();
 
-#if defined(Q_WS_WIN) || defined(Q_WS_X11) || defined (Q_WS_QWS) || defined(Q_WS_MAC)
+#if defined(Q_WS_WIN) || defined(Q_WS_X11) || defined (Q_WS_QWS) || defined(Q_WS_MAC) || defined(Q_WS_QPA)
             qApp->d_func()->sendSyntheticEnterLeave(this);
 #endif
         }
@@ -7784,7 +7833,7 @@ void QWidgetPrivate::hideChildren(bool spontaneous)
                 widget->d_func()->hide_sys();
             }
         }
-#if defined(Q_WS_WIN) || defined(Q_WS_X11) || defined (Q_WS_QWS) || defined(Q_WS_MAC)
+#if defined(Q_WS_WIN) || defined(Q_WS_X11) || defined (Q_WS_QWS) || defined(Q_WS_MAC) || defined(Q_WS_QPA)
         qApp->d_func()->sendSyntheticEnterLeave(widget);
 #endif
 #ifndef QT_NO_ACCESSIBILITY
@@ -9793,6 +9842,23 @@ int QWidget::heightForWidth(int w) const
     return -1;
 }
 
+
+/*!
+    \internal
+
+    *virtual private*
+
+    This is a bit hackish, but ideally we would have created a virtual function
+    in the public API (however, too late...) so that subclasses could reimplement 
+    their own function.
+    Instead we add a virtual function to QWidgetPrivate.
+    ### Qt5: move to public class and make virtual
+*/ 
+bool QWidgetPrivate::hasHeightForWidth() const
+{
+    return layout ? layout->hasHeightForWidth() : size_policy.hasHeightForWidth();
+}
+
 /*!
     \fn QWidget *QWidget::childAt(int x, int y) const
 
@@ -10045,7 +10111,16 @@ void QWidget::setParent(QWidget *parent, Qt::WindowFlags f)
     if (newParent && isAncestorOf(focusWidget()))
         focusWidget()->clearFocus();
 
+    QTLWExtra *oldTopExtra = window()->d_func()->maybeTopData();
+    QWidgetBackingStoreTracker *oldBsTracker = oldTopExtra ? &oldTopExtra->backingStore : 0;
+
     d->setParent_sys(parent, f);
+
+    QTLWExtra *topExtra = window()->d_func()->maybeTopData();
+    QWidgetBackingStoreTracker *bsTracker = topExtra ? &topExtra->backingStore : 0;
+    if (oldBsTracker && oldBsTracker != bsTracker)
+        oldBsTracker->unregisterWidgetSubtree(this);
+
     if (desktopWidget)
         parent = 0;
 
@@ -10536,7 +10611,6 @@ void QWidget::setAttribute(Qt::WidgetAttribute attribute, bool on)
     Q_ASSERT_X(sizeof(d->high_attributes)*8 >= (Qt::WA_AttributeCount - sizeof(uint)*8),
                "QWidget::setAttribute(WidgetAttribute, bool)",
                "QWidgetPrivate::high_attributes[] too small to contain all attributes in WidgetAttribute");
-
 #ifdef Q_WS_WIN
     // ### Don't use PaintOnScreen+paintEngine() to do native painting in 5.0
     if (attribute == Qt::WA_PaintOnScreen && on && !inherits("QGLWidget")) {

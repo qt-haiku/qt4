@@ -361,7 +361,9 @@ void QWidgetPrivate::create_sys(WId window, bool /* initializeWindow */, bool de
         if (!q->testAttribute(Qt::WA_Moved) && !q->testAttribute(Qt::WA_DontShowOnScreen))
             data.crect.moveTopLeft(QPoint(clientRect.iTl.iX, clientRect.iTl.iY));
 
-        QScopedPointer<QSymbianControl> control( q_check_ptr(new QSymbianControl(q)) );
+        QScopedPointer<QSymbianControl> control( new QSymbianControl(q) );
+        Q_CHECK_PTR(control);
+
         QT_TRAP_THROWING(control->ConstructL(true, desktop));
         control->SetMopParent(static_cast<CEikAppUi*>(S60->appUi()));
 
@@ -406,7 +408,9 @@ void QWidgetPrivate::create_sys(WId window, bool /* initializeWindow */, bool de
 
     } else if (q->testAttribute(Qt::WA_NativeWindow) || paintOnScreen()) { // create native child widget
 
-        QScopedPointer<QSymbianControl> control( q_check_ptr(new QSymbianControl(q)) );
+        QScopedPointer<QSymbianControl> control( new QSymbianControl(q) );
+        Q_CHECK_PTR(control);
+
         QT_TRAP_THROWING(control->ConstructL(!parentWidget));
 
         // Symbian windows are always created in an inactive state
@@ -709,7 +713,8 @@ void QWidgetPrivate::setParent_sys(QWidget *parent, Qt::WindowFlags f)
     // old_winid may not have received a 'not visible' visibility
     // changed event before being destroyed; make sure that it is
     // removed from the backing store's list of visible windows.
-    S60->controlVisibilityChanged(old_winid, false);
+    if (old_winid)
+        S60->controlVisibilityChanged(old_winid, false);
 
     setWinId(0);
 

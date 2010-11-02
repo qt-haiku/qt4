@@ -534,6 +534,7 @@ public:
         AA_DontUseNativeMenuBar = 6,
         AA_MacDontSwapCtrlAndMeta = 7,
         AA_S60DontConstructApplicationPanes = 8,
+        AA_X11InitThreads = 9,
 
         // Add new attributes before this line
         AA_AttributeCount
@@ -1658,7 +1659,7 @@ public:
     typedef void *HANDLE;
 #elif defined(Q_WS_X11)
     typedef unsigned long HANDLE;
-#elif defined(Q_WS_QWS)
+#elif defined(Q_WS_QWS) || defined(Q_WS_QPA)
     typedef void * HANDLE;
 #elif defined(Q_OS_SYMBIAN)
     typedef unsigned long int HANDLE; // equivalent to TUint32

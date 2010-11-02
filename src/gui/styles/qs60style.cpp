@@ -1424,7 +1424,7 @@ void QS60Style::drawControl(ControlElement element, const QStyleOption *option, 
 
             bool isScrollBarVisible = false;
             int scrollBarWidth = 0;
-            QList<QScrollBar *> scrollBars = qFindChildren<QScrollBar *>(widget);
+            QList<QScrollBar *> scrollBars = widget->findChildren<QScrollBar *>();
             for (int i = 0; i < scrollBars.size(); ++i) {
                 QScrollBar *scrollBar = scrollBars.at(i);
                 if (scrollBar && scrollBar->orientation() == Qt::Vertical) {
@@ -3424,8 +3424,11 @@ bool QS60Style::eventFilter(QObject *object, QEvent *event)
                         qobject_cast<QCheckBox *>(w))
                     d->m_pressedWidget = w;
 
-                if ( d->m_pressedWidget)
+                if (d->m_pressedWidget)
                     d->m_pressedWidget->update();
+#ifdef Q_WS_S60
+                d->touchFeedback(event, w);
+#endif
             }
             break;
         }

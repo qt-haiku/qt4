@@ -104,6 +104,7 @@ private slots:
     void replyReadyRead();
     void replyFinished();
     void replyHeaderChanged();
+    void replyDownloadProgressSlot(int,int);
     void httpAuthenticationRequired(const QHttpNetworkRequest &request, QAuthenticator *auth);
     void httpCacheCredentials(const QHttpNetworkRequest &request, QAuthenticator *auth);
     void httpError(QNetworkReply::NetworkError error, const QString &errorString);
@@ -125,7 +126,6 @@ private:
     quint64 resumeOffset;
 
     void disconnectFromHttp();
-    void setupConnection();
     void validateCache(QHttpNetworkRequest &httpRequest, bool &loadedFromCache);
     void invalidateCache();
     void postRequest();

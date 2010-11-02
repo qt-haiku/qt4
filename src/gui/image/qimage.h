@@ -140,6 +140,11 @@ public:
     ~QImage();
 
     QImage &operator=(const QImage &);
+#ifdef Q_COMPILER_RVALUE_REFS
+    inline QImage &operator=(QImage &&other)
+    { qSwap(d, other.d); return *this; }
+#endif
+
     bool isNull() const;
 
     int devType() const;
@@ -210,6 +215,9 @@ public:
     void setColorTable(const QVector<QRgb> colors);
 
     void fill(uint pixel);
+    void fill(const QColor &color);
+    void fill(Qt::GlobalColor color);
+
 
     bool hasAlphaChannel() const;
     void setAlphaChannel(const QImage &alphaChannel);
@@ -326,6 +334,7 @@ private:
     QImageData *d;
 
     friend class QRasterPixmapData;
+    friend class QBlittablePixmapData;
     friend class QPixmapCacheEntry;
     friend Q_GUI_EXPORT qint64 qt_image_id(const QImage &image);
     friend const QVector<QRgb> *qt_image_colortable(const QImage &image);

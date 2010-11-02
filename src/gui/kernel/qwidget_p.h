@@ -102,6 +102,9 @@ class QWSManager;
 #if defined(Q_WS_MAC)
 class QCoreGraphicsPaintEnginePrivate;
 #endif
+#if defined(Q_WS_QPA)
+class QPlatformWindow;
+#endif
 class QPaintEngine;
 class QPixmap;
 class QWidgetBackingStore;
@@ -122,6 +125,7 @@ public:
 
     void registerWidget(QWidget *w);
     void unregisterWidget(QWidget *w);
+    void unregisterWidgetSubtree(QWidget *w);
 
     inline QWidgetBackingStore* data()
     {
@@ -225,6 +229,9 @@ struct QTLWExtra {
 #endif
 #elif defined(Q_OS_SYMBIAN)
     uint inExpose : 1; // Prevents drawing recursion
+#elif defined(Q_WS_QPA)
+    QPlatformWindow *platformWindow;
+    QPlatformWindowFormat platformWindowFormat;
 #endif
 };
 
@@ -542,6 +549,7 @@ public:
 
     bool setMinimumSize_helper(int &minw, int &minh);
     bool setMaximumSize_helper(int &maxw, int &maxh);
+    virtual bool hasHeightForWidth() const;
     void setConstraints_sys();
     bool pointInsideRectAndMask(const QPoint &) const;
     QWidget *childAt_helper(const QPoint &, bool) const;
@@ -842,6 +850,13 @@ public:
     bool originalDrawMethod;
     // Do we need to change the methods?
     bool changeMethods;
+    bool hasOwnContext;
+    CGContextRef cgContext;
+    QRegion ut_rg;
+    QPoint ut_pt;
+    bool isInUnifiedToolbar;
+    QWindowSurface *unifiedSurface;
+    QPoint toolbar_offset;
 #endif
     void determineWindowClass();
     void transferChildren();
@@ -869,6 +884,14 @@ public:
     void updateCursor() const;
 #endif
     QScreen* getScreen() const;
+#elif defined(Q_WS_QPA)
+    void setMaxWindowState_helper();
+    void setFullScreenSize_helper();
+
+    int screenNumber; // screen the widget should be displayed on
+#ifndef QT_NO_CURSOR
+    void updateCursor() const;
+#endif
 #elif defined(Q_OS_SYMBIAN) // <--------------------------------------------------------- SYMBIAN
     static QWidget *mouseGrabber;
     static QWidget *keyboardGrabber;

@@ -1323,6 +1323,12 @@ void QTextHtmlParserNode::applyCssDeclarations(const QVector<QCss::Declaration> 
         case QCss::ListStyle:
             setListStyle(decl.d->values);
             break;
+        case QCss::QtListNumberPrefix:
+            textListNumberPrefix = decl.d->values.first().variant.toString();
+            break;
+        case QCss::QtListNumberSuffix:
+            textListNumberSuffix = decl.d->values.first().variant.toString();
+            break;
         default: break;
         }
     }

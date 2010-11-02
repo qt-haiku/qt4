@@ -207,6 +207,7 @@ static int qCocoaViewCount = 0;
 
     composing = false;
     sendKeyEvents = true;
+    fromKeyDownEvent = false;
     [self setHidden:YES];
     return self;
 }
@@ -508,7 +509,7 @@ static int qCocoaViewCount = 0;
     }
 
     // Make sure the opengl context is updated on resize.
-    if (qwidgetprivate && qwidgetprivate->isGLWidget) {
+    if (qwidgetprivate && qwidgetprivate->isGLWidget && [self window]) {
         qwidgetprivate->needWindowChange = true;
         QEvent event(QEvent::MacGLWindowChange);
         qApp->sendEvent(qwidget, &event);
@@ -532,16 +533,40 @@ static int qCocoaViewCount = 0;
     if (!qwidget)
         return;
 
-    if (QApplicationPrivate::graphicsSystem() != 0) {
-        if (qwidgetprivate->maybeBackingStore()) {
-            // Drawing is handled on the window level
-            // See qcocoasharedwindowmethods_mac_p.h
-            if (!qwidget->testAttribute(Qt::WA_PaintOnScreen))
-                return;
+    // We use a different graphics system.
+    if (QApplicationPrivate::graphicsSystem() != 0 && !qwidgetprivate->isInUnifiedToolbar) {
+
+        // Qt handles the painting occuring inside the window.
+        // Cocoa also keeps track of all widgets as NSView and therefore might
+        // ask for a repainting of a widget even if Qt is already taking care of it.
+        //
+        // The only valid reason for Cocoa to call drawRect: is for window manipulation
+        // (ie. resize, ...).
+        //
+        // Qt will then forward the update to the children.
+        if (qwidget->isWindow()) {
+            qwidget->update(qwidget->rect());
+            qwidgetprivate->syncBackingStore(qwidget->rect());
         }
+
+        // Since we don't want to use the native engine, we must exit, however
+        // widgets that are set to paint on screen, spesifically QGLWidget,
+        // requires the following code to execute in order to be drawn.
+        if (!qwidget->testAttribute(Qt::WA_PaintOnScreen))
+            return;
     }
+
     CGContextRef cg = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
     qwidgetprivate->hd = cg;
+
+    // We steal the CGContext for flushing in the unified toolbar with the raster engine.
+    if (QApplicationPrivate::graphicsSystem() != 0 && qwidgetprivate->isInUnifiedToolbar) {
+        qwidgetprivate->cgContext = cg;
+        qwidgetprivate->hasOwnContext = true;
+        qwidgetprivate->unifiedSurface->flush(qwidget, qwidgetprivate->ut_rg, qwidgetprivate->ut_pt);
+        return;
+    }
+
     CGContextSaveGState(cg);
 
     if (qwidget->isVisible() && qwidget->updatesEnabled()) { //process the actual paint event.
@@ -1199,7 +1224,9 @@ static int qCocoaViewCount = 0;
             && !(widgetToGetKey->inputMethodHints() & Qt::ImhDigitsOnly
                  || widgetToGetKey->inputMethodHints() & Qt::ImhFormattedNumbersOnly
                  || widgetToGetKey->inputMethodHints() & Qt::ImhHiddenText)) {
+        fromKeyDownEvent = true;
         [qt_mac_nativeview_for(widgetToGetKey) interpretKeyEvents:[NSArray arrayWithObject: theEvent]];
+        fromKeyDownEvent = false;
     }
     if (sendKeyEvents && !composing) {
         bool keyOK = qt_dispatchKeyEvent(theEvent, widgetToGetKey);
@@ -1269,7 +1296,10 @@ static int qCocoaViewCount = 0;
         };
     }
 
-    if ([aString length] && composing) {
+    // When entering characters through Character Viewer or Keyboard Viewer, the text is passed
+    // through this insertText method. Since we dont receive a keyDown Event in such cases, the
+    // composing flag will be false.
+    if (([aString length] && composing) ||  !fromKeyDownEvent) {
         // Send the commit string to the widget.
         composing = false;
         sendKeyEvents = false;
@@ -1383,7 +1413,7 @@ static int qCocoaViewCount = 0;
     if (!selectedText.isEmpty()) {
         QCFString string(selectedText.mid(theRange.location, theRange.length));
         const NSString *tmpString = reinterpret_cast<const NSString *>((CFStringRef)string);
-        return [[[NSAttributedString alloc]  initWithString:tmpString] autorelease];
+        return [[[NSAttributedString alloc]  initWithString:const_cast<NSString *>(tmpString)] autorelease];
     } else {
         return nil;
     }

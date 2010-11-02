@@ -1635,8 +1635,6 @@ void QWidgetPrivate::scroll_sys(int dx, int dy, const QRect &r)
     }
 }
 
-extern Q_GUI_EXPORT HDC qt_win_display_dc();
-
 int QWidget::metric(PaintDeviceMetric m) const
 {
     Q_D(const QWidget);
@@ -1646,7 +1644,7 @@ int QWidget::metric(PaintDeviceMetric m) const
     } else if (m == PdmHeight) {
         val = data->crect.height();
     } else {
-        HDC gdc = qt_win_display_dc();
+        HDC gdc = GetDC(0);
         switch (m) {
         case PdmDpiX:
         case PdmPhysicalDpiX:
@@ -1697,6 +1695,7 @@ int QWidget::metric(PaintDeviceMetric m) const
             val = 0;
             qWarning("QWidget::metric: Invalid metric command");
         }
+        ReleaseDC(0, gdc);
     }
     return val;
 }

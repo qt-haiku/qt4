@@ -94,6 +94,10 @@ public:
 #ifndef QT_NO_URL_CAST_FROM_STRING
     QUrl &operator =(const QString &url);
 #endif
+#ifdef Q_COMPILER_RVALUE_REFS
+    inline QUrl &operator=(QUrl &&other)
+    { qSwap(d, other.d); return *this; }
+#endif
     ~QUrl();
 
     void setUrl(const QString &url);
@@ -183,6 +187,7 @@ public:
 
     static QUrl fromLocalFile(const QString &localfile);
     QString toLocalFile() const;
+    bool isLocalFile() const;
 
     QString toString(FormattingOptions options = None) const;
 

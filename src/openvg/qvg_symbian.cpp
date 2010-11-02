@@ -77,7 +77,8 @@ extern int qt_vg_pixmap_serial;
 
 static CFbsBitmap* createBlitCopy(CFbsBitmap* bitmap)
 {
-    CFbsBitmap *copy = q_check_ptr(new CFbsBitmap);
+    CFbsBitmap *copy = new CFbsBitmap;
+    Q_CHECK_PTR(copy);
     if(!copy)
         return 0;
 
@@ -164,7 +165,6 @@ void QVGPixmapData::fromNativeType(void* pixmap, NativeType type)
         CFbsBitmap *bitmap = reinterpret_cast<CFbsBitmap*>(pixmap);
 
         bool deleteSourceBitmap = false;
-
 #ifdef Q_SYMBIAN_HAS_EXTENDED_BITMAP_TYPE
 
         // Rasterize extended bitmaps
@@ -272,7 +272,8 @@ void* QVGPixmapData::toNativeType(NativeType type)
         return reinterpret_cast<void*>(sgImage.take());
 #endif
     } else if (type == QPixmapData::FbsBitmap) {
-                CFbsBitmap *bitmap = q_check_ptr(new CFbsBitmap);
+        CFbsBitmap *bitmap = new CFbsBitmap;
+        Q_CHECK_PTR(bitmap);
 
         if (bitmap) {
             if (bitmap->Create(TSize(source.width(), source.height()),

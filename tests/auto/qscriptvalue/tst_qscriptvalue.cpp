@@ -2238,19 +2238,36 @@ void tst_QScriptValue::getSetScope()
 void tst_QScriptValue::getSetData()
 {
     QScriptEngine eng;
-    QScriptValue object = eng.newObject();
-    QVERIFY(!object.data().isValid());
-    QScriptValue v1(true);
-    object.setData(v1);
-    QVERIFY(object.data().strictlyEquals(v1));
-    QScriptValue v2(123);
-    object.setData(v2);
-    QVERIFY(object.data().strictlyEquals(v2));
-    QScriptValue v3 = eng.newObject();
-    object.setData(v3);
-    QVERIFY(object.data().strictlyEquals(v3));
-    object.setData(QScriptValue());
-    QVERIFY(!object.data().isValid());
+    {
+        QScriptValue object = eng.newObject();
+        QVERIFY(!object.data().isValid());
+        QScriptValue v1(true);
+        object.setData(v1);
+        QVERIFY(object.data().strictlyEquals(v1));
+        QScriptValue v2(123);
+        object.setData(v2);
+        QVERIFY(object.data().strictlyEquals(v2));
+        QScriptValue v3 = eng.newObject();
+        object.setData(v3);
+        QVERIFY(object.data().strictlyEquals(v3));
+        object.setData(QScriptValue());
+        QVERIFY(!object.data().isValid());
+    }
+    {
+        QScriptValue value = eng.undefinedValue();
+        QVERIFY(!value.data().isValid());
+        QScriptValue v1(true);
+        value.setData(v1);
+        QVERIFY(!value.data().isValid());
+        QScriptValue v2(123);
+        value.setData(v2);
+        QVERIFY(!value.data().isValid());
+        QScriptValue v3 = eng.newObject();
+        value.setData(v3);
+        QVERIFY(!value.data().isValid());
+        value.setData(QScriptValue());
+        QVERIFY(!value.data().isValid());
+    }
 }
 
 class TestScriptClass : public QScriptClass
@@ -2737,6 +2754,31 @@ void tst_QScriptValue::construct()
     QVERIFY(!QScriptValue(QString::fromLatin1("ciao")).construct().isValid());
     QVERIFY(!QScriptValue(QScriptValue::UndefinedValue).construct().isValid());
     QVERIFY(!QScriptValue(QScriptValue::NullValue).construct().isValid());
+}
+
+void tst_QScriptValue::construct_constructorThrowsPrimitive()
+{
+    QScriptEngine eng;
+    QScriptValue fun = eng.evaluate("(function() { throw 123; })");
+    QVERIFY(fun.isFunction());
+    // construct(QScriptValueList)
+    {
+        QScriptValue ret = fun.construct();
+        QVERIFY(ret.isNumber());
+        QCOMPARE(ret.toNumber(), 123.0);
+        QVERIFY(eng.hasUncaughtException());
+        QVERIFY(ret.strictlyEquals(eng.uncaughtException()));
+        eng.clearExceptions();
+    }
+    // construct(QScriptValue)
+    {
+        QScriptValue ret = fun.construct(eng.newArray());
+        QVERIFY(ret.isNumber());
+        QCOMPARE(ret.toNumber(), 123.0);
+        QVERIFY(eng.hasUncaughtException());
+        QVERIFY(ret.strictlyEquals(eng.uncaughtException()));
+        eng.clearExceptions();
+    }
 }
 
 void tst_QScriptValue::lessThan_old()

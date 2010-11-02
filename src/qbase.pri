@@ -4,11 +4,10 @@ INCLUDEPATH *= $$QMAKE_INCDIR_QT/$$TARGET #just for today to have some compat
 isEmpty(QT_ARCH):!isEmpty(ARCH):QT_ARCH=$$ARCH #another compat that will rot for change #215700
 TEMPLATE	= lib
 isEmpty(QT_MAJOR_VERSION) {
-   VERSION=4.7.1
+   VERSION=4.8.0
 } else {
    VERSION=$${QT_MAJOR_VERSION}.$${QT_MINOR_VERSION}.$${QT_PATCH_VERSION}
 }
-mac:!contains(QMAKE_EXT_C, .mm):QMAKE_EXT_C += .mm
 
 #load up the headers info
 CONFIG += qt_install_headers
@@ -201,7 +200,7 @@ symbian {
         pu_header = "; Partial upgrade package for testing $${TARGET} changes without reinstalling everything" \
                     "$${LITERAL_HASH}{\"$${TARGET}\"}, ($$PARTIAL_UPGRADE_UID), $${QT_MAJOR_VERSION},$${QT_MINOR_VERSION},$${QT_PATCH_VERSION}, TYPE=PU"
         partial_upgrade.pkg_prerules = pu_header vendorinfo
-        partial_upgrade.sources = $$QMAKE_LIBDIR_QT/$${TARGET}.dll
+        partial_upgrade.files = $$QMAKE_LIBDIR_QT/$${TARGET}.dll
         partial_upgrade.path = c:/sys/bin
         DEPLOYMENT += partial_upgrade
     }

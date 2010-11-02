@@ -52,9 +52,9 @@
 #include "qnetworkaccesshttpbackend_p.h"
 #include "qnetworkaccessftpbackend_p.h"
 #include "qnetworkaccessfilebackend_p.h"
-#include "qnetworkaccessdatabackend_p.h"
 #include "qnetworkaccessdebugpipebackend_p.h"
-#include "qfilenetworkreply_p.h"
+#include "qnetworkreplydataimpl_p.h"
+#include "qnetworkreplyfileimpl_p.h"
 
 #include "QtCore/qbuffer.h"
 #include "QtCore/qurl.h"
@@ -69,7 +69,6 @@ QT_BEGIN_NAMESPACE
 Q_GLOBAL_STATIC(QNetworkAccessHttpBackendFactory, httpBackend)
 #endif // QT_NO_HTTP
 Q_GLOBAL_STATIC(QNetworkAccessFileBackendFactory, fileBackend)
-Q_GLOBAL_STATIC(QNetworkAccessDataBackendFactory, dataBackend)
 #ifndef QT_NO_FTP
 Q_GLOBAL_STATIC(QNetworkAccessFtpBackendFactory, ftpBackend)
 #endif // QT_NO_FTP
@@ -83,7 +82,7 @@ static void ensureInitialized()
 #ifndef QT_NO_HTTP
     (void) httpBackend();
 #endif // QT_NO_HTTP
-    (void) dataBackend();
+
 #ifndef QT_NO_FTP
     (void) ftpBackend();
 #endif
@@ -450,6 +449,8 @@ QNetworkAccessManager::QNetworkAccessManager(QObject *parent)
     : QObject(*new QNetworkAccessManagerPrivate, parent)
 {
     ensureInitialized();
+
+    qRegisterMetaType<QNetworkReply::NetworkError>("QNetworkReply::NetworkError");
 }
 
 /*!
@@ -944,37 +945,25 @@ QNetworkReply *QNetworkAccessManager::createRequest(QNetworkAccessManager::Opera
 {
     Q_D(QNetworkAccessManager);
 
-    // 4.7 only hotfix fast path for data:// URLs
-    // In 4.8 this is solved with QNetworkReplyDataImpl and will work there
-    // This hotfix is done for not needing a QNetworkSession for data://
-    if ((op == QNetworkAccessManager::GetOperation || op == QNetworkAccessManager::HeadOperation)
-             && (req.url().scheme() == QLatin1String("data"))) {
-        QNetworkReplyImpl *reply = new QNetworkReplyImpl(this);
-        QNetworkReplyImplPrivate *priv = reply->d_func();
-        priv->manager = this;
-        priv->backend = new QNetworkAccessDataBackend();
-        priv->backend->manager = this->d_func();
-        priv->backend->setParent(reply);
-        priv->backend->reply = priv;
-        priv->setup(op, req, outgoingData);
-        return reply;
-    }
+    bool isLocalFile = req.url().isLocalFile();
+    QString scheme = req.url().scheme().toLower();
 
     // fast path for GET on file:// URLs
-    // Also if the scheme is empty we consider it a file.
     // The QNetworkAccessFileBackend will right now only be used for PUT
     if ((op == QNetworkAccessManager::GetOperation || op == QNetworkAccessManager::HeadOperation)
-         && (req.url().scheme() == QLatin1String("file")
-             || req.url().scheme() == QLatin1String("qrc")
-             || req.url().scheme().isEmpty())) {
-        return new QFileNetworkReply(this, req, op);
+        && (isLocalFile || scheme == QLatin1String("qrc"))) {
+        return new QNetworkReplyFileImpl(this, req, op);
+    }
+
+    if ((op == QNetworkAccessManager::GetOperation || op == QNetworkAccessManager::HeadOperation)
+            && scheme == QLatin1String("data")) {
+        return new QNetworkReplyDataImpl(this, req, op);
     }
 
 #ifndef QT_NO_BEARERMANAGEMENT
     // Return a disabled network reply if network access is disabled.
     // Except if the scheme is empty or file://.
-    if (!d->networkAccessible && !(req.url().scheme() == QLatin1String("file") ||
-                                      req.url().scheme().isEmpty())) {
+    if (!d->networkAccessible && !isLocalFile) {
         return new QDisabledNetworkReply(this, req, op);
     }
 
@@ -1008,7 +997,7 @@ QNetworkReply *QNetworkAccessManager::createRequest(QNetworkAccessManager::Opera
         if (d->cookieJar) {
             QList<QNetworkCookie> cookies = d->cookieJar->cookiesForUrl(request.url());
             if (!cookies.isEmpty())
-                request.setHeader(QNetworkRequest::CookieHeader, qVariantFromValue(cookies));
+                request.setHeader(QNetworkRequest::CookieHeader, QVariant::fromValue(cookies));
         }
     }
 
@@ -1016,7 +1005,7 @@ QNetworkReply *QNetworkAccessManager::createRequest(QNetworkAccessManager::Opera
     QUrl url = request.url();
     QNetworkReplyImpl *reply = new QNetworkReplyImpl(this);
 #ifndef QT_NO_BEARERMANAGEMENT
-    if (req.url().scheme() != QLatin1String("file") && !req.url().scheme().isEmpty()) {
+    if (!isLocalFile) {
         connect(this, SIGNAL(networkSessionConnected()),
                 reply, SLOT(_q_networkSessionConnected()));
     }
@@ -1025,16 +1014,8 @@ QNetworkReply *QNetworkAccessManager::createRequest(QNetworkAccessManager::Opera
     priv->manager = this;
 
     // second step: fetch cached credentials
-    if (static_cast<QNetworkRequest::LoadControl>
-        (request.attribute(QNetworkRequest::AuthenticationReuseAttribute,
-                           QNetworkRequest::Automatic).toInt()) == QNetworkRequest::Automatic) {
-        QNetworkAuthenticationCredential *cred = d->fetchCachedCredentials(url);
-        if (cred) {
-            url.setUserName(cred->user);
-            url.setPassword(cred->password);
-            priv->urlForLastAuthentication = url;
-        }
-    }
+    // This is not done for the time being, we should use signal emissions to request
+    // the credentials from cache.
 
     // third step: find a backend
     priv->backend = d->findBackend(op, request);
@@ -1116,7 +1097,9 @@ void QNetworkAccessManagerPrivate::authenticationRequired(QNetworkAccessBackend 
 
     // don't try the cache for the same URL twice in a row
     // being called twice for the same URL means the authentication failed
-    if (url != backend->reply->urlForLastAuthentication) {
+    // also called when last URL is empty, e.g. on first call
+    if (backend->reply->urlForLastAuthentication.isEmpty()
+            || url != backend->reply->urlForLastAuthentication) {
         QNetworkAuthenticationCredential *cred = fetchCachedCredentials(url, authenticator);
         if (cred) {
             authenticator->setUser(cred->user);
@@ -1128,7 +1111,7 @@ void QNetworkAccessManagerPrivate::authenticationRequired(QNetworkAccessBackend 
 
     backend->reply->urlForLastAuthentication = url;
     emit q->authenticationRequired(backend->reply->q_func(), authenticator);
-    addCredentials(url, authenticator);
+    cacheCredentials(url, authenticator);
 }
 
 #ifndef QT_NO_NETWORKPROXY
@@ -1145,7 +1128,7 @@ void QNetworkAccessManagerPrivate::proxyAuthenticationRequired(QNetworkAccessBac
     // possible solution: some tracking inside the authenticator
     //      or a new function proxyAuthenticationSucceeded(true|false)
     if (proxy != backend->reply->lastProxyAuthentication) {
-        QNetworkAuthenticationCredential *cred = fetchCachedCredentials(proxy);
+        QNetworkAuthenticationCredential *cred = fetchCachedProxyCredentials(proxy);
         if (cred) {
             authenticator->setUser(cred->user);
             authenticator->setPassword(cred->password);
@@ -1155,10 +1138,10 @@ void QNetworkAccessManagerPrivate::proxyAuthenticationRequired(QNetworkAccessBac
 
     backend->reply->lastProxyAuthentication = proxy;
     emit q->proxyAuthenticationRequired(proxy, authenticator);
-    addCredentials(proxy, authenticator);
+    cacheProxyCredentials(proxy, authenticator);
 }
 
-void QNetworkAccessManagerPrivate::addCredentials(const QNetworkProxy &p,
+void QNetworkAccessManagerPrivate::cacheProxyCredentials(const QNetworkProxy &p,
                                                   const QAuthenticator *authenticator)
 {
     Q_ASSERT(authenticator);
@@ -1195,7 +1178,7 @@ void QNetworkAccessManagerPrivate::addCredentials(const QNetworkProxy &p,
 }
 
 QNetworkAuthenticationCredential *
-QNetworkAccessManagerPrivate::fetchCachedCredentials(const QNetworkProxy &p,
+QNetworkAccessManagerPrivate::fetchCachedProxyCredentials(const QNetworkProxy &p,
                                                      const QAuthenticator *authenticator)
 {
     QNetworkProxy proxy = p;
@@ -1247,7 +1230,7 @@ QList<QNetworkProxy> QNetworkAccessManagerPrivate::queryProxy(const QNetworkProx
 }
 #endif
 
-void QNetworkAccessManagerPrivate::addCredentials(const QUrl &url,
+void QNetworkAccessManagerPrivate::cacheCredentials(const QUrl &url,
                                                   const QAuthenticator *authenticator)
 {
     Q_ASSERT(authenticator);

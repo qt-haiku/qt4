@@ -742,7 +742,7 @@ static bool _q_isSymbianHidden(const QString &path, bool isDir)
 }
 #endif
 
-#if !defined(QWS) && defined(Q_OS_MAC)
+#if !defined(QWS) && !defined(Q_WS_QPA) && defined(Q_OS_MAC)
 static bool _q_isMacHidden(const QString &path)
 {
     OSErr err = noErr;
@@ -827,7 +827,7 @@ QAbstractFileEngine::FileFlags QFSFileEngine::fileFlags(FileFlags type) const
     if (exists && (type & PermsMask))
         ret |= d->getPermissions(type);
     if (type & TypesMask) {
-#if !defined(QWS) && defined(Q_OS_MAC)
+#if !defined(QWS) && !defined(Q_WS_QPA) && defined(Q_OS_MAC)
         bool foundAlias = false;
         {
             FSRef fref;
@@ -881,8 +881,11 @@ QAbstractFileEngine::FileFlags QFSFileEngine::fileFlags(FileFlags type) const
         } else {
             QString baseName = fileName(BaseName);
             if ((baseName.size() > 0 && baseName.at(0) == QLatin1Char('.'))
-#  if !defined(QWS) && defined(Q_OS_MAC)
+#  if !defined(QWS) && !defined(Q_WS_QPA) && defined(Q_OS_MAC)
                 || _q_isMacHidden(d->filePath)
+#   if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_5
+		|| d->st.st_flags & UF_HIDDEN
+#   endif // MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_5
 #  endif
             ) {
                 ret |= HiddenFlag;
@@ -1092,7 +1095,8 @@ QString QFSFileEngine::fileName(FileName file) const
             int size = PATH_CHUNK_SIZE;
 
             while (1) {
-                s = q_check_ptr((char *) ::realloc(s, size));
+                s = (char *) ::realloc(s, size);
+                Q_CHECK_PTR(s);
                 len = ::readlink(d->nativeFilePath.constData(), s, size);
                 if (len < 0) {
                     ::free(s);
@@ -1136,7 +1140,7 @@ QString QFSFileEngine::fileName(FileName file) const
                 return ret;
             }
         }
-#if !defined(QWS) && defined(Q_OS_MAC)
+#if !defined(QWS) && !defined(Q_WS_QPA) && defined(Q_OS_MAC)
         {
             FSRef fref;
             if (FSPathMakeRef((const UInt8 *)QFile::encodeName(QDir::cleanPath(d->filePath)).data(), &fref, 0) == noErr) {

@@ -338,24 +338,6 @@ void QNetworkAccessHttpBackend::finished()
     QNetworkAccessBackend::finished();
 }
 
-void QNetworkAccessHttpBackend::setupConnection()
-{
-#ifndef QT_NO_NETWORKPROXY
-    connect(http, SIGNAL(proxyAuthenticationRequired(QNetworkProxy,QAuthenticator*)),
-            SLOT(proxyAuthenticationRequired(QNetworkProxy,QAuthenticator*)));
-#endif
-    connect(http, SIGNAL(authenticationRequired(QHttpNetworkRequest,QAuthenticator*)),
-            SLOT(httpAuthenticationRequired(QHttpNetworkRequest,QAuthenticator*)));
-    connect(http, SIGNAL(cacheCredentials(QHttpNetworkRequest,QAuthenticator*)),
-            SLOT(httpCacheCredentials(QHttpNetworkRequest,QAuthenticator*)));
-    connect(http, SIGNAL(error(QNetworkReply::NetworkError,QString)),
-            SLOT(httpError(QNetworkReply::NetworkError,QString)));
-#ifndef QT_NO_OPENSSL
-    connect(http, SIGNAL(sslErrors(QList<QSslError>)),
-            SLOT(sslErrors(QList<QSslError>)));
-#endif
-}
-
 /*
     For a given httpRequest
     1) If AlwaysNetwork, return
@@ -542,6 +524,9 @@ void QNetworkAccessHttpBackend::postRequest()
         break;                  // can't happen
     }
 
+    bool encrypt = (url().scheme().toLower() == QLatin1String("https"));
+    httpRequest.setSsl(encrypt);
+
     httpRequest.setUrl(url());
 
     QList<QByteArray> headers = request().rawHeaderList();
@@ -593,13 +578,22 @@ void QNetworkAccessHttpBackend::postRequest()
     if (pendingIgnoreAllSslErrors)
         httpReply->ignoreSslErrors();
     httpReply->ignoreSslErrors(pendingIgnoreSslErrorsList);
+    connect(httpReply, SIGNAL(sslErrors(QList<QSslError>)),
+            SLOT(sslErrors(QList<QSslError>)));
 #endif
 
-    connect(httpReply, SIGNAL(readyRead()), SLOT(replyReadyRead()));
     connect(httpReply, SIGNAL(finished()), SLOT(replyFinished()));
     connect(httpReply, SIGNAL(finishedWithError(QNetworkReply::NetworkError,QString)),
             SLOT(httpError(QNetworkReply::NetworkError,QString)));
     connect(httpReply, SIGNAL(headerChanged()), SLOT(replyHeaderChanged()));
+    connect(httpReply, SIGNAL(cacheCredentials(QHttpNetworkRequest,QAuthenticator*)),
+            SLOT(httpCacheCredentials(QHttpNetworkRequest,QAuthenticator*)));
+#ifndef QT_NO_NETWORKPROXY
+    connect(httpReply, SIGNAL(proxyAuthenticationRequired(QNetworkProxy,QAuthenticator*)),
+            SLOT(proxyAuthenticationRequired(QNetworkProxy,QAuthenticator*)));
+#endif
+    connect(httpReply, SIGNAL(authenticationRequired(const QHttpNetworkRequest,QAuthenticator*)),
+                SLOT(httpAuthenticationRequired(const QHttpNetworkRequest,QAuthenticator*)));
 }
 
 void QNetworkAccessHttpBackend::invalidateCache()
@@ -674,7 +668,6 @@ void QNetworkAccessHttpBackend::open()
         cache->addEntry(cacheKey, http);
     }
 
-    setupConnection();
     postRequest();
 }
 
@@ -859,7 +852,31 @@ void QNetworkAccessHttpBackend::replyHeaderChanged()
         if (!isCachingEnabled())
             setCachingEnabled(true);
     }
+
+    // Check if a download buffer is supported from the HTTP reply
+    char *buf = 0;
+    if (httpReply->supportsUserProvidedDownloadBuffer()) {
+        // Check if a download buffer is supported by the user
+        buf = getDownloadBuffer(httpReply->contentLength());
+        if (buf) {
+            httpReply->setUserProvidedDownloadBuffer(buf);
+            // If there is a download buffer we react on the progress signal
+            connect(httpReply, SIGNAL(dataReadProgress(int,int)), SLOT(replyDownloadProgressSlot(int,int)));
+        }
+    }
+
+    // If there is no buffer, we react on the readyRead signal
+    if (!buf) {
+        connect(httpReply, SIGNAL(readyRead()), SLOT(replyReadyRead()));
+    }
+
     metaDataChanged();
+}
+
+void QNetworkAccessHttpBackend::replyDownloadProgressSlot(int received,  int total)
+{
+    // we can be sure here that there is a download buffer
+    writeDownstreamDataDownloadBuffer(received, total);
 }
 
 void QNetworkAccessHttpBackend::httpAuthenticationRequired(const QHttpNetworkRequest &,
@@ -879,29 +896,6 @@ void QNetworkAccessHttpBackend::httpError(QNetworkReply::NetworkError errorCode,
 {
 #if defined(QNETWORKACCESSHTTPBACKEND_DEBUG)
     qDebug() << "http error!" << errorCode << errorString;
-#endif
-#if 0
-    static const QNetworkReply::NetworkError conversionTable[] = {
-        QNetworkReply::ConnectionRefusedError,
-        QNetworkReply::RemoteHostClosedError,
-        QNetworkReply::HostNotFoundError,
-        QNetworkReply::UnknownNetworkError, // SocketAccessError
-        QNetworkReply::UnknownNetworkError, // SocketResourceError
-        QNetworkReply::TimeoutError,        // SocketTimeoutError
-        QNetworkReply::UnknownNetworkError, // DatagramTooLargeError
-        QNetworkReply::UnknownNetworkError, // NetworkError
-        QNetworkReply::UnknownNetworkError, // AddressInUseError
-        QNetworkReply::UnknownNetworkError, // SocketAddressNotAvailableError
-        QNetworkReply::UnknownNetworkError, // UnsupportedSocketOperationError
-        QNetworkReply::UnknownNetworkError, // UnfinishedSocketOperationError
-        QNetworkReply::ProxyAuthenticationRequiredError
-    };
-    QNetworkReply::NetworkError code;
-    if (int(errorCode) >= 0 &&
-        uint(errorCode) < (sizeof conversionTable / sizeof conversionTable[0]))
-        code = conversionTable[errorCode];
-    else
-        code = QNetworkReply::UnknownNetworkError;
 #endif
     error(errorCode, errorString);
     finished();
@@ -1168,6 +1162,11 @@ bool QNetworkAccessHttpBackend::canResume() const
         if (!range.startsWith("bytes="))
             return false;
     }
+
+    // If we're using a download buffer then we don't support resuming/migration
+    // right now. Too much trouble.
+    if (httpReply->userProvidedDownloadBuffer())
+        return false;
 
     return true;
 }

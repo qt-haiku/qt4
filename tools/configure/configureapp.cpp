@@ -590,8 +590,6 @@ void Configure::parseCmdLine()
         // Image formats --------------------------------------------
         else if (configCmdLine.at(i) == "-no-gif")
             dictionary[ "GIF" ] = "no";
-        else if (configCmdLine.at(i) == "-qt-gif")
-            dictionary[ "GIF" ] = "plugin";
 
         else if (configCmdLine.at(i) == "-no-libtiff") {
             dictionary[ "TIFF"] = "no";
@@ -1642,7 +1640,7 @@ bool Configure::displayHelp()
                     "[-no-qmake] [-qmake] [-dont-process] [-process]\n"
                     "[-no-style-<style>] [-qt-style-<style>] [-redo]\n"
                     "[-saveconfig <config>] [-loadconfig <config>]\n"
-                    "[-qt-zlib] [-system-zlib] [-no-gif] [-qt-gif] [-no-libpng]\n"
+                    "[-qt-zlib] [-system-zlib] [-no-gif] [-no-libpng]\n"
                     "[-qt-libpng] [-system-libpng] [-no-libtiff] [-qt-libtiff]\n"
                     "[-system-libtiff] [-no-libjpeg] [-qt-libjpeg] [-system-libjpeg]\n"
                     "[-no-libmng] [-qt-libmng] [-system-libmng] [-no-qt3support] [-mmx]\n"
@@ -1770,7 +1768,6 @@ bool Configure::displayHelp()
         desc("ZLIB", "system",  "-system-zlib",         "Use zlib from the operating system.\nSee http://www.gzip.org/zlib\n");
 
         desc("GIF", "no",       "-no-gif",              "Do not compile GIF reading support.");
-        desc("GIF", "auto",     "-qt-gif",              "Compile GIF reading support.\nSee also src/gui/image/qgifhandler_p.h\n");
 
         desc("LIBPNG", "no",    "-no-libpng",           "Do not compile PNG support.");
         desc("LIBPNG", "qt",    "-qt-libpng",           "Use the libpng bundled with Qt.");
@@ -1936,6 +1933,22 @@ QString Configure::findFileInPaths(const QString &fileName, const QString &paths
     return QString();
 }
 
+static QString mingwPaths(const QString &mingwPath, const QString &pathName)
+{
+    QString ret;
+    QDir mingwDir = QFileInfo(mingwPath).dir();
+    const QFileInfoList subdirs = mingwDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (int i = 0 ;i < subdirs.length(); ++i) {
+        const QFileInfo &fi = subdirs.at(i);
+        const QString name = fi.fileName();
+        if (name == pathName)
+            ret += fi.absoluteFilePath() + ';';
+        else if (name.contains("mingw"))
+            ret += fi.absoluteFilePath() + QDir::separator() + pathName + ';';
+    }
+    return ret;
+}
+
 bool Configure::findFile(const QString &fileName)
 {
     const QString file = fileName.toLower();
@@ -1946,18 +1959,22 @@ bool Configure::findFile(const QString &fileName)
     QString paths;
     if (file.endsWith(".h")) {
         if (!mingwPath.isNull()) {
-            if (!findFileInPaths(file, mingwPath + QLatin1String("/../include")).isNull())
+            if (!findFileInPaths(file, mingwPaths(mingwPath, "include")).isNull())
                 return true;
             //now let's try the additional compiler path
-            QDir mingwLibDir = mingwPath + QLatin1String("/../lib/gcc/mingw32");
-            foreach(const QFileInfo &version, mingwLibDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
-                if (!findFileInPaths(file, version.absoluteFilePath() + QLatin1String("/include")).isNull())
-                    return true;
+
+            const QFileInfoList mingwConfigs = QDir(mingwPath + QLatin1String("/../lib/gcc")).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+            for (int i = 0; i < mingwConfigs.length(); ++i) {
+                const QDir mingwLibDir = mingwConfigs.at(i).absoluteFilePath();
+                foreach(const QFileInfo &version, mingwLibDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+                    if (!findFileInPaths(file, version.absoluteFilePath() + QLatin1String("/include")).isNull())
+                        return true;
+                }
             }
         }
         paths = QString::fromLocal8Bit(getenv("INCLUDE"));
     } else if (file.endsWith(".lib") ||  file.endsWith(".a")) {
-        if (!mingwPath.isNull() && !findFileInPaths(file, mingwPath + QLatin1String("/../lib")).isNull())
+        if (!mingwPath.isNull() && !findFileInPaths(file, mingwPaths(mingwPath, "lib")).isNull())
             return true;
         paths = QString::fromLocal8Bit(getenv("LIB"));
     } else {
@@ -2110,13 +2127,8 @@ bool Configure::checkAvailability(const QString &part)
     else if (part == "INCREDIBUILD_XGE")
         available = findFile("BuildConsole.exe") && findFile("xgConsole.exe");
     else if (part == "XMLPATTERNS")
-    {
-        /* MSVC 6.0 and MSVC 2002/7.0 has too poor C++ support for QtXmlPatterns. */
-        return dictionary.value("QMAKESPEC") != "win32-msvc"
-               && dictionary.value("QMAKESPEC") != "win32-msvc.net" // Leave for now, since we can't be sure if they are using 2002 or 2003 with this spec
-               && dictionary.value("QMAKESPEC") != "win32-msvc2002"
-               && dictionary.value("EXCEPTIONS") == "yes";
-    } else if (part == "PHONON") {
+        available = dictionary.value("EXCEPTIONS") == "yes";
+    else if (part == "PHONON") {
         if (dictionary.contains("XQMAKESPEC") && dictionary["XQMAKESPEC"].startsWith("symbian")) {
             available = true;
         } else {
@@ -3070,10 +3082,7 @@ void Configure::generateConfigfiles()
         tmpStream << "/* Machine byte-order */" << endl;
         tmpStream << "#define Q_BIG_ENDIAN 4321" << endl;
         tmpStream << "#define Q_LITTLE_ENDIAN 1234" << endl;
-        if (QSysInfo::ByteOrder == QSysInfo::BigEndian)
-            tmpStream << "#define Q_BYTE_ORDER Q_BIG_ENDIAN" << endl;
-        else
-            tmpStream << "#define Q_BYTE_ORDER Q_LITTLE_ENDIAN" << endl;
+        tmpStream << "#define Q_BYTE_ORDER Q_LITTLE_ENDIAN" << endl;
 
         tmpStream << endl << "// Compile time features" << endl;
         tmpStream << "#define QT_ARCH_" << dictionary["ARCHITECTURE"].toUpper() << endl;

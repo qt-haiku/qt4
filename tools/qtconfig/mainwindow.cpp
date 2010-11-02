@@ -63,6 +63,7 @@
 #include <QInputContext>
 #include <QInputContextFactory>
 #include <QtDebug>
+#include <QPixmap>
 
 #include <stdlib.h>
 
@@ -204,6 +205,7 @@ MainWindow::MainWindow()
 {
     modified = true;
     desktopThemeName = tr("Desktop Settings (Default)");
+    setIcon(QPixmap(":/trolltech/qtconfig/images/appicon.png"));
     QStringList gstyles = QStyleFactory::keys();
     gstyles.sort();
     gstylecombo->addItem(desktopThemeName);
