@@ -3198,7 +3198,7 @@ void QMetaObject::activate(QObject *sender, const QMetaObject *m, int local_sign
 
     int signal_index = signalOffset + local_signal_index;
 
-    if (!sender->d_func()->isSignalConnected(signal_index))
+    if (!sender->d_func() || !sender->d_func()->isSignalConnected(signal_index))
         return; // nothing connected to these signals, and no spy
 
     if (sender->d_func()->blockSig)
