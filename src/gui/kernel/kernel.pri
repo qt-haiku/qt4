@@ -322,7 +322,7 @@ wince*: {
 }
 
 haiku {
-	HEADERS += kernel\qwidget_haiku.h
+	HEADERS += kernel/qwidget_haiku.h
     
 	SOURCES += \
 		kernel/qapplication_haiku.cpp \

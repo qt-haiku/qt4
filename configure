@@ -2720,6 +2720,7 @@ if [ "$CFG_EMBEDDED" != "no" ]; then
         ;;
     esac
 fi
+
 if [ -z "$PLATFORM" ]; then
     PLATFORM_NOTES=
     case "$UNAME_SYSTEM:$UNAME_RELEASE" in
@@ -2869,8 +2870,8 @@ if [ -z "$PLATFORM" ]; then
         PLATFORM=unsupported/qnx-g++
         ;;
       Haiku:*)
-                 PLATFORM=haiku-g++
-                 ;;
+        PLATFORM=haiku-g++
+        ;;
      *)
         if [ "$OPT_HELP" != "yes" ]; then
             echo
@@ -3319,7 +3320,7 @@ QMAKE_CONF_COMPILER=`getQMakeConf "$XQMAKESPEC" | grep "\(^\| \)QMAKE_CXX[^_A-Z0
 TEST_COMPILER="$CXX"
 
 [ -z "$TEST_COMPILER" ] && TEST_COMPILER=$QMAKE_CONF_COMPILER
-if [ "$XPLATFORM_SYMBIAN_SBSV2" = "no" ]; then
+if [ "$XPLATFORM_SYMBIAN_SBSV2" = "no" ] && [ "$PLATFORM_HAIKU" = "no" ]; then
     #for Symbian we don't need this checking
     if [ -z "$TEST_COMPILER" ]; then
         echo "ERROR: Cannot set the compiler for the configuration tests"
@@ -3497,11 +3498,9 @@ if [ -z "$QT_INSTALL_PREFIX" ]; then
         if [ "$XPLATFORM_SYMBIAN" = "yes" ]; then
             QT_INSTALL_PREFIX="$EPOCROOT/epoc32/"
             QT_INSTALL_LIBS="$EPOCROOT/epoc32/release/armv5/lib/"
-            ;;
-        esac
+        fi
     elif [ "$PLATFORM_HAIKU" = "yes" ]; then
    	    QT_INSTALL_PREFIX="/boot/common"
-        fi
     else
         QT_INSTALL_PREFIX="/usr/local/Trolltech/Qt-${QT_VERSION}" # the default install prefix is /usr/local/Trolltech/Qt-$QT_VERSION
     fi
