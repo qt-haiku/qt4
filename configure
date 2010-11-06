@@ -2572,14 +2572,8 @@ if [ "$OPT_SHADOW" = "yes" ]; then
     ShadowMkspecs()
     {
         rm -rf "$outpath/mkspecs/$1"
-        if [ "$UNAME_SYSTEM" = "Linux" ]; then
-            # This works with GNU coreutils, and is needed for ScratchBox
-            cp -rs "$relpath/mkspecs/$1" "$outpath/mkspecs/$1"
-        else
-            # A simple "cp -rs" doesn't work on Mac. :(
-            find "$relpath/mkspecs/$1" -type d | sed "s,^$relpath,$outpath," | xargs mkdir -p
-            find "$relpath/mkspecs/$1" -type f | sed "s,^$relpath/,," | xargs -n 1 -I % ln -s "$relpath/%" "$outpath/%"
-        fi
+        find "$relpath/mkspecs/$1" -type d | sed "s,^$relpath,$outpath," | xargs mkdir -p
+        find "$relpath/mkspecs/$1" -type f | sed "s,^$relpath/,," | while read f; do ln -s "$relpath/$f" "$outpath/$f"; done
     }
 
     # Special case for mkspecs/features directory.
@@ -3316,7 +3310,7 @@ else
     CFG_FRAMEWORK=no
 fi
 
-QMAKE_CONF_COMPILER=`getQMakeConf "$XQMAKESPEC" | grep "\(^\| \)QMAKE_CXX[^_A-Z0-9]" | sed "s,.* *= *\(.*\)$,\1," | tail -1`
+QMAKE_CONF_COMPILER=`getQMakeConf "$XQMAKESPEC" | grep "^QMAKE_CXX[^_A-Z0-9]" | sed "s,.* *= *\(.*\)$,\1," | tail -1`
 TEST_COMPILER="$CXX"
 
 [ -z "$TEST_COMPILER" ] && TEST_COMPILER=$QMAKE_CONF_COMPILER
@@ -4752,27 +4746,37 @@ fi
 # $2: optional transformation
 # relies on $QMAKESPEC, $COMPILER_CONF and $mkfile being set correctly, as the latter
 # is where the resulting variable is written to
+# Assumes that the optional transformation produces the same variable name for each hit
 setBootstrapVariable()
 {
     getQMakeConf | $AWK '/^('"$1"')[^_A-Z0-9]/ { print $0; }' | ( [ -n "$2" ] && sed "$2" ; [ -z "$2" ] && cat ) | $AWK '
+BEGIN {
+    variable = ""
+    combinedValue = ""
+}
 {
-    varLength = index($0, "=") - 1
-    valStart = varLength + 2
-    if (substr($0, varLength, 1) == "+") {
-        varLength = varLength - 1
-        valStart = valStart + 1
+    valStart = index($0, "=") + 1
+
+    append = 0
+    if (substr($0, valStart - 2, 1) == "+") {
+        append = 1
     }
-    var = substr($0, 0, varLength)
-    gsub("[ \t]+", "", var)
-    val = substr($0, valStart)
-    printf "%s_%s = %s\n", var, NR, val
+
+    variable = substr($0, 0, valStart - 2 - append)
+    value = substr($0, valStart)
+    gsub("[ \t]+", "", variable)
+    gsub("^[ \t]+", "", value)
+    gsub("[ \t]+$", "", value)
+
+    if (append == 1 && length(combinedValue) > 0) {
+        combinedValue = combinedValue " " value
+    } else {
+        combinedValue = value
+    }
 }
 END {
-    if (length(var) > 0) {
-        printf "%s =", var
-        for (i = 1; i <= NR; ++i)
-            printf " $(%s_%s)", var, i
-        printf "\n"
+    if (length(combinedValue) > 0) {
+        printf "%s = %s\n", variable, combinedValue
     }
 }' >> "$mkfile"
 }
