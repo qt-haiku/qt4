@@ -1266,6 +1266,28 @@ QVariant QSystemLocale::query(QueryType type, QVariant in = QVariant()) const
 	be_locale->GetLanguage(&lang);	
 
 	switch(type) {		
+	case DecimalPoint: {
+		BString test;
+		be_locale->FormatNumber(&test,1.1);
+		if(test.FindFirst(',')!=B_ERROR) {
+			return QString(",");
+		} else if(test.FindFirst('.')!=B_ERROR) {
+			return QString(".");
+		} 
+        return QVariant();
+    }
+    case GroupSeparator: {
+		BString test;
+		be_locale->FormatNumber(&test,10000.0);
+		if(test[2]==',') {
+			return QString(",");
+		} else if(test[2]=='.') {
+			return QString(".");
+		} else if(test[2]==' ') {
+			return QString(" ");
+		} 
+        return QVariant();
+    }	
     case LanguageId:
     case CountryId: {
         QString preferredLanguage = QString(lang.Code());
