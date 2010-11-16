@@ -63,6 +63,9 @@ QT_END_NAMESPACE
 #   include "qt_windows.h"
 #   include <time.h>
 #endif
+#if defined(Q_OS_HAIKU)
+#include <LocaleKit.h>
+#endif
 #if !defined(QWS) && defined(Q_OS_MAC)
 #   include "private/qcore_mac_p.h"
 #   include <CoreFoundation/CoreFoundation.h>
@@ -1227,7 +1230,7 @@ QVariant QSystemLocale::query(QueryType type, QVariant in = QVariant()) const
     case LanguageId:
     case CountryId: {
         QString preferredLanguage;
-        QString preferredCountry(3, QChar()); // codeToCountry assumes QChar[3]
+        QString preferredCountry(3, QChar());
         getMacPreferredLanguageAndCountry(&preferredLanguage, &preferredCountry);
         QLocale::Language languageCode = (preferredLanguage.isEmpty() ? QLocale::C : codeToLanguage(preferredLanguage.data()));
         QLocale::Country countryCode = (preferredCountry.isEmpty() ? QLocale::AnyCountry : codeToCountry(preferredCountry.data()));
@@ -1246,6 +1249,48 @@ QVariant QSystemLocale::query(QueryType type, QVariant in = QVariant()) const
     default:
         break;
     }
+    return QVariant();
+}
+#elif defined(Q_OS_HAIKU)
+
+QLocale QSystemLocale::fallbackLocale() const
+{
+	BLanguage lang;
+	be_locale->GetLanguage(&lang);	
+    return QLocale(QLatin1String(lang.ID()));
+}
+
+QVariant QSystemLocale::query(QueryType type, QVariant in = QVariant()) const
+{
+	BLanguage lang;
+	be_locale->GetLanguage(&lang);	
+
+	switch(type) {		
+    case LanguageId:
+    case CountryId: {
+        QString preferredLanguage = QString(lang.Code());
+        QString preferredCountry(3, QChar());
+        preferredCountry = QString(lang.CountryCode());    	
+        QLocale::Language languageCode = (preferredLanguage.isEmpty() ? QLocale::C : codeToLanguage(preferredLanguage.data()));
+        QLocale::Country countryCode = (preferredCountry.isEmpty() ? QLocale::AnyCountry : codeToCountry(preferredCountry.data()));
+        const QLocalePrivate *d = findLocale(languageCode, countryCode);
+        if (type == LanguageId) {
+            return (QLocale::Language)d->languageId();
+        }
+        return (QLocale::Country)d->countryId();
+    }
+    case MeasurementSystem: {
+		BFormattingConventions conventions;
+		be_locale->GetFormattingConventions(&conventions);
+		if(conventions.MeasurementKind()==B_METRIC) {
+	        return QLocale::MetricSystem;
+	    } else {
+        	return QLocale::ImperialSystem;
+    	}
+    }
+    default:
+        break;	
+	}
     return QVariant();
 }
 

@@ -51,4 +51,6 @@ neon {
     QMAKE_CXXFLAGS *= -mfpu=neon
 }
 
-
+haiku: {
+	LIBS_PRIVATE += -llocale
+}
