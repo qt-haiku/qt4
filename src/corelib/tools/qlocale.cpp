@@ -1267,32 +1267,32 @@ QVariant QSystemLocale::query(QueryType type, QVariant in = QVariant()) const
 
 	switch(type) {		
 	case DecimalPoint: {
-		BString test;
+		BString test, unitest;
 		be_locale->FormatNumber(&test,1.1);
-		if(test.FindFirst(',')!=B_ERROR) {
-			return QString(",");
-		} else if(test.FindFirst('.')!=B_ERROR) {
-			return QString(".");
-		} 
+		be_locale->FormatNumber(&unitest,(int32)1);
+		QString result = QString().fromLocal8Bit(test.String());
+		result.remove(QString().fromLocal8Bit(unitest.String()));
+		if(!result.isEmpty() && result.size()<=2) {
+			return result;
+		}
         return QVariant();
     }
     case GroupSeparator: {
-		BString test;
-		be_locale->FormatNumber(&test,10000.0);
-		if(test[2]==',') {
-			return QString(",");
-		} else if(test[2]=='.') {
-			return QString(".");
-		} else if(test[2]==' ') {
-			return QString(" ");
-		} 
+    	BString test, unitest;
+		be_locale->FormatNumber(&test,(int32)11111);
+		be_locale->FormatNumber(&unitest,(int32)1);
+		QString result = QString().fromLocal8Bit(test.String());
+		result.remove(QString().fromLocal8Bit(unitest.String()));
+		if(!result.isEmpty() && result.size()<=3) {
+			return result;
+		}
         return QVariant();
     }	
     case LanguageId:
     case CountryId: {
-        QString preferredLanguage = QString(lang.Code());
+        QString preferredLanguage = QString().fromLocal8Bit(lang.Code());
         QString preferredCountry(3, QChar());
-        preferredCountry = QString(lang.CountryCode());    	
+        preferredCountry = QString().fromLocal8Bit(lang.CountryCode());
         QLocale::Language languageCode = (preferredLanguage.isEmpty() ? QLocale::C : codeToLanguage(preferredLanguage.data()));
         QLocale::Country countryCode = (preferredCountry.isEmpty() ? QLocale::AnyCountry : codeToCountry(preferredCountry.data()));
         const QLocalePrivate *d = findLocale(languageCode, countryCode);
@@ -1308,8 +1308,15 @@ QVariant QSystemLocale::query(QueryType type, QVariant in = QVariant()) const
 	        return QLocale::MetricSystem;
 	    } else {
         	return QLocale::ImperialSystem;
-    	}
+    	}    	
     }
+    case NegativeSign:
+    case PositiveSign:
+    case ZeroDigit:
+        break;
+    case AMText:
+    case PMText:
+        break;        
     default:
         break;	
 	}
