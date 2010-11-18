@@ -1251,7 +1251,7 @@ QVariant QSystemLocale::query(QueryType type, QVariant in = QVariant()) const
     }
     return QVariant();
 }
-#elif defined(Q_OS_HAIKU)
+#elif defined(Q_OS_HAIKU) && !defined(QT_BUILD_QMAKE)
 
 QLocale QSystemLocale::fallbackLocale() const
 {

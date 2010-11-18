@@ -52,5 +52,5 @@ neon {
 }
 
 haiku: {
-	LIBS_PRIVATE += -llocale
+	LIBS_PRIVATE += -llocale -lbe
 }
