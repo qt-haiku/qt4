@@ -1772,7 +1772,7 @@ mimeset -f "$QTROOT/boot/common/data/licenses/LGPL v2.1"
 echo  "Make full pack"
 ######################################################################
 cd $QTROOT/boot
-zip -ry9 ../Qt4Haiku_4.7.0_$(date +%d%b%Y)_dev.zip * >/dev/null
+zip -ry9 ../Qt4Haiku_4.8.0_$(date +%d%b%Y)_dev.zip * >/dev/null
 cd ..
 
 ######################################################################
@@ -1829,7 +1829,7 @@ rm -f "$QTROOT/boot/home/config/be/Qt/Development/Qt Linguist"
 echo  "Make min pack"
 ######################################################################
 cd $QTROOT/boot
-zip -ry9 ../Qt4Haiku_4.7.0_$(date +%d%b%Y)_min.zip * >/dev/null
+zip -ry9 ../Qt4Haiku_4.8.0_$(date +%d%b%Y)_min.zip * >/dev/null
 cd ..
 
 ######################################################################
