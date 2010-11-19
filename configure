@@ -2151,7 +2151,7 @@ while [ "$#" -gt 0 ]; do
         CFG_WEBKIT="$VAL"
         ;;
     javascript-jit)
-        if [ "$VAL" = "yes" ] || [ "$VAL" = "auto" ] || [ "$VAL" = "no" ]; then 
+        if [ "$VAL" = "yes" ] || [ "$VAL" = "auto" ] || [ "$VAL" = "no" ]; then
             CFG_JAVASCRIPTCORE_JIT="$VAL"
         else
             UNKNOWN_OPT=yes
@@ -3274,7 +3274,7 @@ if [ "$PLATFORM_MAC" = "yes" ]; then
     CFG_MAC_ARCHS_IN="$CFG_MAC_ARCHS"
     CFG_MAC_ARCHS=
     for i in $CFG_MAC_ARCHS_IN
-    do 
+    do
         if echo "$ALLOWED" | grep -w -v "$i" > /dev/null 2>&1; then
             echo "Unknown architecture: \"$i\". Supported architectures: x86[i386] ppc x86_64 ppc64";
             exit 2;
@@ -3491,7 +3491,6 @@ if [ -z "$QT_INSTALL_PREFIX" ]; then
     elif [ -d "$EPOCROOT" ] && [ "$XPLATFORM_SYMBIAN" = "yes" ]; then
         QT_INSTALL_PREFIX="$EPOCROOT/epoc32/"
         QT_INSTALL_LIBS="$EPOCROOT/epoc32/release/armv5/lib/"
-        fi
     elif [ "$PLATFORM_HAIKU" = "yes" ]; then
    	    QT_INSTALL_PREFIX="/boot/common"
     else
@@ -3727,11 +3726,11 @@ Usage:  $relconf [-h] [-prefix <dir>] [-prefix-install] [-bindir <dir>] [-libdir
         [-qtnamespace <namespace>] [-qtlibinfix <infix>] [-separate-debug-info] [-armfpa]
         [-no-optimized-qmake] [-optimized-qmake] [-no-xmlpatterns] [-xmlpatterns]
         [-no-multimedia] [-multimedia] [-no-phonon] [-phonon] [-no-phonon-backend] [-phonon-backend]
-        [-no-media-backend] [-media-backend] [-no-audio-backend] [-audio-backend] 
+        [-no-media-backend] [-media-backend] [-no-audio-backend] [-audio-backend]
         [-no-openssl] [-openssl] [-openssl-linked]
         [-no-gtkstyle] [-gtkstyle] [-no-svg] [-svg] [-no-webkit] [-webkit] [-webkit-debug]
         [-no-javascript-jit] [-javascript-jit]
-        [-no-script] [-script] [-no-scripttools] [-scripttools] 
+        [-no-script] [-script] [-no-scripttools] [-scripttools]
 	[-no-declarative] [-declarative][-no-declarative-debug] [-declarative-debug]
         [additional platform specific options (see below)]
 
@@ -6725,7 +6724,7 @@ elif [ "$XPLATFORM_SYMBIAN_SBSV2" = "yes" ]; then
     CFG_ALSA=no
 fi
 
-if [ "$CFG_JAVASCRIPTCORE_JIT" = "yes" ] || [ "$CFG_JAVASCRIPTCORE_JIT" = "auto" ]; then 
+if [ "$CFG_JAVASCRIPTCORE_JIT" = "yes" ] || [ "$CFG_JAVASCRIPTCORE_JIT" = "auto" ]; then
     if [ "$CFG_ARCH" = "arm" ]; then
        "$unixtests/compile.test" "$XQMAKESPEC" "$QMAKE_CONFIG" $OPT_VERBOSE "$relpath" "$outpath" config.tests/unix/javascriptcore-jit "javascriptcore-jit" $L_FLAGS $I_FLAGS $l_FLAGS
         if [ $? != "0" ]; then
@@ -7597,10 +7596,10 @@ if [ "$CFG_EXCEPTIONS" = "no" ]; then
     QMAKE_CONFIG="$QMAKE_CONFIG exceptions_off"
 fi
 
-# On Mac, set the minimum deployment target for the different architechtures 
+# On Mac, set the minimum deployment target for the different architechtures
 # using the Xarch compiler option when supported (10.5 and up).  On 10.4 the
 # deployment version is set to 10.4 globally using the QMAKE_MACOSX_DEPLOYMENT_TARGET
-# env. variable. 
+# env. variable.
 if [ "$PLATFORM_MAC" = "yes" ] && [ "$CFG_MAC_XARCH" != "no" ] ; then
     if echo "$CFG_MAC_ARCHS" | grep '\<x86\>' > /dev/null 2>&1; then
         QMakeVar add QMAKE_CFLAGS "-Xarch_i386 -mmacosx-version-min=10.4"
