@@ -145,10 +145,28 @@ QKeyMapperPrivate::QKeyMapperPrivate()
 		Qt::Key_Down,		0x62,   //cursor
 		Qt::Key_Right,		0x63,   //cursor
 		Qt::Key_Insert,		0x64,   //cursor
-		Qt::Key_Delete,		0x65,   //cursor
+		Qt::Key_Delete,		0x65,   //numpad
 		0,					0x00
 	};
+
+uint32 scan_codes_numlock[] = {
+		Qt::Key_7,			0x37,
+        Qt::Key_8,			0x38,
+        Qt::Key_9,			0x39,
+        Qt::Key_Plus,		0x3A,
+        Qt::Key_4,			0x48,
+		Qt::Key_5,			0x49,
+        Qt::Key_6,			0x4A,
+        Qt::Key_1,			0x58,
+        Qt::Key_2,			0x59,
+        Qt::Key_3,			0x5A,
+		Qt::Key_Enter,		0x5B,
+		Qt::Key_Comma,		0x65,
+		0,					0x00
+	};
+	
 	memcpy(ScanCodes,scan_codes,sizeof(scan_codes));
+	memcpy(ScanCodes_Numlock,scan_codes_numlock,sizeof(scan_codes_numlock));
 }
 
 QKeyMapperPrivate::~QKeyMapperPrivate()
@@ -166,12 +184,25 @@ uint32 QKeyMapperPrivate::translateKeyCode(int32 key)
 {
 	uint32 code = 0;
 	int i = 0;
+	if(modifiers()&&B_NUM_LOCK) {
+	    while (ScanCodes_Numlock[i]) {
+	      		if ( key == ScanCodes_Numlock[i+1]) {
+	            code = ScanCodes_Numlock[i];
+	      		    break;
+	        	}
+	       	i += 2;
+	  	}	
+		if(code>0)
+			return code;   
+	}
+	
+	i = 0;
     while (ScanCodes[i]) {
       		if ( key == ScanCodes[i+1]) {
             code = ScanCodes[i];
       		    break;
-        }
+        	}
        	i += 2;
-  		}	
+  	}	
 	return code;   
 }

@@ -216,6 +216,7 @@ public:
 #elif defined(Q_WS_HAIKU)
 	uint32	translateKeyCode(int32 key);
 	uint32  ScanCodes[256];
+	uint32  ScanCodes_Numlock[16];
 #endif
 };
 
