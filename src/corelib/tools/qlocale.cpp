@@ -1256,20 +1256,20 @@ QVariant QSystemLocale::query(QueryType type, QVariant in = QVariant()) const
 QLocale QSystemLocale::fallbackLocale() const
 {
 	BLanguage lang;
-	be_locale->GetLanguage(&lang);	
+	BLocale::Default()->GetLanguage(&lang);	
     return QLocale(QLatin1String(lang.ID()));
 }
 
 QVariant QSystemLocale::query(QueryType type, QVariant in = QVariant()) const
 {
 	BLanguage lang;
-	be_locale->GetLanguage(&lang);	
+	BLocale::Default()->GetLanguage(&lang);	
 
 	switch(type) {		
 	case DecimalPoint: {
 		BString test, unitest;
-		be_locale->FormatNumber(&test,1.1);
-		be_locale->FormatNumber(&unitest,(int32)1);
+		BLocale::Default()->FormatNumber(&test,1.1);
+		BLocale::Default()->FormatNumber(&unitest,(int32)1);
 		QString result = QString().fromLocal8Bit(test.String());
 		result.remove(QString().fromLocal8Bit(unitest.String()));
 		if(!result.isEmpty() && result.size()<=2) {
@@ -1279,8 +1279,8 @@ QVariant QSystemLocale::query(QueryType type, QVariant in = QVariant()) const
     }
     case GroupSeparator: {
     	BString test, unitest;
-		be_locale->FormatNumber(&test,(int32)11111);
-		be_locale->FormatNumber(&unitest,(int32)1);
+		BLocale::Default()->FormatNumber(&test,(int32)11111);
+		BLocale::Default()->FormatNumber(&unitest,(int32)1);
 		QString result = QString().fromLocal8Bit(test.String());
 		result.remove(QString().fromLocal8Bit(unitest.String()));
 		if(!result.isEmpty() && result.size()<=3) {
@@ -1303,7 +1303,7 @@ QVariant QSystemLocale::query(QueryType type, QVariant in = QVariant()) const
     }
     case MeasurementSystem: {
 		BFormattingConventions conventions;
-		be_locale->GetFormattingConventions(&conventions);
+		BLocale::Default()->GetFormattingConventions(&conventions);
 		if(conventions.MeasurementKind()==B_METRIC) {
 	        return QLocale::MetricSystem;
 	    } else {
