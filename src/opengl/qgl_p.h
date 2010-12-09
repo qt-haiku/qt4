@@ -509,6 +509,7 @@ Q_SIGNALS:
 
 private slots:
     void freeTexture_slot(QGLContext *context, QPixmapData *boundPixmap, GLuint id) {
+        Q_UNUSED(boundPixmap);
 #if defined(Q_WS_X11)
         if (boundPixmap) {
             QGLContext *oldContext = const_cast<QGLContext *>(QGLContext::currentContext());
@@ -519,7 +520,8 @@ private slots:
             // when you come to delete the context.
             QGLContextPrivate::unbindPixmapFromTexture(boundPixmap);
             glDeleteTextures(1, &id);
-            oldContext->makeCurrent();
+            if (oldContext)
+                oldContext->makeCurrent();
             return;
         }
 #endif

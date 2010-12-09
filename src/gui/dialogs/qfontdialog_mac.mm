@@ -51,6 +51,7 @@
 #include <private/qt_mac_p.h>
 #include <qabstracteventdispatcher.h>
 #include <qdebug.h>
+#include <private/qfontengine_coretext_p.h>
 #import <AppKit/AppKit.h>
 #import <Foundation/Foundation.h>
 
@@ -339,7 +340,7 @@ static QFont qfontForCocoaFont(NSFont *cocoaFont, const QFont &resolveFont)
     [self relayoutToContentSize:[[mStolenContentView superview] frame].size];
 }
 
-- (void)relayoutToContentSize:(NSSize)frameSize;
+- (void)relayoutToContentSize:(NSSize)frameSize
 {
     Q_ASSERT(mPanelHackedWithButtons);
 
