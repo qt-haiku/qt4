@@ -3350,7 +3350,7 @@ QString QFSCompleter::pathFromIndex(const QModelIndex &index) const
         if (currentLocation == QDir::separator())
             return path.mid(currentLocation.length());
 #endif
-        if (currentLocation.endsWith('/'))
+        if (currentLocation.endsWith(QLatin1Char('/')))
             return path.mid(currentLocation.length());
         else
             return path.mid(currentLocation.length()+1);
