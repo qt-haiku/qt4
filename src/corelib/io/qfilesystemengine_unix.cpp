@@ -603,7 +603,7 @@ QString QFileSystemEngine::homePath()
 #ifdef Q_OS_HAIKU
 	home += QLatin1String("/config/settings/Qt");
 #endif    
-   if (home.isNull())
+    if (home.isNull())
         home = rootPath();
     return QDir::cleanPath(home);
 }
