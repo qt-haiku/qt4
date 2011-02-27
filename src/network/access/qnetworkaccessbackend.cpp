@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -329,7 +329,7 @@ void QNetworkAccessBackend::authenticationRequired(QAuthenticator *authenticator
 
 void QNetworkAccessBackend::cacheCredentials(QAuthenticator *authenticator)
 {
-    manager->cacheCredentials(this->reply->url, authenticator);
+    manager->authenticationManager->cacheCredentials(this->reply->url, authenticator);
 }
 
 void QNetworkAccessBackend::metaDataChanged()

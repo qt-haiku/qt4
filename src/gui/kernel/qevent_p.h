@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -45,6 +45,10 @@
 #include <QtCore/qglobal.h>
 #include <QtCore/qurl.h>
 #include <QtGui/qevent.h>
+
+#ifdef Q_OS_SYMBIAN
+#include <f32file.h>
+#endif
 
 QT_BEGIN_NAMESPACE
 
@@ -174,8 +178,12 @@ public:
         : url(url)
     {
     }
+    ~QFileOpenEventPrivate();
 
     QUrl url;
+#ifdef Q_OS_SYMBIAN
+    RFile file;
+#endif
 };
 
 

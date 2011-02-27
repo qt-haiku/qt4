@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -664,19 +664,19 @@ QRasterPaintEngineState::QRasterPaintEngineState()
 
 QRasterPaintEngineState::QRasterPaintEngineState(QRasterPaintEngineState &s)
     : QPainterState(s)
-    , stroker(s.stroker)
-    , lastBrush(s.lastBrush)
-    , brushData(s.brushData)
     , lastPen(s.lastPen)
     , penData(s.penData)
-    , fillFlags(s.fillFlags)
+    , stroker(s.stroker)
     , strokeFlags(s.strokeFlags)
+    , lastBrush(s.lastBrush)
+    , brushData(s.brushData)
+    , fillFlags(s.fillFlags)
     , pixmapFlags(s.pixmapFlags)
     , intOpacity(s.intOpacity)
     , txscale(s.txscale)
-    , flag_bits(s.flag_bits)
     , clip(s.clip)
     , dirty(s.dirty)
+    , flag_bits(s.flag_bits)
 {
     brushData.tempImage = 0;
     penData.tempImage = 0;
@@ -1808,7 +1808,7 @@ void QRasterPaintEngine::fill(const QVectorPath &path, const QBrush &brush)
         ensureState();
         if (s->flags.tx_noshear) {
             d->initializeRasterizer(&s->brushData);
-            // ### Is normalizing really nessesary here?
+            // ### Is normalizing really necessary here?
             const qreal *p = path.points();
             QRectF r = QRectF(p[0], p[1], p[2] - p[0], p[7] - p[1]).normalized();
             if (!r.isEmpty()) {
@@ -3179,7 +3179,7 @@ void QRasterPaintEngine::drawGlyphsS60(const QPointF &p, const QTextItemInt &ti)
 #endif // Q_OS_SYMBIAN && QT_NO_FREETYPE
 
 /*!
- * Returns true if the rectangle is completly within the current clip
+ * Returns true if the rectangle is completely within the current clip
  * state of the paint engine.
  */
 bool QRasterPaintEnginePrivate::isUnclipped_normalized(const QRect &r) const
@@ -3717,6 +3717,13 @@ void QRasterPaintEnginePrivate::rasterizeLine_dashed(QLineF line,
     const QPen &pen = s->lastPen;
     const bool squareCap = (pen.capStyle() == Qt::SquareCap);
     const QVector<qreal> pattern = pen.dashPattern();
+
+    qreal patternLength = 0;
+    for (int i = 0; i < pattern.size(); ++i)
+        patternLength += pattern.at(i);
+
+    if (patternLength <= 0)
+        return;
 
     qreal length = line.length();
     Q_ASSERT(length > 0);

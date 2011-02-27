@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -54,6 +54,11 @@
 #include <QtCore/qvariant.h>
 #include <QtCore/qmap.h>
 #include <QtCore/qset.h>
+#include <QtCore/qfile.h>
+
+#ifdef Q_OS_SYMBIAN
+class RFile;
+#endif
 
 QT_BEGIN_HEADER
 
@@ -641,10 +646,14 @@ class Q_GUI_EXPORT QFileOpenEvent : public QEvent
 public:
     QFileOpenEvent(const QString &file);
     QFileOpenEvent(const QUrl &url);
+#ifdef Q_OS_SYMBIAN
+    QFileOpenEvent(const RFile &fileHandle);
+#endif
     ~QFileOpenEvent();
 
     inline QString file() const { return f; }
     QUrl url() const;
+    bool openFile(QFile &file, QIODevice::OpenMode flags) const;
 private:
     QString f;
 };

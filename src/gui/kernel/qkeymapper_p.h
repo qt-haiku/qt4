@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -213,10 +213,11 @@ public:
     int mapS60ScanCodesToQt(TUint s60key);
     int mapQtToS60Key(int qtKey);
     int mapQtToS60ScanCodes(int qtKey);
+    void updateInputLanguage();
 #elif defined(Q_WS_HAIKU)
-	uint32	translateKeyCode(int32 key);
-	uint32  ScanCodes[256];
-	uint32  ScanCodes_Numlock[16];
+    uint32	translateKeyCode(int32 key);
+    uint32  ScanCodes[256];
+    uint32  ScanCodes_Numlock[16];
 #endif
 };
 

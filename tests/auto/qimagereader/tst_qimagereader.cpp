@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -1410,6 +1410,9 @@ void tst_QImageReader::readFromResources_data()
     QTest::newRow("corrupt-pixels.xpm") << QString("corrupt-pixels.xpm")
                                                << QByteArray("xpm") << QSize(0, 0)
                                                << QString("QImage: XPM pixels missing on image line 3");
+    QTest::newRow("corrupt-pixel-count.xpm") << QString("corrupt-pixel-count.xpm")
+                                             << QByteArray("xpm") << QSize(0, 0)
+                                             << QString("");
     QTest::newRow("marble.xpm") << QString("marble.xpm")
                                        << QByteArray("xpm") << QSize(240, 240)
                                        << QString("");
