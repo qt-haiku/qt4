@@ -1089,6 +1089,12 @@ QT_BEGIN_INCLUDE_NAMESPACE
 #elif defined(Q_WS_HAIKU)
 #  include "qfontdatabase_haiku.cpp"
 #endif
+#if !defined(Q_WS_X11)
+QString QFontDatabase::resolveFontFamilyAlias(const QString &family)
+{
+    return family;
+}
+#endif
 QT_END_INCLUDE_NAMESPACE
 
 static QtFontStyle *bestStyle(QtFontFoundry *foundry, const QtFontStyle::Key &styleKey)
