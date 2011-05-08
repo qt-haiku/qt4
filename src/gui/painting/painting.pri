@@ -234,8 +234,10 @@ x11 {
 }
 
 !embedded:!qpa:mac {
-        HEADERS += painting/qwindowsurface_mac_p.h
-        SOURCES += painting/qwindowsurface_mac.cpp
+        HEADERS += painting/qwindowsurface_mac_p.h \
+                   painting/qunifiedtoolbarsurface_mac_p.h
+        SOURCES += painting/qwindowsurface_mac.cpp \
+                   painting/qunifiedtoolbarsurface_mac.cpp
 }
 
 embedded {
@@ -265,12 +267,6 @@ haiku {
 #		painting/qpaintdevice_haiku.cpp  \
 		painting/qcolormap_haiku.cpp
 }
-
-mac {
-       HEADERS += painting/qunifiedtoolbarsurface_mac_p.h
-       SOURCES += painting/qunifiedtoolbarsurface_mac.cpp
-}
-
 
 NEON_SOURCES += painting/qdrawhelper_neon.cpp
 NEON_HEADERS += painting/qdrawhelper_neon_p.h

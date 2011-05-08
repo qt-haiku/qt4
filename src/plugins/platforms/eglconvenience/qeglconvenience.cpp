@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -206,12 +206,12 @@ bool q_reduceConfigAttributes(QVector<EGLint> *configAttributes)
     return false;
 }
 
-EGLConfig q_configFromQPlatformWindowFormat(EGLDisplay display, const QPlatformWindowFormat &format)
+EGLConfig q_configFromQPlatformWindowFormat(EGLDisplay display, const QPlatformWindowFormat &format, bool highestPixelFormat, int surfaceType)
 {
     EGLConfig cfg = 0;
     QVector<EGLint> configureAttributes = q_createConfigAttributesFromFormat(format);
     configureAttributes.append(EGL_SURFACE_TYPE); //we only support eglconfigs for windows for now
-    configureAttributes.append(EGL_WINDOW_BIT);
+    configureAttributes.append(surfaceType);
 
     configureAttributes.append(EGL_RENDERABLE_TYPE);
     if (format.windowApi() == QPlatformWindowFormat::OpenVG) {
@@ -227,14 +227,14 @@ EGLConfig q_configFromQPlatformWindowFormat(EGLDisplay display, const QPlatformW
         if (!eglChooseConfig(display, configureAttributes.constData(), 0, 0, &matching) || !matching)
             continue;
 
-//        // If we want the best pixel format, then return the first
-//        // matching configuration.
-//        if (match == QEgl::BestPixelFormat) {
-//            eglChooseConfig(display, props.properties(), &cfg, 1, &matching);
-//            if (matching < 1)
-//                continue;
-//            return cfg;
-//        }
+        // If we want the best pixel format, then return the first
+        // matching configuration.
+        if (highestPixelFormat) {
+            eglChooseConfig(display, configureAttributes.constData(), &cfg, 1, &matching);
+            if (matching < 1)
+                continue;
+            return cfg;
+        }
 
         // Fetch all of the matching configurations and find the
         // first that matches the pixel format we wanted.

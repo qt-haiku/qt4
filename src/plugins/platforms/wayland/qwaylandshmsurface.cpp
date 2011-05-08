@@ -1,10 +1,10 @@
 /****************************************************************************
 **
-** Copyright (C) 2009 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
-** This file is part of the QtOpenVG module of the Qt Toolkit.
+** This file is part of the plugins of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** No Commercial Usage
@@ -44,7 +44,7 @@
 #include <QtGui/private/qapplication_p.h>
 
 #include "qwaylanddisplay.h"
-#include "qwaylandwindow.h"
+#include "qwaylandshmwindow.h"
 #include "qwaylandscreen.h"
 
 #include <wayland-client.h>
@@ -107,27 +107,29 @@ QPaintDevice *QWaylandShmWindowSurface::paintDevice()
     return mBuffer->image();
 }
 
+void QWaylandShmWindowSurface::beginPaint(const QRegion &)
+{
+    QWaylandShmWindow *waylandWindow = static_cast<QWaylandShmWindow *>(window()->platformWindow());
+    Q_ASSERT(waylandWindow->windowType() == QWaylandWindow::Shm);
+    waylandWindow->waitForFrameSync();
+}
+
 void QWaylandShmWindowSurface::flush(QWidget *widget, const QRegion &region, const QPoint &offset)
 {
     Q_UNUSED(widget);
     Q_UNUSED(offset);
-    QWaylandWindow *ww = (QWaylandWindow *) window()->platformWindow();
-    QVector<QRect> rects = region.rects();
-    const QRect *r;
-    int i;
-
-    for (i = 0; i < rects.size(); i++) {
-	r = &rects.at(i);
-	wl_surface_damage(ww->surface(),
-			  r->x(), r->y(), r->width(), r->height());
-    }
+    QWaylandShmWindow *waylandWindow = static_cast<QWaylandShmWindow *>(window()->platformWindow());
+    Q_ASSERT(waylandWindow->windowType() == QWaylandWindow::Shm);
+    waylandWindow->damage(region);
 }
 
 void QWaylandShmWindowSurface::resize(const QSize &size)
 {
-    QWaylandWindow *ww = (QWaylandWindow *) window()->platformWindow();
+    QWaylandShmWindow *waylandWindow = static_cast<QWaylandShmWindow *>(window()->platformWindow());
+    Q_ASSERT(waylandWindow->windowType() == QWaylandWindow::Shm);
+
     QWindowSurface::resize(size);
-    QImage::Format format = QApplicationPrivate::platformIntegration()->screens().first()->format();
+    QImage::Format format = QPlatformScreen::platformScreenForWidget(window())->format();
 
     if (mBuffer != NULL && mBuffer->size() == size)
 	return;
@@ -137,7 +139,7 @@ void QWaylandShmWindowSurface::resize(const QSize &size)
 
     mBuffer = new QWaylandShmBuffer(mDisplay, size, format);
 
-    ww->attach(mBuffer);
+    waylandWindow->attach(mBuffer);
 }
 
 QT_END_NAMESPACE

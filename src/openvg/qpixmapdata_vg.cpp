@@ -50,6 +50,8 @@
 #include <QBuffer>
 #include <QImageReader>
 #include <QtGui/private/qimage_p.h>
+#include <QtGui/private/qnativeimagehandleprovider_p.h>
+#include <QtGui/private/qfont_p.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -66,6 +68,10 @@ QVGPixmapData::QVGPixmapData(PixelType type)
     inImagePool = false;
     inLRU = false;
     failedToAlloc = false;
+#if defined(Q_OS_SYMBIAN)
+    nativeImageHandleProvider = 0;
+    nativeImageHandle = 0;
+#endif
 #if !defined(QT_NO_EGL)
     context = 0;
     qt_vg_register_pixmap(this);
@@ -98,6 +104,10 @@ void QVGPixmapData::destroyImages()
     vgImage = VG_INVALID_HANDLE;
     vgImageOpacity = VG_INVALID_HANDLE;
     inImagePool = false;
+
+#if defined(Q_OS_SYMBIAN)
+    releaseNativeImageHandle();
+#endif
 }
 
 void QVGPixmapData::destroyImageAndContext()
@@ -105,6 +115,8 @@ void QVGPixmapData::destroyImageAndContext()
     if (vgImage != VG_INVALID_HANDLE) {
         // We need to have a context current to destroy the image.
 #if !defined(QT_NO_EGL)
+        if (!context)
+            context = qt_vg_create_context(0, QInternal::Pixmap);
         if (context->isCurrent()) {
             destroyImages();
         } else {
@@ -117,6 +129,10 @@ void QVGPixmapData::destroyImageAndContext()
         }
 #else
         destroyImages();
+#endif
+    } else {
+#if defined(Q_OS_SYMBIAN)
+        releaseNativeImageHandle();
 #endif
     }
 #if !defined(QT_NO_EGL)
@@ -243,10 +259,7 @@ void QVGPixmapData::fill(const QColor &color)
 {
     if (!isValid())
         return;
-
-    if (source.isNull())
-        source = QVolatileImage(w, h, sourceFormat());
-
+    forceToImage();
     if (source.depth() == 1) {
         // Pick the best approximate color in the image's colortable.
         int gray = qGray(color.rgba());
@@ -258,13 +271,11 @@ void QVGPixmapData::fill(const QColor &color)
     } else {
         source.fill(PREMUL(color.rgba()));
     }
-
-    // Re-upload the image to VG the next time toVGImage() is called.
-    recreate = true;
 }
 
 bool QVGPixmapData::hasAlphaChannel() const
 {
+    ensureReadback(true);
     if (!source.isNull())
         return source.hasAlphaChannel();
     else
@@ -273,6 +284,8 @@ bool QVGPixmapData::hasAlphaChannel() const
 
 void QVGPixmapData::setAlphaChannel(const QPixmap &alphaChannel)
 {
+    if (!isValid())
+        return;
     forceToImage();
     source.setAlphaChannel(alphaChannel);
 }
@@ -281,12 +294,11 @@ QImage QVGPixmapData::toImage() const
 {
     if (!isValid())
         return QImage();
-
+    ensureReadback(true);
     if (source.isNull()) {
         source = QVolatileImage(w, h, sourceFormat());
         recreate = true;
     }
-
     return source.toImage();
 }
 
@@ -344,6 +356,12 @@ VGImage QVGPixmapData::toVGImage()
         destroyImages();
     else if (recreate)
         cachedOpacity = -1.0f;  // Force opacity image to be refreshed later.
+
+#if defined(Q_OS_SYMBIAN)
+    if (recreate && nativeImageHandleProvider && !nativeImageHandle) {
+        createFromNativeImageHandleProvider();
+    }
+#endif
 
     if (vgImage == VG_INVALID_HANDLE) {
         vgImage = QVGImagePool::instance()->createImageForPixmap
@@ -429,12 +447,19 @@ void QVGPixmapData::detachImageFromPool()
 
 void QVGPixmapData::hibernate()
 {
-    // If the image was imported (e.g, from an SgImage under Symbian),
-    // then we cannot copy it back to main memory for storage.
-    if (vgImage != VG_INVALID_HANDLE && source.isNull())
+    // If the image was imported (e.g, from an SgImage under Symbian), then
+    // skip the hibernation, there is no sense in copying it back to main
+    // memory because the data is most likely shared between several processes.
+    bool skipHibernate = (vgImage != VG_INVALID_HANDLE && source.isNull());
+#if defined(Q_OS_SYMBIAN)
+    // However we have to proceed normally if the image was retrieved via
+    // a handle provider.
+    skipHibernate &= !nativeImageHandleProvider;
+#endif
+    if (skipHibernate)
         return;
 
-    forceToImage();
+    forceToImage(false); // no readback allowed here
     destroyImageAndContext();
 }
 
@@ -445,9 +470,6 @@ void QVGPixmapData::reclaimImages()
     forceToImage();
     destroyImages();
 }
-
-Q_GUI_EXPORT int qt_defaultDpiX();
-Q_GUI_EXPORT int qt_defaultDpiY();
 
 int QVGPixmapData::metric(QPaintDevice::PaintDeviceMetric metric) const
 {
@@ -476,16 +498,46 @@ int QVGPixmapData::metric(QPaintDevice::PaintDeviceMetric metric) const
     }
 }
 
-// Force the pixmap data to be backed by some valid data.
-void QVGPixmapData::forceToImage()
+// Ensures that the pixmap is backed by some valid data and forces the data to
+// be re-uploaded to the VGImage when toVGImage() is called next time.
+void QVGPixmapData::forceToImage(bool allowReadback)
 {
     if (!isValid())
         return;
+
+    if (allowReadback)
+        ensureReadback(false);
 
     if (source.isNull())
         source = QVolatileImage(w, h, sourceFormat());
 
     recreate = true;
+}
+
+void QVGPixmapData::ensureReadback(bool readOnly) const
+{
+    if (vgImage != VG_INVALID_HANDLE && source.isNull()) {
+        source = QVolatileImage(w, h, sourceFormat());
+        source.beginDataAccess();
+        vgGetImageSubData(vgImage, source.bits(), source.bytesPerLine(),
+                          qt_vg_image_to_vg_format(source.format()),
+                          0, 0, w, h);
+        source.endDataAccess();
+        if (readOnly) {
+            recreate = false;
+        } else {
+            // Once we did a readback, the original VGImage must be destroyed
+            // because it may be shared (e.g. created via SgImage) and a subsequent
+            // upload of the image data may produce unexpected results.
+            const_cast<QVGPixmapData *>(this)->destroyImages();
+#if defined(Q_OS_SYMBIAN)
+            // There is now an own copy of the data so drop the handle provider,
+            // otherwise toVGImage() would request the handle again, which is wrong.
+            nativeImageHandleProvider = 0;
+#endif
+            recreate = true;
+        }
+    }
 }
 
 QImage::Format QVGPixmapData::sourceFormat() const

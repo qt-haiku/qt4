@@ -51,6 +51,7 @@
 #endif
 
 #include "private/qwidget_p.h"
+#include "private/qevent_p.h"
 
 #include "qgenericpluginfactory_qpa.h"
 #include "qplatformintegrationfactory_qpa_p.h"
@@ -443,6 +444,12 @@ void QApplication::alert(QWidget *, int)
 {
 }
 
+QPlatformNativeInterface *QApplication::platformNativeInterface()
+{
+    QPlatformIntegration *pi = QApplicationPrivate::platformIntegration();
+    return pi->nativeInterface();
+}
+
 static void init_platform(const QString &name, const QString &platformPluginPath)
 {
     QApplicationPrivate::platform_integration = QPlatformIntegrationFactory::create(name, platformPluginPath);
@@ -513,7 +520,14 @@ void qt_init(QApplicationPrivate *priv, int type)
 
     QList<QByteArray> pluginList;
     QString platformPluginPath = QLatin1String(qgetenv("QT_QPA_PLATFORM_PLUGIN_PATH"));
-    QString platformName = QLatin1String(qgetenv("QT_QPA_PLATFORM"));
+    QByteArray platformName;
+#ifdef QT_QPA_DEFAULT_PLATFORM_NAME
+    platformName = QT_QPA_DEFAULT_PLATFORM_NAME;
+#endif
+    QByteArray platformNameEnv = qgetenv("QT_QPA_PLATFORM");
+    if (!platformNameEnv.isEmpty()) {
+        platformName = platformNameEnv;
+    }
 
     // Get command line params
 
@@ -532,7 +546,7 @@ void qt_init(QApplicationPrivate *priv, int type)
                 platformPluginPath = QLatin1String(argv[i]);
         } else if (arg == "-platform") {
             if (++i < argc)
-                platformName = QLatin1String(argv[i]);
+                platformName = argv[i];
         } else if (arg == "-plugin") {
             if (++i < argc)
                 pluginList << argv[i];
@@ -553,7 +567,7 @@ void qt_init(QApplicationPrivate *priv, int type)
     }
 #endif
 
-    init_platform(platformName, platformPluginPath);
+    init_platform(QLatin1String(platformName), platformPluginPath);
     init_plugins(pluginList);
 
     QColormap::initialize();
@@ -816,8 +830,14 @@ void QApplicationPrivate::processKeyEvent(QWindowSystemInterfacePrivate::KeyEven
     if (app_do_modal && !qt_try_modal(focusW, e->keyType))
         return;
 
-    QKeyEvent ev(e->keyType, e->key, e->modifiers, e->unicode, e->repeat, e->repeatCount);
-    QApplication::sendSpontaneousEvent(focusW, &ev);
+    if (e->nativeScanCode || e->nativeVirtualKey || e->nativeModifiers) {
+        QKeyEventEx ev(e->keyType, e->key, e->modifiers, e->unicode, e->repeat, e->repeatCount,
+                       e->nativeScanCode, e->nativeVirtualKey, e->nativeModifiers);
+        QApplication::sendSpontaneousEvent(focusW, &ev);
+    } else {
+        QKeyEvent ev(e->keyType, e->key, e->modifiers, e->unicode, e->repeat, e->repeatCount);
+        QApplication::sendSpontaneousEvent(focusW, &ev);
+    }
 }
 
 void QApplicationPrivate::processEnterEvent(QWindowSystemInterfacePrivate::EnterEvent *e)

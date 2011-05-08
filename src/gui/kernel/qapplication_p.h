@@ -645,6 +645,8 @@ public:
     int pressureSupported;
     int maxTouchPressure;
     QList<QTouchEvent::TouchPoint> appAllTouchPoints;
+
+    bool useTranslucentEGLSurfaces;
 #endif
 
 private:

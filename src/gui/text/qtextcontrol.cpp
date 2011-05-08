@@ -285,7 +285,7 @@ bool QTextControlPrivate::cursorMoveKeyEvent(QKeyEvent *e)
         if (cursor.position() != oldCursorPos)
             emit q->cursorPositionChanged();
         emit q->microFocusChanged();
-    } else if (ignoreNavigationEvents && isNavigationEvent) {
+    } else if (ignoreNavigationEvents && isNavigationEvent && oldSelection.anchor() == cursor.anchor()) {
         return false;
     }
 
@@ -1519,7 +1519,7 @@ void QTextControlPrivate::mousePressEvent(QEvent *e, Qt::MouseButton button, con
     const QTextCursor oldSelection = cursor;
     const int oldCursorPos = cursor.position();
 
-    mousePressed = true;
+    mousePressed = (interactionFlags & Qt::TextSelectableByMouse);
 #ifndef QT_NO_DRAGANDDROP
     mightStartDrag = false;
 #endif
@@ -1552,7 +1552,7 @@ void QTextControlPrivate::mousePressEvent(QEvent *e, Qt::MouseButton button, con
                 extendBlockwiseSelection(cursorPos);
             else if (selectedWordOnDoubleClick.hasSelection())
                 extendWordwiseSelection(cursorPos, pos.x());
-            else if (wordSelectionEnabled)
+            else if (!wordSelectionEnabled)
                 setCursorPosition(cursorPos, QTextCursor::KeepAnchor);
         } else {
 
@@ -1608,10 +1608,11 @@ void QTextControlPrivate::mouseMoveEvent(QEvent *e, Qt::MouseButton button, cons
     if (!(buttons & Qt::LeftButton))
         return;
 
-    if (!((interactionFlags & Qt::TextSelectableByMouse) || (interactionFlags & Qt::TextEditable)))
-        return;
+    const bool editable = interactionFlags & Qt::TextEditable;
 
     if (!(mousePressed
+          || editable
+          || mightStartDrag
           || selectedWordOnDoubleClick.hasSelection()
           || selectedBlockOnTrippleClick.hasSelection()))
         return;
@@ -1624,6 +1625,10 @@ void QTextControlPrivate::mouseMoveEvent(QEvent *e, Qt::MouseButton button, cons
             startDrag();
         return;
     }
+
+    if (!mousePressed)
+        return;
+
     const qreal mouseX = qreal(mousePos.x());
 
     int newCursorPos = q->hitTest(mousePos, Qt::FuzzyHit);
@@ -1639,7 +1644,7 @@ void QTextControlPrivate::mouseMoveEvent(QEvent *e, Qt::MouseButton button, cons
         extendBlockwiseSelection(newCursorPos);
     else if (selectedWordOnDoubleClick.hasSelection())
         extendWordwiseSelection(newCursorPos, mouseX);
-    else if (interactionFlags & Qt::TextSelectableByMouse)
+    else
         setCursorPosition(newCursorPos, QTextCursor::KeepAnchor);
 
     if (interactionFlags & Qt::TextEditable) {
@@ -1650,8 +1655,10 @@ void QTextControlPrivate::mouseMoveEvent(QEvent *e, Qt::MouseButton button, cons
             emit q->cursorPositionChanged();
         _q_updateCurrentCharFormatAndSelection();
 #ifndef QT_NO_IM
-        if (QInputContext *ic = inputContext()) {
-            ic->update();
+        if (contextWidget) {
+            if (QInputContext *ic = inputContext()) {
+                ic->update();
+            }
         }
 #endif //QT_NO_IM
     } else {
@@ -1687,10 +1694,8 @@ void QTextControlPrivate::mouseReleaseEvent(QEvent *e, Qt::MouseButton button, c
     if (mousePressed) {
         mousePressed = false;
 #ifndef QT_NO_CLIPBOARD
-        if (interactionFlags & Qt::TextSelectableByMouse) {
-            setClipboardSelection();
-            selectionChanged(true);
-        }
+        setClipboardSelection();
+        selectionChanged(true);
     } else if (button == Qt::MidButton
                && (interactionFlags & Qt::TextEditable)
                && QApplication::clipboard()->supportsSelection()) {
@@ -1942,6 +1947,7 @@ void QTextControlPrivate::inputMethodEvent(QInputMethodEvent *e)
     if (isGettingInput)
         layout->setPreeditArea(cursor.position() - block.position(), e->preeditString());
     QList<QTextLayout::FormatRange> overrides;
+    const int oldPreeditCursor = preeditCursor;
     preeditCursor = e->preeditString().length();
     hideCursor = false;
     for (int i = 0; i < e->attributes().size(); ++i) {
@@ -1964,6 +1970,8 @@ void QTextControlPrivate::inputMethodEvent(QInputMethodEvent *e)
     cursor.endEditBlock();
     if (cursor.d)
         cursor.d->setX();
+    if (oldPreeditCursor != preeditCursor)
+        emit q->microFocusChanged();
 }
 
 QVariant QTextControl::inputMethodQuery(Qt::InputMethodQuery property) const

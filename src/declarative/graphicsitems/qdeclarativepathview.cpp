@@ -796,6 +796,7 @@ void QDeclarativePathView::setPreferredHighlightBegin(qreal start)
         return;
     d->highlightRangeStart = start;
     d->haveHighlightRange = d->highlightRangeMode != NoHighlightRange && d->highlightRangeStart <= d->highlightRangeEnd;
+    refill();
     emit preferredHighlightBeginChanged();
 }
 
@@ -812,6 +813,7 @@ void QDeclarativePathView::setPreferredHighlightEnd(qreal end)
         return;
     d->highlightRangeEnd = end;
     d->haveHighlightRange = d->highlightRangeMode != NoHighlightRange && d->highlightRangeStart <= d->highlightRangeEnd;
+    refill();
     emit preferredHighlightEndChanged();
 }
 
@@ -1523,6 +1525,8 @@ void QDeclarativePathView::itemsRemoved(int modelIndex, int count)
     } else {
         d->regenerate();
         d->updateCurrent();
+        if (!d->flicking && !d->moving && d->haveHighlightRange && d->highlightRangeMode == QDeclarativePathView::StrictlyEnforceRange)
+            d->snapToCurrent();
     }
     if (changedOffset)
         emit offsetChanged();

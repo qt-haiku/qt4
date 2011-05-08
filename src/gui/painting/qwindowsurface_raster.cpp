@@ -107,7 +107,11 @@ QRasterWindowSurface::QRasterWindowSurface(QWidget *window, bool setDefaultSurfa
 #endif
     d_ptr->image = 0;
     d_ptr->inSetGeometry = false;
-    setStaticContentsSupport(true);
+
+#ifdef QT_MAC_USE_COCOA
+    needsFlush = false;
+    regionToFlush = QRegion();
+#endif // QT_MAC_USE_COCOA
 }
 
 
@@ -276,41 +280,26 @@ void QRasterWindowSurface::flush(QWidget *widget, const QRegion &rgn, const QPoi
 
 #ifdef Q_WS_MAC
 
+    Q_UNUSED(offset);
+
     // This is mainly done for native components like native "open file" dialog.
     if (widget->testAttribute(Qt::WA_DontShowOnScreen)) {
         return;
     }
 
 #ifdef QT_MAC_USE_COCOA
-    // Unified toolbar hack.
-    QMainWindow* mWindow = qobject_cast<QMainWindow*>(widget->window());
-    if (mWindow) {
-        QMainWindowLayout *mLayout = qobject_cast<QMainWindowLayout*>(mWindow->layout());
-        QList<QToolBar *> toolbarList = mLayout->qtoolbarsInUnifiedToolbarList;
 
-        for (int i = 0; i < toolbarList.size(); ++i) {
-            QToolBar* toolbar = toolbarList.at(i);
-            if (mLayout->toolBarArea(toolbar) == Qt::TopToolBarArea) {
-                QWidget* tbWidget = (QWidget*) toolbar;
-                if (tbWidget->d_func()->unifiedSurface) {
-                    tbWidget->d_func()->unifiedSurface->flush(tbWidget, rgn, offset);
-                }
-            }
-        }
-    }
-#endif // QT_MAC_USE_COCOA
+    this->needsFlush = true;
+    this->regionToFlush += rgn;
 
-    Q_UNUSED(offset);
+    // The actual flushing will be processed in [view drawRect:rect]
+    qt_mac_setNeedsDisplay(widget);
+
+#else
     // Get a context for the widget.
-#ifndef QT_MAC_USE_COCOA
     CGContextRef context;
     CGrafPtr port = GetWindowPort(qt_mac_window_for(widget));
     QDBeginCGContext(port, &context);
-#else
-    QMacCocoaAutoReleasePool pool;
-    extern CGContextRef qt_mac_graphicsContextFor(QWidget *);
-    CGContextRef context = qt_mac_graphicsContextFor(widget);
-#endif
     CGContextRetain(context);
     CGContextSaveGState(context);
 
@@ -336,16 +325,12 @@ void QRasterWindowSurface::flush(QWidget *widget, const QRegion &rgn, const QPoi
     CGImageRelease(subImage);
     CGImageRelease(image);
 
-#ifndef QT_MAC_USE_COCOA
     QDEndCGContext(port, &context);
-#else
-    CGContextFlush(context);
-#endif
 
     // Restore context.
     CGContextRestoreGState(context);
     CGContextRelease(context);
-
+#endif // QT_MAC_USE_COCOA
 
 #endif // Q_WS_MAC
 
@@ -447,6 +432,10 @@ bool QRasterWindowSurface::scroll(const QRegion &area, int dx, int dy)
 #endif
 }
 
+QWindowSurface::WindowSurfaceFeatures QRasterWindowSurface::features() const
+{
+    return QWindowSurface::AllFeatures;
+}
 
 void QRasterWindowSurface::prepareBuffer(QImage::Format format, QWidget *widget)
 {
@@ -508,5 +497,13 @@ void QRasterWindowSurface::prepareBuffer(QImage::Format format, QWidget *widget)
 
     delete oldImage;
 }
+
+#ifdef QT_MAC_USE_COCOA
+CGContextRef QRasterWindowSurface::imageContext()
+{
+    Q_D(QRasterWindowSurface);
+    return d->image->cg;
+}
+#endif // QT_MAC_USE_COCOA
 
 QT_END_NAMESPACE

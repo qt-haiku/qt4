@@ -43,20 +43,23 @@
 
 #include "qwaylanddisplay.h"
 #include "qwaylandshmsurface.h"
-#include "qwaylanddrmsurface.h"
-#include "qwaylandwindow.h"
+#include "qwaylandshmwindow.h"
 
-#include "qfontconfigdatabase.h"
+#include "qgenericunixfontdatabase.h"
 
 #include <QtGui/QWindowSystemInterface>
 #include <QtGui/QPlatformCursor>
 #include <QtGui/QPlatformWindowFormat>
 
 #include <QtGui/private/qpixmap_raster_p.h>
+#ifdef QT_WAYLAND_GL_SUPPORT
+#include "gl_integration/qwaylandglintegration.h"
+#include "gl_integration/qwaylandglwindowsurface.h"
 #include <QtOpenGL/private/qpixmapdata_gl_p.h>
+#endif
 
 QWaylandIntegration::QWaylandIntegration(bool useOpenGL)
-    : mFontDb(new QFontconfigDatabase())
+    : mFontDb(new QGenericUnixFontDatabase())
     , mDisplay(new QWaylandDisplay())
     , mUseOpenGL(useOpenGL)
 {
@@ -68,32 +71,57 @@ QWaylandIntegration::screens() const
     return mDisplay->screens();
 }
 
-QPixmapData *QWaylandIntegration::createPixmapData(QPixmapData::PixelType type) const
+bool QWaylandIntegration::hasCapability(QPlatformIntegration::Capability cap) const
 {
-    if (mUseOpenGL)
-        return new QGLPixmapData(type);
-    return new QRasterPixmapData(type);
+    switch (cap) {
+    case ThreadedPixmaps: return true;
+    case OpenGL: return hasOpenGL();
+    default: return QPlatformIntegration::hasCapability(cap);
+    }
 }
 
-
+QPixmapData *QWaylandIntegration::createPixmapData(QPixmapData::PixelType type) const
+{
+#ifdef QT_WAYLAND_GL_SUPPORT
+    if (mUseOpenGL)
+        return new QGLPixmapData(type);
+#endif
+    return new QRasterPixmapData(type);
+}
 
 QPlatformWindow *QWaylandIntegration::createPlatformWindow(QWidget *widget, WId winId) const
 {
     Q_UNUSED(winId);
-    return new QWaylandWindow(widget);
+#ifdef QT_WAYLAND_GL_SUPPORT
+    bool useOpenGL = mUseOpenGL || (widget->platformWindowFormat().windowApi() == QPlatformWindowFormat::OpenGL);
+    if (useOpenGL)
+        return mDisplay->eglIntegration()->createEglWindow(widget);
+#endif
+    return new QWaylandShmWindow(widget);
 }
 
 QWindowSurface *QWaylandIntegration::createWindowSurface(QWidget *widget, WId winId) const
 {
     Q_UNUSED(winId);
     Q_UNUSED(winId);
-
-    if (mUseOpenGL)
-        return new QWaylandDrmWindowSurface(widget);
+#ifdef QT_WAYLAND_GL_SUPPORT
+    bool useOpenGL = mUseOpenGL || (widget->platformWindowFormat().windowApi() == QPlatformWindowFormat::OpenGL);
+    if (useOpenGL)
+        return new QWaylandGLWindowSurface(widget);
+#endif
     return new QWaylandShmWindowSurface(widget);
 }
 
 QPlatformFontDatabase *QWaylandIntegration::fontDatabase() const
 {
     return mFontDb;
+}
+
+bool QWaylandIntegration::hasOpenGL() const
+{
+#ifdef QT_WAYLAND_GL_SUPPORT
+    return true;
+#else
+    return false;
+#endif
 }

@@ -346,7 +346,7 @@ Q_GUI_EXPORT void qt_x11_enforce_cursor(QWidget * w)
     qt_x11_enforce_cursor(w, false);
 }
 
-Q_GUI_EXPORT void qt_x11_wait_for_window_manager(QWidget* w)
+void qt_x11_wait_for_window_manager(QWidget *w, bool sendPostedEvents)
 {
     if (!w || (!w->isWindow() && !w->internalWinId()))
         return;
@@ -361,7 +361,8 @@ Q_GUI_EXPORT void qt_x11_wait_for_window_manager(QWidget* w)
     WId winid = w->internalWinId();
 
     // first deliver events that are already in the local queue
-    QApplication::sendPostedEvents();
+    if (sendPostedEvents)
+        QApplication::sendPostedEvents();
 
     // the normal sequence is:
     //  ... ConfigureNotify ... ReparentNotify ... MapNotify ... Expose
@@ -394,6 +395,11 @@ Q_GUI_EXPORT void qt_x11_wait_for_window_manager(QWidget* w)
         if (t.elapsed() > maximumWaitTime)
             return;
     } while(1);
+}
+
+Q_GUI_EXPORT void qt_x11_wait_for_window_manager(QWidget *w)
+{
+    qt_x11_wait_for_window_manager(w, true);
 }
 
 void qt_change_net_wm_state(const QWidget* w, bool set, Atom one, Atom two = 0)
@@ -1327,12 +1333,40 @@ QPoint QWidgetPrivate::mapFromGlobal(const QPoint &pos) const
 QPoint QWidget::mapToGlobal(const QPoint &pos) const
 {
     Q_D(const QWidget);
+    QPoint offset = data->crect.topLeft();
+    const QWidget *w = this;
+    const QWidget *p = w->parentWidget();
+    while (!w->isWindow() && p) {
+        w = p;
+        p = p->parentWidget();
+        offset += w->data->crect.topLeft();
+    }
+
+    const QWidgetPrivate *wd = w->d_func();
+    QTLWExtra *tlw = wd->topData();
+    if (!tlw->embedded)
+        return pos + offset;
+
     return d->mapToGlobal(pos);
 }
 
 QPoint QWidget::mapFromGlobal(const QPoint &pos) const
 {
     Q_D(const QWidget);
+    QPoint offset = data->crect.topLeft();
+    const QWidget *w = this;
+    const QWidget *p = w->parentWidget();
+    while (!w->isWindow() && p) {
+        w = p;
+        p = p->parentWidget();
+        offset += w->data->crect.topLeft();
+    }
+
+    const QWidgetPrivate *wd = w->d_func();
+    QTLWExtra *tlw = wd->topData();
+    if (!tlw->embedded)
+        return pos - offset;
+
     return d->mapFromGlobal(pos);
 }
 
@@ -1346,9 +1380,15 @@ void QWidgetPrivate::updateSystemBackground()
     if (brush.style() == Qt::NoBrush
         || q->testAttribute(Qt::WA_NoSystemBackground)
         || q->testAttribute(Qt::WA_UpdatesDisabled)
-        || type == Qt::Popup || type == Qt::ToolTip
-        )
-        XSetWindowBackgroundPixmap(X11->display, q->internalWinId(), XNone);
+        || type == Qt::Popup || type == Qt::ToolTip) {
+            if (QX11Info::isCompositingManagerRunning()
+                && q->testAttribute(Qt::WA_TranslucentBackground)
+                && !(q->parent()))
+                XSetWindowBackground(X11->display, q->internalWinId(),
+                                     QColormap::instance(xinfo.screen()).pixel(Qt::transparent));
+            else
+                XSetWindowBackgroundPixmap(X11->display, q->internalWinId(), XNone);
+        }
     else if (brush.style() == Qt::SolidPattern && brush.isOpaque())
         XSetWindowBackground(X11->display, q->internalWinId(),
                              QColormap::instance(xinfo.screen()).pixel(brush.color()));

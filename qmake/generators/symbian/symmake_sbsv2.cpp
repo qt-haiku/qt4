@@ -84,6 +84,12 @@ static void fixFlmCmd(QString *cmdLine, const QMap<QString, QString> &commandsTo
     // separator, so replace it with "&&" command concatenator.
     cmdLine->replace("\n\t", "&&");
 
+    // Strip output suppression, as sbsv2 can't handle it in FLMs. Cannot be done by simply
+    // adding "@" to commandsToReplace, as it'd get handled last due to alphabetical ordering,
+    // potentially masking other commands that need replacing.
+    if (cmdLine->contains("@"))
+        cmdLine->replace(QRegExp(cmdFind.arg("@")), cmdReplace.arg(""));
+
     // Iterate command replacements in reverse alphabetical order of keys so
     // that keys which are starts of other longer keys are iterated after longer keys.
     QMapIterator<QString, QString> cmdIter(commandsToReplace);
@@ -727,7 +733,10 @@ void SymbianSbsv2MakefileGenerator::writeBldInfExtensionRulesPart(QTextStream& t
         QStringList absoluteCleanFiles;
         foreach (QString cleanFile, cleanFiles) {
             QFileInfo fi(cleanFile);
-            absoluteCleanFiles << fi.absoluteFilePath();
+            QString fileName = QLatin1String("\"");
+            fileName.append(fi.absoluteFilePath());
+            fileName.append(QLatin1String("\""));
+            absoluteCleanFiles << fileName;   	
         }
         t << "START EXTENSION qt/qmake_clean" << endl;
         t << "OPTION CLEAN_FILES " << absoluteCleanFiles.join(" ") << endl;

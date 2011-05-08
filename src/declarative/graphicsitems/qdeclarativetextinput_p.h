@@ -70,8 +70,8 @@ class Q_AUTOTEST_EXPORT QDeclarativeTextInput : public QDeclarativeImplicitSizeP
     Q_PROPERTY(QColor selectionColor READ selectionColor WRITE setSelectionColor NOTIFY selectionColorChanged)
     Q_PROPERTY(QColor selectedTextColor READ selectedTextColor WRITE setSelectedTextColor NOTIFY selectedTextColorChanged)
     Q_PROPERTY(QFont font READ font WRITE setFont NOTIFY fontChanged)
-    Q_PROPERTY(HAlignment horizontalAlignment READ hAlign WRITE setHAlign NOTIFY horizontalAlignmentChanged)
-
+    Q_PROPERTY(HAlignment horizontalAlignment READ hAlign WRITE setHAlign RESET resetHAlign NOTIFY horizontalAlignmentChanged)
+    Q_PROPERTY(HAlignment effectiveHorizontalAlignment READ effectiveHAlign NOTIFY effectiveHorizontalAlignmentChanged REVISION 1)
     Q_PROPERTY(bool readOnly READ isReadOnly WRITE setReadOnly NOTIFY readOnlyChanged)
     Q_PROPERTY(bool cursorVisible READ isCursorVisible WRITE setCursorVisible NOTIFY cursorVisibleChanged)
     Q_PROPERTY(int cursorPosition READ cursorPosition WRITE setCursorPosition NOTIFY cursorPositionChanged)
@@ -86,7 +86,7 @@ class Q_AUTOTEST_EXPORT QDeclarativeTextInput : public QDeclarativeImplicitSizeP
     Q_PROPERTY(QValidator* validator READ validator WRITE setValidator NOTIFY validatorChanged)
 #endif
     Q_PROPERTY(QString inputMask READ inputMask WRITE setInputMask NOTIFY inputMaskChanged)
-    Q_PROPERTY(Qt::InputMethodHints inputMethodHints READ inputMethodHints WRITE setInputMethodHints)
+    Q_PROPERTY(Qt::InputMethodHints inputMethodHints READ imHints WRITE setIMHints)
 
     Q_PROPERTY(bool acceptableInput READ hasAcceptableInput NOTIFY acceptableInputChanged)
     Q_PROPERTY(EchoMode echoMode READ echoMode WRITE setEchoMode NOTIFY echoModeChanged)
@@ -153,6 +153,8 @@ public:
 
     HAlignment hAlign() const;
     void setHAlign(HAlignment align);
+    void resetHAlign();
+    HAlignment effectiveHAlign() const;
 
     bool isReadOnly() const;
     void setReadOnly(bool);
@@ -213,6 +215,9 @@ public:
 
     bool isInputMethodComposing() const;
 
+    Qt::InputMethodHints imHints() const;
+    void setIMHints(Qt::InputMethodHints hints);
+
 Q_SIGNALS:
     void textChanged();
     void cursorPositionChanged();
@@ -241,6 +246,7 @@ Q_SIGNALS:
     Q_REVISION(1) void mouseSelectionModeChanged(SelectionMode mode);
     Q_REVISION(1) void canPasteChanged();
     Q_REVISION(1) void inputMethodComposingChanged();
+    Q_REVISION(1) void effectiveHorizontalAlignmentChanged();
 
 protected:
     virtual void geometryChanged(const QRectF &newGeometry,
@@ -261,6 +267,7 @@ public Q_SLOTS:
     void selectWord();
     void select(int start, int end);
     Q_REVISION(1) void deselect();
+    Q_REVISION(1) bool isRightToLeft(int start, int end);
 #ifndef QT_NO_CLIPBOARD
     void cut();
     void copy();
