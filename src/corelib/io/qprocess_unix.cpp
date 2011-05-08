@@ -39,7 +39,7 @@
 **
 ****************************************************************************/
 
-//#define QPROCESS_DEBUG
+#define QPROCESS_DEBUG
 #include "qdebug.h"
 
 #ifndef QT_NO_PROCESS
@@ -788,7 +788,7 @@ qint64 QProcessPrivate::bytesAvailableFromStdout() const
 {
     int nbytes = 0;
     qint64 available = 0;
-#ifdef Q_OS_HAIKU
+#ifdef  Q_OS_HAIKU
 	available = 1024;
 #else
     if (::ioctl(stdoutChannel.pipe[0], FIONREAD, (char *) &nbytes) >= 0)
