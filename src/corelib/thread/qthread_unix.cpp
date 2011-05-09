@@ -269,9 +269,10 @@ void QThreadPrivate::createEventDispatcher(QThreadData *data)
 
 void *QThreadPrivate::start(void *arg)
 {
-#if !defined(Q_OS_HAIKU)
+#ifndef Q_OS_HAIKU
     pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
     pthread_cleanup_push(QThreadPrivate::finish, arg);
+#endif
 
     QThread *thr = reinterpret_cast<QThread *>(arg);
     QThreadData *data = QThreadData::get2(thr);
@@ -298,25 +299,20 @@ void *QThreadPrivate::start(void *arg)
     pthread_testcancel();
     thr->run();
 
-#if defined(Q_OS_HAIKU)
+#ifdef Q_OS_HAIKU
     QThreadPrivate::finish(arg);
 #else
     pthread_cleanup_pop(1);
+#endif
 
     return 0;
 }
 
-#if defined(Q_OS_HAIKU)
-void QThreadPrivate::finish(void *arg, bool lockAnyway, bool closeNativeHandle)
-#else
 void QThreadPrivate::finish(void *arg)
 {
     QThread *thr = reinterpret_cast<QThread *>(arg);
     QThreadPrivate *d = thr->d_func();
 
-#if defined(Q_OS_HAIKU)
-    QMutexLocker locker(lockAnyway ? &d->mutex : 0);
-#else
     QMutexLocker locker(&d->mutex);
 
     d->isInFinish = true;
@@ -335,7 +331,7 @@ void QThreadPrivate::finish(void *arg)
     QAbstractEventDispatcher *eventDispatcher = d->data->eventDispatcher;
     if (eventDispatcher) {
         d->data->eventDispatcher = 0;
-        locker.unlock();
+		locker.unlock();
         eventDispatcher->closingDown();
         delete eventDispatcher;
         locker.relock();
@@ -348,8 +344,6 @@ void QThreadPrivate::finish(void *arg)
     d->isInFinish = false;
     d->thread_done.wakeAll();
 }
-
-
 
 
 /**************************************************************************
@@ -606,12 +600,12 @@ void QThread::start(Priority priority)
     if (code == EPERM) {
         // caller does not have permission to set the scheduling
         // parameters/policy
-#if !defined(Q_OS_HAIKU)
+#ifndef Q_OS_HAIKU
         pthread_attr_setinheritsched(&attr, PTHREAD_INHERIT_SCHED);
+#endif
         code =
             pthread_create(&d->thread_id, &attr, QThreadPrivate::start, this);
     }
-
     pthread_attr_destroy(&attr);
 
     if (code) {
@@ -631,7 +625,7 @@ void QThread::terminate()
     if (!d->thread_id)
         return;
 
-#if !defined(Q_OS_HAIKU)
+#ifndef Q_OS_HAIKU
     int code = pthread_cancel(d->thread_id);
     if (code) {
         qWarning("QThread::start: Thread termination error: %s",
@@ -648,14 +642,11 @@ void QThread::terminate()
     }
 
     d->terminated = true;
-    // "false, false" meaning:
-    // 1. lockAnyway = false. Don't lock the mutex because it's already locked
-    //    (see above).
-    // 2. closeNativeSymbianHandle = false. We don't want to close the thread handle,
-    //    because we need it here to terminate the thread.
-    QThreadPrivate::finish(this, false, false);
-   pthread_kill(d->thread_id,0);
+	QThreadPrivate::finish(this);
+#ifdef Q_OS_HAIKU
+	pthread_kill(d->thread_id,0);
 #endif
+#endif    
 }
 
 bool QThread::wait(unsigned long time)

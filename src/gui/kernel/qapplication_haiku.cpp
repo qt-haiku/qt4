@@ -142,8 +142,8 @@ void qt_init(QApplicationPrivate *priv, int)
 	qDebug("qt_init()");
 
 	thread_id my_thread;	
-
-	happ = new HQApplication("application/x-vnd."+QFileInfo(QApplication::applicationFilePath()).fileName().toLatin1(), priv );	
+	QString sig = QString("application/x-vnd.") + QFileInfo(QApplication::applicationFilePath()).fileName();
+	happ = new HQApplication(sig.toLatin1(), priv );
 	be_app = happ;
     		
 	QApplicationPrivate::haiku_apply_settings();	

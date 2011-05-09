@@ -638,6 +638,7 @@ QList<QFontDatabase::WritingSystem> qt_determine_writing_systems_from_truetype_b
 
     return writingSystems;
 }
+#endif
 
 #if defined(Q_OS_SYMBIAN) && defined(QT_NO_FREETYPE)
 // class with virtual destructor, derived in qfontdatabase_s60.cpp

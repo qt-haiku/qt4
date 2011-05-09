@@ -136,7 +136,7 @@ static int createFileFromTemplate(char *const path,
 
     for (;;) {
         // Atomically create file and obtain handle
-#ifndef Q_OS_WIN
+#if !defined(Q_OS_WIN) && !defined(Q_OS_HAIKU)
         {
             int fd = QT_OPEN(path, QT_OPEN_CREAT | O_EXCL | QT_OPEN_RDWR | QT_OPEN_LARGEFILE, 0600);
             if (fd != -1)

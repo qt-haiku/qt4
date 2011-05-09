@@ -270,6 +270,7 @@ MainWindow::MainWindow()
         ui->colorConfig->hide();
     else
         ui->kdeNoteLabel->hide();
+#endif        
 
     QFontDatabase db;
     QStringList families = db.families();
@@ -380,7 +381,7 @@ MainWindow::MainWindow()
 
     ui->rtlExtensionsCheckBox->setChecked(settings.value(QLatin1String("useRtlExtensions"), false)
                                           .toBool());
-
+#ifndef Q_WS_HAIKU
 #ifdef Q_WS_X11
     QString settingsInputStyle = settings.value(QLatin1String("XIMInputStyle")).toString();
     if (!settingsInputStyle.isEmpty())
@@ -388,6 +389,7 @@ MainWindow::MainWindow()
 #else
     ui->inputStyleCombo->hide();
     ui->inputStyleComboLabel->hide();
+#endif
 #endif
 
 #if defined(Q_WS_X11) && !defined(QT_NO_XIM)
@@ -408,6 +410,8 @@ MainWindow::MainWindow()
         inputMethodComboIndex = 0;
     ui->inputMethodCombo->addItems(inputMethodCombo);
     ui->inputMethodCombo->setCurrentIndex(inputMethodComboIndex);
+#elif defined(Q_WS_HAIKU)
+    ui->inputMethodCombo->hide();
 #else
     ui->inputMethodCombo->hide();
     ui->inputMethodComboLabel->hide();

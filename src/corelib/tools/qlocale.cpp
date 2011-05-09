@@ -65,9 +65,6 @@ QT_END_NAMESPACE
 #   include "qt_windows.h"
 #   include <time.h>
 #endif
-#if defined(Q_OS_HAIKU)
-#include <LocaleKit.h>
-#endif
 #if !defined(QWS) && defined(Q_OS_MAC)
 #   include "private/qcore_mac_p.h"
 #   include <CoreFoundation/CoreFoundation.h>
@@ -762,77 +759,6 @@ QLocale::QLocale(const QLocale &other)
 const QLocalePrivate *QLocale::d() const
 {
     return dataPointerHelper(p.index);
-}
-#elif defined(Q_OS_HAIKU) && !defined(QT_BUILD_QMAKE)
-
-QLocale QSystemLocale::fallbackLocale() const
-{
-	BLanguage lang;
-	BLocale::Default()->GetLanguage(&lang);	
-    return QLocale(QLatin1String(lang.ID()));
-}
-
-QVariant QSystemLocale::query(QueryType type, QVariant in = QVariant()) const
-{
-	BLanguage lang;
-	BLocale::Default()->GetLanguage(&lang);	
-
-	switch(type) {		
-	case DecimalPoint: {
-		BString test, unitest;
-		BLocale::Default()->FormatNumber(&test,1.1);
-		BLocale::Default()->FormatNumber(&unitest,(int32)1);
-		QString result = QString().fromLocal8Bit(test.String());
-		result.remove(QString().fromLocal8Bit(unitest.String()));
-		if(!result.isEmpty() && result.size()<=2) {
-			return result;
-		}
-        return QVariant();
-    }
-    case GroupSeparator: {
-    	BString test, unitest;
-		BLocale::Default()->FormatNumber(&test,(int32)11111);
-		BLocale::Default()->FormatNumber(&unitest,(int32)1);
-		QString result = QString().fromLocal8Bit(test.String());
-		result.remove(QString().fromLocal8Bit(unitest.String()));
-		if(!result.isEmpty() && result.size()<=3) {
-			return result;
-		}
-        return QVariant();
-    }	
-    case LanguageId:
-    case CountryId: {
-        QString preferredLanguage = QString().fromLocal8Bit(lang.Code());
-        QString preferredCountry(3, QChar());
-        preferredCountry = QString().fromLocal8Bit(lang.CountryCode());
-        QLocale::Language languageCode = (preferredLanguage.isEmpty() ? QLocale::C : codeToLanguage(preferredLanguage.data()));
-        QLocale::Country countryCode = (preferredCountry.isEmpty() ? QLocale::AnyCountry : codeToCountry(preferredCountry.data()));
-        const QLocalePrivate *d = findLocale(languageCode, countryCode);
-        if (type == LanguageId) {
-            return (QLocale::Language)d->languageId();
-        }
-        return (QLocale::Country)d->countryId();
-    }
-    case MeasurementSystem: {
-		BFormattingConventions conventions;
-		BLocale::Default()->GetFormattingConventions(&conventions);
-		if(conventions.MeasurementKind()==B_METRIC) {
-	        return QLocale::MetricSystem;
-	    } else {
-        	return QLocale::ImperialSystem;
-    	}    	
-    }
-    case NegativeSign:
-    case PositiveSign:
-    case ZeroDigit:
-        break;
-    case AMText:
-    case PMText:
-        break;        
-    default:
-        break;	
-	}
-    return QVariant();
 }
 
 /*!
@@ -2855,8 +2781,6 @@ bool QLocalePrivate::numberToCLocale(const QString &num,
         ++idx;
     if (idx == l)
         return false;
-
-    const QChar _group = group();
 
     while (idx < l) {
         const QChar &in = uc[idx];

@@ -8,6 +8,7 @@
 #include "qlibrary.h"
 #include "qabstractfileengine.h"
 #include "qendian.h"
+#include "qfontdatabase.h"
 
 #include <stdio.h>
 
@@ -130,7 +131,7 @@ static void initializeDb()
 	                    quint32 codePageRange[2] = {
 	                        os2_table->ulCodePageRange1, os2_table->ulCodePageRange2
 	                    };
-	                    fdata.systems = determineWritingSystemsFromTrueTypeBits(unicodeRange, codePageRange);                          
+	                    fdata.systems = qt_determine_writing_systems_from_truetype_bits(unicodeRange, codePageRange);                          
 	                } else {
 	                    fdata.styleKey.weight = face->style_flags & FT_STYLE_FLAG_BOLD ? QFont::Bold : QFont::Normal;
 	                    fdata.styleKey.stretch = QFont::Unstretched;
