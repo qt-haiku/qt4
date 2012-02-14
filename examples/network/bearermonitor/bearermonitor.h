@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -43,7 +43,7 @@
 
 #include <qnetworkconfigmanager.h>
 #include <qnetworksession.h>
-#if defined (Q_OS_SYMBIAN) || defined(Q_OS_WINCE)	
+#if defined (Q_OS_SYMBIAN) || defined(Q_OS_WINCE) || defined(Q_WS_SIMULATOR)
 #include "ui_bearermonitor_240_320.h"
 #elif defined(MAEMO_UI)
 #include "ui_bearermonitor_maemo.h"
@@ -72,7 +72,7 @@ private slots:
 
     void onlineStateChanged(bool isOnline);
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_WS_SIMULATOR)
     void registerNetwork();
     void unregisterNetwork();
 #endif

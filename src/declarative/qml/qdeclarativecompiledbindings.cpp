@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtDeclarative module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -143,17 +143,17 @@ struct Register {
     void setNaN() { setqreal(qSNaN()); }
     bool isUndefined() const { return type == 0; }
 
-    void setQObject(QObject *o) { *((QObject **)data) = o; type = QMetaType::QObjectStar; }
-    QObject *getQObject() const { return *((QObject **)data); }
+    void setQObject(QObject *o) { qobjectValue = o; type = QMetaType::QObjectStar; }
+    QObject *getQObject() const { return qobjectValue; }
 
-    void setqreal(qreal v) { *((qreal *)data) = v; type = QMetaType::QReal; }
-    qreal getqreal() const { return *((qreal *)data); }
+    void setqreal(qreal v) { qrealValue = v; type = QMetaType::QReal; }
+    qreal getqreal() const { return qrealValue; }
 
-    void setint(int v) { *((int *)data) = v; type = QMetaType::Int; }
-    int getint() const { return *((int *)data); }
+    void setint(int v) { intValue = v; type = QMetaType::Int; }
+    int getint() const { return intValue; }
 
-    void setbool(bool v) { *((bool *)data) = v; type = QMetaType::Bool; }
-    bool getbool() const { return *((bool *)data); }
+    void setbool(bool v) { boolValue = v; type = QMetaType::Bool; }
+    bool getbool() const { return boolValue; }
 
     QVariant *getvariantptr() { return (QVariant *)typeDataPtr(); }
     QString *getstringptr() { return (QString *)typeDataPtr(); }
@@ -171,7 +171,15 @@ struct Register {
     void settype(int t) { type = t; }
 
     int type;          // Optional type
-    void *data[2];     // Object stored here
+    union {
+        QObject *qobjectValue;
+        qreal qrealValue;
+        int intValue;
+        bool boolValue;
+        char data[sizeof(QVariant)];
+        qint64 q_for_alignment_1;
+        double q_for_alignment_2;
+    };
 
 #ifdef REGISTER_CLEANUP_DEBUG
     Register() {
@@ -227,6 +235,7 @@ public:
     void run(Binding *, QDeclarativePropertyPrivate::WriteFlags flags);
 
     const char *programData;
+    QDeclarativeRefCount *dataRef;
     Binding *m_bindings;
     quint32 *m_signalTable;
 
@@ -259,7 +268,7 @@ public:
 };
 
 QDeclarativeCompiledBindingsPrivate::QDeclarativeCompiledBindingsPrivate()
-: subscriptions(0), identifiers(0)
+: subscriptions(0), identifiers(0), programData(0), dataRef(0), m_bindings(0), m_signalTable(0)
 {
 }
 
@@ -267,11 +276,16 @@ QDeclarativeCompiledBindingsPrivate::~QDeclarativeCompiledBindingsPrivate()
 {
     delete [] subscriptions; subscriptions = 0;
     delete [] identifiers; identifiers = 0;
+    if (dataRef) { 
+        dataRef->release(); 
+        dataRef = 0; 
+    }
 }
 
 int QDeclarativeCompiledBindingsPrivate::methodCount = -1;
 
-QDeclarativeCompiledBindings::QDeclarativeCompiledBindings(const char *program, QDeclarativeContextData *context)
+QDeclarativeCompiledBindings::QDeclarativeCompiledBindings(const char *program, QDeclarativeContextData *context, 
+                                                           QDeclarativeRefCount *dataRef)
 : QObject(*(new QDeclarativeCompiledBindingsPrivate))
 {
     Q_D(QDeclarativeCompiledBindings);
@@ -280,6 +294,8 @@ QDeclarativeCompiledBindings::QDeclarativeCompiledBindings(const char *program, 
         d->methodCount = QDeclarativeCompiledBindings::staticMetaObject.methodCount();
 
     d->programData = program;
+    d->dataRef = dataRef;
+    if (d->dataRef) d->dataRef->addref();
 
     d->init();
 
@@ -2388,7 +2404,7 @@ bool QDeclarativeBindingCompilerPrivate::parseConditional(QDeclarativeJS::AST::N
     skip.skip.reg = -1;
     bytecode << skip;
 
-    // Release to allow reuse of reg
+    // Release to allow reuse of reg in else path
     releaseReg(ok.reg);
     bytecode[skipIdx].skip.count = bytecode.count() - skipIdx - 1;
 
@@ -2398,8 +2414,7 @@ bool QDeclarativeBindingCompilerPrivate::parseConditional(QDeclarativeJS::AST::N
     if (!parseExpression(expression->ko, ko)) return false;
     if (ko.unknownType) return false;
 
-    // Release to allow reuse of reg
-    releaseReg(ko.reg);
+    // Do not release reg here, so that its ownership passes to the caller
     bytecode[skipIdx2].skip.count = bytecode.count() - skipIdx2 - 1;
 
     if (ok != ko)

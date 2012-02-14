@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtDeclarative module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -53,7 +53,7 @@
 #include "private/qdeclarativeglobal_p.h"
 #include "private/qdeclarativescriptparser_p.h"
 #include "private/qdeclarativedebugtrace_p.h"
-#include "private/qdeclarativeenginedebug_p.h"
+#include "private/qdeclarativeenginedebugservice_p.h"
 #include <QtScript/qscriptvalueiterator.h>
 
 #include <QStack>
@@ -896,7 +896,7 @@ QObject * QDeclarativeComponentPrivate::begin(QDeclarativeContextData *parentCon
     if (enginePriv->isDebugging && rv) {
         if  (!parentContext->isInternal)
             parentContext->asQDeclarativeContextPrivate()->instances.append(rv);
-        QDeclarativeEngineDebugServer::instance()->objectCreated(parentContext->engine, rv);
+        QDeclarativeEngineDebugService::instance()->objectCreated(parentContext->engine, rv);
     }
 
     return rv;
@@ -936,50 +936,37 @@ void QDeclarativeComponentPrivate::beginDeferred(QDeclarativeEnginePrivate *engi
 void QDeclarativeComponentPrivate::complete(QDeclarativeEnginePrivate *enginePriv, ConstructionState *state)
 {
     if (state->completePending) {
-
-        for (int ii = 0; ii < state->bindValues.count(); ++ii) {
-            QDeclarativeEnginePrivate::SimpleList<QDeclarativeAbstractBinding> bv = 
-                state->bindValues.at(ii);
-            for (int jj = 0; jj < bv.count; ++jj) {
-                if(bv.at(jj)) {
-                    // XXX akennedy
-                    bv.at(jj)->m_mePtr = 0;
-                    bv.at(jj)->setEnabled(true, QDeclarativePropertyPrivate::BypassInterceptor | 
-                                                QDeclarativePropertyPrivate::DontRemoveBinding);
+        QT_TRY {
+            for (int ii = 0; ii < state->bindValues.count(); ++ii) {
+                QDeclarativeEnginePrivate::SimpleList<QDeclarativeAbstractBinding> bv = 
+                    state->bindValues.at(ii);
+                for (int jj = 0; jj < bv.count; ++jj) {
+                    if(bv.at(jj)) {
+                        // XXX akennedy
+                        bv.at(jj)->m_mePtr = 0;
+                        bv.at(jj)->setEnabled(true, QDeclarativePropertyPrivate::BypassInterceptor | 
+                                                    QDeclarativePropertyPrivate::DontRemoveBinding);
+                    }
                 }
+                QDeclarativeEnginePrivate::clear(bv);
             }
-            QDeclarativeEnginePrivate::clear(bv);
-        }
 
-        for (int ii = 0; ii < state->parserStatus.count(); ++ii) {
-            QDeclarativeEnginePrivate::SimpleList<QDeclarativeParserStatus> ps = 
-                state->parserStatus.at(ii);
+            for (int ii = 0; ii < state->parserStatus.count(); ++ii) {
+                QDeclarativeEnginePrivate::SimpleList<QDeclarativeParserStatus> ps = 
+                    state->parserStatus.at(ii);
 
-            for (int jj = ps.count - 1; jj >= 0; --jj) {
-                QDeclarativeParserStatus *status = ps.at(jj);
-                if (status && status->d) {
-                    status->d = 0;
-                    status->componentComplete();
+                for (int jj = ps.count - 1; jj >= 0; --jj) {
+                    QDeclarativeParserStatus *status = ps.at(jj);
+                    if (status && status->d) {
+                        status->d = 0;
+                        status->componentComplete();
+                    }
                 }
+                QDeclarativeEnginePrivate::clear(ps);
             }
-            QDeclarativeEnginePrivate::clear(ps);
-        }
 
-        for (int ii = 0; ii < state->finalizedParserStatus.count(); ++ii) {
-            QPair<QDeclarativeGuard<QObject>, int> status = state->finalizedParserStatus.at(ii);
-            QObject *obj = status.first;
-            if (obj) {
-                void *args[] = { 0 };
-                QMetaObject::metacall(obj, QMetaObject::InvokeMetaMethod,
-                                      status.second, args);
-            }
-        }
-
-        //componentComplete() can register additional finalization objects
-        //that are then never handled. Handle them manually here.
-        if (1 == enginePriv->inProgressCreations) {
-            for (int ii = 0; ii < enginePriv->finalizedParserStatus.count(); ++ii) {
-                QPair<QDeclarativeGuard<QObject>, int> status = enginePriv->finalizedParserStatus.at(ii);
+            for (int ii = 0; ii < state->finalizedParserStatus.count(); ++ii) {
+                QPair<QDeclarativeGuard<QObject>, int> status = state->finalizedParserStatus.at(ii);
                 QObject *obj = status.first;
                 if (obj) {
                     void *args[] = { 0 };
@@ -987,17 +974,38 @@ void QDeclarativeComponentPrivate::complete(QDeclarativeEnginePrivate *enginePri
                                           status.second, args);
                 }
             }
-            enginePriv->finalizedParserStatus.clear();
-        }
 
-        while (state->componentAttached) {
-            QDeclarativeComponentAttached *a = state->componentAttached;
-            a->rem();
-            QDeclarativeData *d = QDeclarativeData::get(a->parent());
-            Q_ASSERT(d);
-            Q_ASSERT(d->context);
-            a->add(&d->context->componentAttached);
-            emit a->completed();
+            //componentComplete() can register additional finalization objects
+            //that are then never handled. Handle them manually here.
+            if (1 == enginePriv->inProgressCreations) {
+                for (int ii = 0; ii < enginePriv->finalizedParserStatus.count(); ++ii) {
+                    QPair<QDeclarativeGuard<QObject>, int> status = enginePriv->finalizedParserStatus.at(ii);
+                    QObject *obj = status.first;
+                    if (obj) {
+                        void *args[] = { 0 };
+                        QMetaObject::metacall(obj, QMetaObject::InvokeMetaMethod,
+                                              status.second, args);
+                    }
+                }
+                enginePriv->finalizedParserStatus.clear();
+            }
+
+            while (state->componentAttached) {
+                QDeclarativeComponentAttached *a = state->componentAttached;
+                a->rem();
+                QDeclarativeData *d = QDeclarativeData::get(a->parent());
+                Q_ASSERT(d);
+                Q_ASSERT(d->context);
+                a->add(&d->context->componentAttached);
+                emit a->completed();
+            }
+        } QT_CATCH(const std::exception&) {
+            state->bindValues.clear();
+            state->parserStatus.clear();
+            state->finalizedParserStatus.clear();
+            state->completePending = false;
+            enginePriv->inProgressCreations--;
+            QT_RETHROW;
         }
 
         state->bindValues.clear();

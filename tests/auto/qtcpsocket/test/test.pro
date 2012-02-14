@@ -12,8 +12,8 @@ QT += network
 vxworks:QT -= gui
 
 symbian: {
-    TARGET.EPOCHEAPSIZE="0x100 0x3000000"
-    TARGET.CAPABILITY = NetworkServices
+    TARGET.EPOCHEAPSIZE="0x100 0x1000000"
+    TARGET.CAPABILITY = NetworkServices ReadUserData
 }
 
 TARGET = tst_qtcpsocket
@@ -21,11 +21,11 @@ TARGET = tst_qtcpsocket
 win32 {
   CONFIG(debug, debug|release) {
     DESTDIR = ../debug
-} else {
+  } else {
     DESTDIR = ../release
   }
 } else {
     DESTDIR = ../
 }
 
-
+CONFIG+=insignificant_test # QTQAINFRA-428

@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -53,5 +53,11 @@ int main(int argc, char *argv[])
         fileName = ".";
 
     TabDialog tabdialog(fileName);
-    return tabdialog.exec();
+#ifdef Q_OS_SYMBIAN
+    tabdialog.showMaximized();
+#else
+    tabdialog.show();
+#endif
+
+    return app.exec();
 }

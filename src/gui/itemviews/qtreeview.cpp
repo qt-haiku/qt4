@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -54,6 +54,7 @@
 #include <qdebug.h>
 #ifndef QT_NO_ACCESSIBILITY
 #include <qaccessible.h>
+#include <qaccessible2.h>
 #endif
 
 #include <private/qtreeview_p.h>
@@ -82,7 +83,7 @@ QT_BEGIN_NAMESPACE
 
     It is simple to construct a tree view displaying data from a
     model. In the following example, the contents of a directory are
-    supplied by a QDirModel and displayed as a tree:
+    supplied by a QFileSystemModel and displayed as a tree:
 
     \snippet doc/src/snippets/shareddirmodel/main.cpp 3
     \snippet doc/src/snippets/shareddirmodel/main.cpp 6
@@ -1377,6 +1378,31 @@ QItemViewPaintPairs QTreeViewPrivate::draggablePaintPairs(const QModelIndexList 
     return ret;
 }
 
+void QTreeViewPrivate::adjustViewOptionsForIndex(QStyleOptionViewItemV4 *option, const QModelIndex &current) const
+{
+    const int row = current.row();
+    option->state = option->state | (viewItems.at(row).expanded ? QStyle::State_Open : QStyle::State_None)
+                                  | (viewItems.at(row).hasChildren ? QStyle::State_Children : QStyle::State_None)
+                                  | (viewItems.at(row).hasMoreSiblings ? QStyle::State_Sibling : QStyle::State_None);
+
+    option->showDecorationSelected = (selectionBehavior & QTreeView::SelectRows)
+                                     || option->showDecorationSelected;
+
+    QVector<int> logicalIndices; // index = visual index of visible columns only. data = logical index.
+    QVector<QStyleOptionViewItemV4::ViewItemPosition> viewItemPosList; // vector of left/middle/end for each logicalIndex, visible columns only.
+    calcLogicalIndices(&logicalIndices, &viewItemPosList);
+
+    int columnIndex = 0;
+    for (int visualIndex = 0; visualIndex < current.column(); ++visualIndex) {
+        int logicalIndex = header->logicalIndex(visualIndex);
+        if (!header->isSectionHidden(logicalIndex)) {
+            ++columnIndex;
+        }
+    }
+
+    option->viewItemPosition = viewItemPosList.at(columnIndex);
+}
+
 
 /*!
   \since 4.2
@@ -1462,6 +1488,59 @@ static inline bool ancestorOf(QObject *widget, QObject *other)
     return false;
 }
 
+void QTreeViewPrivate::calcLogicalIndices(QVector<int> *logicalIndices, QVector<QStyleOptionViewItemV4::ViewItemPosition> *itemPositions) const
+{
+    const int left = (spanning ? header->visualIndex(0) : leftAndRight.first);
+    const int right = (spanning ? header->visualIndex(0) : leftAndRight.second);
+    const int columnCount = header->count();
+    /* 'left' and 'right' are the left-most and right-most visible visual indices.
+       Compute the first visible logical indices before and after the left and right.
+       We will use these values to determine the QStyleOptionViewItemV4::viewItemPosition. */
+    int logicalIndexBeforeLeft = -1, logicalIndexAfterRight = -1;
+    for (int visualIndex = left - 1; visualIndex >= 0; --visualIndex) {
+        int logicalIndex = header->logicalIndex(visualIndex);
+        if (!header->isSectionHidden(logicalIndex)) {
+            logicalIndexBeforeLeft = logicalIndex;
+            break;
+        }
+    }
+
+    for (int visualIndex = left; visualIndex < columnCount; ++visualIndex) {
+        int logicalIndex = header->logicalIndex(visualIndex);
+        if (!header->isSectionHidden(logicalIndex)) {
+            if (visualIndex > right) {
+                logicalIndexAfterRight = logicalIndex;
+                break;
+            }
+            logicalIndices->append(logicalIndex);
+        }
+    }
+
+    itemPositions->resize(logicalIndices->count());
+    for (int currentLogicalSection = 0; currentLogicalSection < logicalIndices->count(); ++currentLogicalSection) {
+        const int headerSection = logicalIndices->at(currentLogicalSection);
+        // determine the viewItemPosition depending on the position of column 0
+        int nextLogicalSection = currentLogicalSection + 1 >= logicalIndices->count()
+                                 ? logicalIndexAfterRight
+                                 : logicalIndices->at(currentLogicalSection + 1);
+        int prevLogicalSection = currentLogicalSection - 1 < 0
+                                 ? logicalIndexBeforeLeft
+                                 : logicalIndices->at(currentLogicalSection - 1);
+        QStyleOptionViewItemV4::ViewItemPosition pos;
+        if (columnCount == 1 || (nextLogicalSection == 0 && prevLogicalSection == -1)
+            || (headerSection == 0 && nextLogicalSection == -1) || spanning)
+            pos = QStyleOptionViewItemV4::OnlyOne;
+        else if (headerSection == 0 || (nextLogicalSection != 0 && prevLogicalSection == -1))
+            pos = QStyleOptionViewItemV4::Beginning;
+        else if (nextLogicalSection == 0 || nextLogicalSection == -1)
+            pos = QStyleOptionViewItemV4::End;
+        else
+            pos = QStyleOptionViewItemV4::Middle;
+        (*itemPositions)[currentLogicalSection] = pos;
+    }
+}
+
+
 /*!
     Draws the row in the tree view that contains the model item \a index,
     using the \a painter given. The \a option control how the item is
@@ -1530,33 +1609,13 @@ void QTreeView::drawRow(QPainter *painter, const QStyleOptionViewItem &option,
     int width, height = option.rect.height();
     int position;
     QModelIndex modelIndex;
-    int columnCount = header->count();
     const bool hoverRow = selectionBehavior() == QAbstractItemView::SelectRows
                   && index.parent() == hover.parent()
                   && index.row() == hover.row();
 
-    /* 'left' and 'right' are the left-most and right-most visible visual indices.
-       Compute the first visible logical indices before and after the left and right.
-       We will use these values to determine the QStyleOptionViewItemV4::viewItemPosition. */
-    int logicalIndexBeforeLeft = -1, logicalIndexAfterRight = -1;
-    for (int visualIndex = left - 1; visualIndex >= 0; --visualIndex) {
-        int logicalIndex = header->logicalIndex(visualIndex);
-        if (!header->isSectionHidden(logicalIndex)) {
-            logicalIndexBeforeLeft = logicalIndex;
-            break;
-        }
-    }
-    QVector<int> logicalIndices; // vector of currently visibly logical indices
-    for (int visualIndex = left; visualIndex < columnCount; ++visualIndex) {
-        int logicalIndex = header->logicalIndex(visualIndex);
-        if (!header->isSectionHidden(logicalIndex)) {
-            if (visualIndex > right) {
-                logicalIndexAfterRight = logicalIndex;
-                break;
-            }
-            logicalIndices.append(logicalIndex);
-        }
-    }
+    QVector<int> logicalIndices;
+    QVector<QStyleOptionViewItemV4::ViewItemPosition> viewItemPosList; // vector of left/middle/end for each logicalIndex
+    d->calcLogicalIndices(&logicalIndices, &viewItemPosList);
 
     for (int currentLogicalSection = 0; currentLogicalSection < logicalIndices.count(); ++currentLogicalSection) {
         int headerSection = logicalIndices.at(currentLogicalSection);
@@ -1578,22 +1637,7 @@ void QTreeView::drawRow(QPainter *painter, const QStyleOptionViewItem &option,
             continue;
         opt.state = state;
 
-        // determine the viewItemPosition depending on the position of column 0
-        int nextLogicalSection = currentLogicalSection + 1 >= logicalIndices.count()
-                                 ? logicalIndexAfterRight
-                                 : logicalIndices.at(currentLogicalSection + 1);
-        int prevLogicalSection = currentLogicalSection - 1 < 0
-                                 ? logicalIndexBeforeLeft
-                                 : logicalIndices.at(currentLogicalSection - 1);
-        if (columnCount == 1 || (nextLogicalSection == 0 && prevLogicalSection == -1)
-            || (headerSection == 0 && nextLogicalSection == -1) || spanning)
-            opt.viewItemPosition = QStyleOptionViewItemV4::OnlyOne;
-        else if (headerSection == 0 || (nextLogicalSection != 0 && prevLogicalSection == -1))
-            opt.viewItemPosition = QStyleOptionViewItemV4::Beginning;
-        else if (nextLogicalSection == 0 || nextLogicalSection == -1)
-            opt.viewItemPosition = QStyleOptionViewItemV4::End;
-        else
-            opt.viewItemPosition = QStyleOptionViewItemV4::Middle;
+        opt.viewItemPosition = viewItemPosList.at(currentLogicalSection);
 
         // fake activeness when row editor has focus
         if (indexWidgetHasFocus)
@@ -2888,6 +2932,14 @@ void QTreeViewPrivate::insertViewItems(int pos, int count, const QTreeViewItem &
     for (int i = pos + count; i < viewItems.count(); i++)
         if (items[i].parentItem >= pos)
             items[i].parentItem += count;
+#ifndef QT_NO_ACCESSIBILITY
+#ifdef Q_WS_X11
+    Q_Q(QTreeView);
+    if (QAccessible::isActive()) {
+        QAccessible::updateAccessibility(q, 0, QAccessible::TableModelChanged);
+    }
+#endif
+#endif
 }
 
 void QTreeViewPrivate::removeViewItems(int pos, int count)
@@ -2897,6 +2949,14 @@ void QTreeViewPrivate::removeViewItems(int pos, int count)
     for (int i = pos; i < viewItems.count(); i++)
         if (items[i].parentItem >= pos)
             items[i].parentItem -= count;
+#ifndef QT_NO_ACCESSIBILITY
+#ifdef Q_WS_X11
+    Q_Q(QTreeView);
+    if (QAccessible::isActive()) {
+        QAccessible::updateAccessibility(q, 0, QAccessible::TableModelChanged);
+    }
+#endif
+#endif
 }
 
 #if 0
@@ -3687,14 +3747,6 @@ void QTreeViewPrivate::_q_sortIndicatorChanged(int column, Qt::SortOrder order)
  */
 void QTreeView::currentChanged(const QModelIndex &current, const QModelIndex &previous)
 {
-#ifndef QT_NO_ACCESSIBILITY
-    if (QAccessible::isActive()) {
-        int entry = visualIndex(current) + 1;
-        if (header())
-            ++entry;
-        QAccessible::updateAccessibility(viewport(), entry, QAccessible::Focus);
-    }
-#endif
     QAbstractItemView::currentChanged(current, previous);
 
     if (allColumnsShowFocus()) {
@@ -3711,6 +3763,19 @@ void QTreeView::currentChanged(const QModelIndex &current, const QModelIndex &pr
             viewport()->update(currentRect);
         }
     }
+#ifndef QT_NO_ACCESSIBILITY
+    if (QAccessible::isActive() && current.isValid()) {
+#ifdef Q_WS_X11
+        int entry = (visualIndex(current) + (header()?1:0))*current.model()->columnCount()+current.column() + 1;
+        QAccessible::updateAccessibility(this, entry, QAccessible::Focus);
+#else
+        int entry = visualIndex(current) + 1;
+        if (header())
+            ++entry;
+        QAccessible::updateAccessibility(viewport(), entry, QAccessible::Focus);
+#endif
+    }
+#endif
 }
 
 /*!
@@ -3719,26 +3784,38 @@ void QTreeView::currentChanged(const QModelIndex &current, const QModelIndex &pr
 void QTreeView::selectionChanged(const QItemSelection &selected,
                                  const QItemSelection &deselected)
 {
+    QAbstractItemView::selectionChanged(selected, deselected);
 #ifndef QT_NO_ACCESSIBILITY
     if (QAccessible::isActive()) {
         // ### does not work properly for selection ranges.
         QModelIndex sel = selected.indexes().value(0);
         if (sel.isValid()) {
+#ifdef Q_WS_X11
+            int entry = (visualIndex(sel) + (header()?1:0))*sel.model()->columnCount()+sel.column() + 1;
+            Q_ASSERT(entry > 0);
+            QAccessible::updateAccessibility(this, entry, QAccessible::Selection);
+#else
             int entry = visualIndex(sel) + 1;
             if (header())
                 ++entry;
             QAccessible::updateAccessibility(viewport(), entry, QAccessible::Selection);
+#endif
         }
         QModelIndex desel = deselected.indexes().value(0);
         if (desel.isValid()) {
+#ifdef Q_WS_X11
+            int entry = (visualIndex(desel) + (header()?1:0))*desel.model()->columnCount()+desel.column() + 1;
+            Q_ASSERT(entry > 0);
+            QAccessible::updateAccessibility(this, entry, QAccessible::SelectionRemove);
+#else
             int entry = visualIndex(desel) + 1;
             if (header())
                 ++entry;
             QAccessible::updateAccessibility(viewport(), entry, QAccessible::SelectionRemove);
+#endif
         }
     }
 #endif
-    QAbstractItemView::selectionChanged(selected, deselected);
 }
 
 int QTreeView::visualIndex(const QModelIndex &index) const

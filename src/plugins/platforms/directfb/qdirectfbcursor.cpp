@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the plugins of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -42,26 +42,25 @@
 #include "qdirectfbcursor.h"
 #include "qdirectfbconvenience.h"
 
+QT_BEGIN_NAMESPACE
 
-QDirectFBCursor::QDirectFBCursor(QPlatformScreen* screen) :
-        QPlatformCursor(screen), surface(0)
+QDirectFBCursor::QDirectFBCursor(QPlatformScreen *screen)
+    : QPlatformCursor(screen)
 {
-    QDirectFbConvenience::dfbInterface()->GetDisplayLayer(QDirectFbConvenience::dfbInterface(),DLID_PRIMARY, &m_layer);
-    image = new QPlatformCursorImage(0, 0, 0, 0, 0, 0);
+    m_image.reset(new QPlatformCursorImage(0, 0, 0, 0, 0, 0));
 }
 
-void QDirectFBCursor::changeCursor(QCursor * cursor, QWidget * widget)
+void QDirectFBCursor::changeCursor(QCursor *cursor, QWidget *)
 {
-    Q_UNUSED(widget);
     int xSpot;
     int ySpot;
     QPixmap map;
 
     if (cursor->shape() != Qt::BitmapCursor) {
-        image->set(cursor->shape());
-        xSpot = image->hotspot().x();
-        ySpot = image->hotspot().y();
-        QImage *i = image->image();
+        m_image->set(cursor->shape());
+        xSpot = m_image->hotspot().x();
+        ySpot = m_image->hotspot().y();
+        QImage *i = m_image->image();
         map = QPixmap::fromImage(*i);
     } else {
         QPoint point = cursor->hotSpot();
@@ -70,11 +69,18 @@ void QDirectFBCursor::changeCursor(QCursor * cursor, QWidget * widget)
         map = cursor->pixmap();
     }
 
-    IDirectFBSurface *surface = QDirectFbConvenience::dfbSurfaceForPixmapData(map.pixmapData());
+    DFBResult res;
+    IDirectFBDisplayLayer *layer = toDfbLayer(screen);
+    IDirectFBSurface* surface(QDirectFbConvenience::dfbSurfaceForPlatformPixmap(map.pixmapData()));
 
-    if (m_layer->SetCooperativeLevel(m_layer, DLSCL_ADMINISTRATIVE) != DFB_OK) {
+    res = layer->SetCooperativeLevel(layer, DLSCL_ADMINISTRATIVE);
+    if (res != DFB_OK) {
+        DirectFBError("Failed to set DLSCL_ADMINISTRATIVE", res);
         return;
     }
-    m_layer->SetCursorShape( m_layer, surface, xSpot, ySpot);
-    m_layer->SetCooperativeLevel(m_layer, DLSCL_SHARED);
+
+    layer->SetCursorShape(layer, surface, xSpot, ySpot);
+    layer->SetCooperativeLevel(layer, DLSCL_SHARED);
 }
+
+QT_END_NAMESPACE

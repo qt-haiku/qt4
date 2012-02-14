@@ -371,10 +371,6 @@
         <translation>ページ</translation>
     </message>
     <message>
-        <source>page</source>
-        <translation>ページ</translation>
-    </message>
-    <message>
         <source>Insert Page</source>
         <translation>ページを挿入</translation>
     </message>
@@ -483,10 +479,6 @@
         <translation>サブウィンドウを挿入</translation>
     </message>
     <message>
-        <source>subwindow</source>
-        <translation>サブウィンドウ</translation>
-    </message>
-    <message>
         <source>Subwindow</source>
         <translation>サブウィンドウ</translation>
     </message>
@@ -528,6 +520,10 @@
     <message>
         <source>Change layout of &apos;%1&apos; from %2 to %3</source>
         <translation>&apos;%1&apos; のレイアウトを %2 から %3 に変更</translation>
+    </message>
+    <message>
+        <source>Change layout alignment</source>
+        <translation>レイアウトの配置を変更</translation>
     </message>
     <message>
         <source>Change script</source>
@@ -764,7 +760,7 @@
     </message>
     <message>
         <source>The skin configuration file &apos;%1&apos; could not be opened.</source>
-        <translation>スキンの設定ファイル &apos;%1&apos; がオープンできませんでした。</translation>
+        <translation>スキンの設定ファイル &apos;%1&apos; を開けませんでした。</translation>
     </message>
     <message>
         <source>Syntax error: %1</source>
@@ -868,16 +864,12 @@
         <source>Invalid stretch value for &apos;%1&apos;: &apos;%2&apos;</source>
         <extracomment>Parsing layout stretch values
 ----------
-Parsing layout stretch values
-----------
 Parsing layout stretch values</extracomment>
         <translation>&apos;%1&apos; のストレッチ値が無効です: &apos;%2&apos;</translation>
     </message>
     <message>
         <source>Invalid minimum size for &apos;%1&apos;: &apos;%2&apos;</source>
         <extracomment>Parsing grid layout minimum size values
-----------
-Parsing grid layout minimum size values
 ----------
 Parsing grid layout minimum size values</extracomment>
         <translation>&apos;%1&apos; の最小サイズが無効です: &apos;%2&apos;</translation>
@@ -1060,7 +1052,7 @@ Parsing grid layout minimum size values</extracomment>
     </message>
     <message>
         <source>&amp;Open...</source>
-        <translation>オープン(&amp;O)...</translation>
+        <translation>開く(&amp;O)...</translation>
     </message>
     <message>
         <source>&amp;Recent Forms</source>
@@ -1304,7 +1296,7 @@ UI ファイルの記述が矛盾しています。</translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation>不明なエラー</translation>
+        <translation>未知のエラー</translation>
     </message>
     <message>
         <source>An error occurred while running the script for %1: %2
@@ -1451,7 +1443,7 @@ Do you want to update the file location or generate a new form?</source>
     </message>
     <message>
         <source>Could not open file</source>
-        <translation>ファイルをオープンできませんでした</translation>
+        <translation>ファイルを開けませんでした</translation>
     </message>
     <message>
         <source>Saved image %1.</source>
@@ -1471,7 +1463,7 @@ Do you want to update the file location or generate a new form?</source>
     </message>
     <message>
         <source>Could not write file</source>
-        <translation>ファイルに書き込むことができませんでした</translation>
+        <translation>ファイルに書き込めませんでした</translation>
     </message>
     <message>
         <source>&amp;Close Preview</source>
@@ -1491,7 +1483,7 @@ Do you want to update the file location or generate a new form?</source>
     </message>
     <message>
         <source>Save &amp;As...</source>
-        <translation>名前をつけて保存(&amp;A)...</translation>
+        <translation>名前を付けて保存(&amp;A)...</translation>
     </message>
     <message>
         <source>Save A&amp;ll</source>
@@ -1525,7 +1517,7 @@ Do you want to update the file location or generate a new form?</source>
         <source>The file %1 could not be opened.
 Reason: %2
 Would you like to retry or select a different file?</source>
-        <translation>ファイル %1 はオープンできませんでした。
+        <translation>ファイル %1 を開けませんでした。
 原因: %2
 リトライしますか、それとも他のファイルを選択しますか?</translation>
     </message>
@@ -1533,7 +1525,7 @@ Would you like to retry or select a different file?</source>
         <source>It was not possible to write the entire file %1 to disk.
 Reason:%2
 Would you like to retry?</source>
-        <translation>ファイル %1 の全体をディスクに書き込むことができませんでした。
+        <translation>ファイル %1 の全体をディスクに書き込めませんでした。
 原因: %2
 リトライしますか?</translation>
     </message>
@@ -1827,10 +1819,6 @@ Container pages should only be added by specifying them in XML returned by the d
         <translation>ヘルプ(&amp;H)</translation>
     </message>
     <message>
-        <source>Edit</source>
-        <translation>編集</translation>
-    </message>
-    <message>
         <source>Toolbars</source>
         <translation>ツールバー</translation>
     </message>
@@ -1845,6 +1833,10 @@ Container pages should only be added by specifying them in XML returned by the d
     <message>
         <source>&amp;View</source>
         <translation>表示(&amp;V)</translation>
+    </message>
+    <message>
+        <source>&amp;Edit</source>
+        <translation>編集(&amp;E)</translation>
     </message>
     <message>
         <source>&amp;Settings</source>
@@ -1876,7 +1868,7 @@ Container pages should only be added by specifying them in XML returned by the d
     </message>
     <message>
         <source>The file &lt;b&gt;%1&lt;/b&gt; could not be opened.</source>
-        <translation>ファイル &lt;b&gt;%1&lt;/b&gt; はオープンできませんでした。</translation>
+        <translation>ファイル &lt;b&gt;%1&lt;/b&gt; を開けませんでした。</translation>
     </message>
     <message numerus="yes">
         <source>There are %n forms with unsaved changes. Do you want to review these changes before quitting?</source>
@@ -1890,8 +1882,6 @@ Container pages should only be added by specifying them in XML returned by the d
     <message>
         <source>An empty class name was passed on to %1 (object name: &apos;%2&apos;).</source>
         <extracomment>Empty class name passed to widget factory method
-----------
-Empty class name passed to widget factory method
 ----------
 Empty class name passed to widget factory method</extracomment>
         <translation>%1 (オブジェクト名: %2)に空のクラス名が渡されました。</translation>
@@ -2164,7 +2154,7 @@ Empty class name passed to widget factory method</extracomment>
     </message>
     <message>
         <source>What&apos;s This</source>
-        <translation>ヘルプ</translation>
+        <translation>ヒント</translation>
     </message>
     <message>
         <source>Busy</source>
@@ -2190,7 +2180,7 @@ Empty class name passed to widget factory method</extracomment>
     </message>
     <message>
         <source>Italic</source>
-        <translation>イタリック</translation>
+        <translation>斜体</translation>
     </message>
     <message>
         <source>Underline</source>
@@ -2778,7 +2768,7 @@ to
     </message>
     <message>
         <source>Could not write %1: %2</source>
-        <translation>%1 に書き込むことが出来ませんでした: %2</translation>
+        <translation>%1 に書き込めませんでした: %2</translation>
     </message>
     <message>
         <source>Open Resource File</source>
@@ -2790,11 +2780,11 @@ to
     </message>
     <message>
         <source>Move Up</source>
-        <translation>上へ移動</translation>
+        <translation>上に移動</translation>
     </message>
     <message>
         <source>Move Down</source>
-        <translation>下へ移動</translation>
+        <translation>下に移動</translation>
     </message>
     <message>
         <source>Add Prefix</source>
@@ -3082,7 +3072,7 @@ Do you want overwrite the template?</source>
     </message>
     <message>
         <source>There was an error opening template %1 for writing. Reason: %2</source>
-        <translation>%1 というテンプレートを書き込み用にオープンしようとしてエラーになりました。理由: %2</translation>
+        <translation>%1 というテンプレートを書き込み用に開こうととしてエラーになりました。理由: %2</translation>
     </message>
     <message>
         <source>Write Error</source>
@@ -3248,8 +3238,8 @@ Do you want overwrite the template?</source>
         <translation>&lt;br/&gt;Qt Designer は、Qt アプリケーションをデザインするための GUI ツールです。&lt;br/&gt;</translation>
     </message>
     <message>
-        <source>%1&lt;br/&gt;Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).</source>
-        <translation>%1&lt;br/&gt;Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).</translation>
+        <source>%1&lt;br/&gt;Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).</source>
+        <translation>%1&lt;br/&gt;Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).</translation>
     </message>
 </context>
 <context>
@@ -3534,7 +3524,7 @@ Do you want overwrite the template?</source>
     </message>
     <message>
         <source>The file %1 could not be opened: %2</source>
-        <translation>ファイル %1 はオープンできませんでした: %2</translation>
+        <translation>ファイル %1 を開けませんでした: %2</translation>
     </message>
     <message>
         <source>The file %1 could not be written: %2</source>
@@ -3725,12 +3715,20 @@ Do you want overwrite the template?</source>
         <translation>親から継承</translation>
     </message>
     <message>
+        <source>[Theme] %1</source>
+        <translation>[テーマ] %1</translation>
+    </message>
+    <message>
         <source>Horizontal</source>
         <translation>横方向</translation>
     </message>
     <message>
         <source>Vertical</source>
         <translation>縦方向</translation>
+    </message>
+    <message>
+        <source>Theme</source>
+        <translation>テーマ</translation>
     </message>
     <message>
         <source>Normal Off</source>
@@ -3797,19 +3795,19 @@ Do you want overwrite the template?</source>
     </message>
     <message>
         <source>Unable to open the file &apos;%1&apos; for writing: %2</source>
-        <translation>ファイル &apos;%1&apos; を書き込み用にオープンできませんでした: %2</translation>
+        <translation>ファイル &apos;%1&apos; を書き込み用に開けません: %2</translation>
     </message>
     <message>
         <source>Open profile</source>
-        <translation>プロファイルをオープン</translation>
+        <translation>プロファイルを開く</translation>
     </message>
     <message>
         <source>Open Profile - Error</source>
-        <translation>プロファイルをオープン - Error</translation>
+        <translation>プロファイルを開く - エラー</translation>
     </message>
     <message>
         <source>Unable to open the file &apos;%1&apos; for reading: %2</source>
-        <translation>ファイル &apos;%1&apos; を読み込み用にオープンできませんでした: %2</translation>
+        <translation>ファイル &apos;%1&apos; を読み込み用に開けません: %2</translation>
     </message>
     <message>
         <source>&apos;%1&apos; is not a valid profile: %2</source>
@@ -4317,6 +4315,17 @@ Do you want overwrite the template?</source>
     </message>
 </context>
 <context>
+    <name>qdesigner_internal::IconThemeDialog</name>
+    <message>
+        <source>Set Icon From Theme</source>
+        <translation>テーマからアイコンを設定する</translation>
+    </message>
+    <message>
+        <source>Input icon name from the current theme:</source>
+        <translation>現在のテーマからアイコンの名前を入力:</translation>
+    </message>
+</context>
+<context>
     <name>qdesigner_internal::ItemListEditor</name>
     <message>
         <source>Properties &amp;&lt;&lt;</source>
@@ -4458,18 +4467,6 @@ Do you want overwrite the template?</source>
         <translation>テキスト(&amp;T):</translation>
     </message>
     <message>
-        <source>Shortcut:</source>
-        <translation>ショートカット:</translation>
-    </message>
-    <message>
-        <source>Checkable:</source>
-        <translation>チェック可:</translation>
-    </message>
-    <message>
-        <source>ToolTip:</source>
-        <translation>ツールチップ:</translation>
-    </message>
-    <message>
         <source>...</source>
         <translation>...</translation>
     </message>
@@ -4480,6 +4477,22 @@ Do you want overwrite the template?</source>
     <message>
         <source>Object &amp;name:</source>
         <translation>オブジェクト名(&amp;N):</translation>
+    </message>
+    <message>
+        <source>T&amp;oolTip:</source>
+        <translation>ツールチップ(&amp;O):</translation>
+    </message>
+    <message>
+        <source>Icon th&amp;eme:</source>
+        <translation>アイコンテーマ(&amp;E):</translation>
+    </message>
+    <message>
+        <source>&amp;Checkable:</source>
+        <translation>チェック可(&amp;C):</translation>
+    </message>
+    <message>
+        <source>&amp;Shortcut:</source>
+        <translation>ショートカット(&amp;S):</translation>
     </message>
 </context>
 <context>
@@ -4558,7 +4571,7 @@ Please select another name.</source>
     </message>
     <message>
         <source>Unable to open the form template file &apos;%1&apos;: %2</source>
-        <translation>フォームのテンプレートファイル &apos;%1&apos; をオープンできません: %2</translation>
+        <translation>フォームのテンプレートファイル &apos;%1&apos; を開けません: %2</translation>
     </message>
     <message>
         <source>Internal error: No template selected.</source>
@@ -4738,8 +4751,16 @@ Please select another name.</source>
         <translation>ファイルを選択...</translation>
     </message>
     <message>
+        <source>Set Icon From Theme...</source>
+        <translation>テーマからアイコンを設定...</translation>
+    </message>
+    <message>
         <source>...</source>
         <translation>...</translation>
+    </message>
+    <message>
+        <source>[Theme] %1</source>
+        <translation>[テーマ] %1</translation>
     </message>
 </context>
 <context>
@@ -4761,7 +4782,7 @@ Please select another name.</source>
     </message>
     <message>
         <source>Refresh</source>
-        <translation>リフレッシュ</translation>
+        <translation>更新</translation>
     </message>
     <message>
         <source>Scan for newly installed custom widget plugins.</source>
@@ -5126,6 +5147,42 @@ Class: %2</source>
         <translation>シグナル/スロットを変更...</translation>
     </message>
     <message>
+        <source>Layout Alignment</source>
+        <translation>レイアウトの配置</translation>
+    </message>
+    <message>
+        <source>No Horizontal Alignment</source>
+        <translation>横方向の調整なし</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>左端揃え</translation>
+    </message>
+    <message>
+        <source>Center Horizontally</source>
+        <translation>中央揃え(横方向)</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>右端揃え</translation>
+    </message>
+    <message>
+        <source>No Vertical Alignment</source>
+        <translation>横方向の調整なし</translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation>上端揃え</translation>
+    </message>
+    <message>
+        <source>Center Vertically</source>
+        <translation>中央揃え(縦方向)</translation>
+    </message>
+    <message>
+        <source>Bottom</source>
+        <translation>下端揃え</translation>
+    </message>
+    <message>
         <source>Size Constraints</source>
         <translation>限界サイズ</translation>
     </message>
@@ -5256,7 +5313,7 @@ Class: %2</source>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>OK(&amp;O)</translation>
+        <translation>&amp;OK</translation>
     </message>
     <message>
         <source>&amp;Cancel</source>
@@ -5287,7 +5344,7 @@ Class: %2</source>
     </message>
     <message>
         <source>Italic</source>
-        <translation>イタリック</translation>
+        <translation>斜体</translation>
     </message>
     <message>
         <source>CTRL+I</source>
@@ -5328,6 +5385,10 @@ Class: %2</source>
     <message>
         <source>Insert &amp;Link</source>
         <translation>リンクを挿入(&amp;L)</translation>
+    </message>
+    <message>
+        <source>Simplify Rich Text</source>
+        <translation>リッチテキストを単純化する</translation>
     </message>
 </context>
 <context>
@@ -5730,7 +5791,7 @@ Class: %2</source>
     </message>
     <message>
         <source>List View</source>
-        <translation>リスト表示</translation>
+        <translation>一覧表示</translation>
     </message>
     <message>
         <source>Icon View</source>
@@ -5792,7 +5853,7 @@ UI ファイルに矛盾が発生しています。</translation>
     <name>qdesigner_internal::WizardContainerWidgetTaskMenu</name>
     <message>
         <source>Next</source>
-        <translation>進む</translation>
+        <translation>次へ</translation>
     </message>
     <message>
         <source>Back</source>

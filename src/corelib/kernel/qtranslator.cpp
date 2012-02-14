@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -51,6 +51,7 @@
 #include "qcoreapplication.h"
 #include "qcoreapplication_p.h"
 #include "qdatastream.h"
+#include "qdir.h"
 #include "qfile.h"
 #include "qmap.h"
 #include "qalgorithms.h"
@@ -61,6 +62,10 @@
 #if defined(Q_OS_UNIX) && !defined(Q_OS_SYMBIAN) && !defined(Q_OS_INTEGRITY)
 #define QT_USE_MMAP
 #include "private/qcore_unix_p.h"
+#endif
+
+#ifdef Q_OS_SYMBIAN
+#include "private/qcore_symbian_p.h"
 #endif
 
 // most of the headers below are already included in qplatformdefs.h
@@ -403,20 +408,63 @@ bool QTranslator::load(const QString & filename, const QString & directory,
     Q_D(QTranslator);
     d->clear();
 
+    QString fname = filename;
     QString prefix;
     if (QFileInfo(filename).isRelative()) {
+#ifdef Q_OS_SYMBIAN
+        //TFindFile doesn't like path in the filename
+        QString dir(directory);
+        int slash = filename.lastIndexOf(QLatin1Char('/'));
+        slash = qMax(slash, filename.lastIndexOf(QLatin1Char('\\')));
+        if (slash >=0) {
+            //so move the path component into the directory prefix
+            if (dir.isEmpty())
+                dir = filename.left(slash + 1);
+            else
+                dir = dir + QLatin1Char('/') + filename.left(slash + 1);
+            fname = fname.mid(slash + 1);
+        }
+        if (dir.isEmpty())
+            prefix = QCoreApplication::applicationDirPath();
+        else
+            prefix = QFileInfo(dir).absoluteFilePath(); //TFindFile doesn't like dirty paths
+        if (prefix.length() > 2 && prefix.at(1) == QLatin1Char(':') && prefix.at(0).isLetter())
+            prefix[0] = QLatin1Char('Y');
+#else
         prefix = directory;
-	if (prefix.length() && !prefix.endsWith(QLatin1Char('/')))
-	    prefix += QLatin1Char('/');
+#endif
+        if (prefix.length() && !prefix.endsWith(QLatin1Char('/')))
+            prefix += QLatin1Char('/');
     }
 
-    QString fname = filename;
+#ifdef Q_OS_SYMBIAN
+    QString nativePrefix = QDir::toNativeSeparators(prefix);
+#endif
+
     QString realname;
     QString delims;
     delims = search_delimiters.isNull() ? QString::fromLatin1("_.") : search_delimiters;
 
     for (;;) {
         QFileInfo fi;
+
+#ifdef Q_OS_SYMBIAN
+        //search for translations on other drives, e.g. Qt may be in Z, while app is in C
+        //note this uses symbian search rules, i.e. y:->a:, followed by z:
+        TFindFile finder(qt_s60GetRFs());
+        QString fname2 = fname + (suffix.isNull() ? QString::fromLatin1(".qm") : suffix);
+        TInt err = finder.FindByDir(
+            qt_QString2TPtrC(fname2),
+            qt_QString2TPtrC(nativePrefix));
+        if (err != KErrNone)
+            err = finder.FindByDir(qt_QString2TPtrC(fname), qt_QString2TPtrC(nativePrefix));
+        if (err == KErrNone) {
+            fi.setFile(qt_TDesC2QString(finder.File()));
+            realname = fi.canonicalFilePath();
+            if (fi.isReadable() && fi.isFile())
+                break;
+        }
+#endif
 
         realname = prefix + fname + (suffix.isNull() ? QString::fromLatin1(".qm") : suffix);
         fi.setFile(realname);
@@ -600,7 +648,7 @@ static QString find_translation(const QLocale & locale,
 /*!
     \since 4.8
 
-    Loads \a filename + \a prefix + \a \l{QLocale::uiLanguages()}{ui language
+    Loads \a filename + \a prefix + \l{QLocale::uiLanguages()}{ui language
     name} + \a suffix (".qm" if the \a suffix is not specified), which may be
     an absolute file name or relative to \a directory. Returns true if the
     translation is successfully loaded; otherwise returns false.
@@ -618,7 +666,7 @@ static QString find_translation(const QLocale & locale,
     \endlist
 
     For example, an application running in the locale with the following
-    l{QLocale::uiLanguages()}{ui languages} - "es", "fr-CA", "de" might call
+    \l{QLocale::uiLanguages()}{ui languages} - "es", "fr-CA", "de" might call
     load(QLocale::system(), "foo", ".", "/opt/foolib", ".qm"). load() would
     replace '-' (dash) with '_' (underscore) in the ui language and then try to
     open the first existing readable file from this list:
@@ -637,8 +685,8 @@ static QString find_translation(const QLocale & locale,
     \o \c /opt/foolib/foo
     \endlist
 
-    For OSs where file system is case sensitive, QTranslator also tries to load
-    a lower-cased version of the locale name.
+    On operating systems where file system is case sensitive, QTranslator also
+    tries to load a lower-cased version of the locale name.
 */
 bool QTranslator::load(const QLocale & locale,
                        const QString & filename,

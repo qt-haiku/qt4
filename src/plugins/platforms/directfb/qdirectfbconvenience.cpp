@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the plugins of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -41,8 +41,14 @@
 
 #include "qdirectfbconvenience.h"
 #include "qdirectfbblitter.h"
+#include "qdirectfbscreen.h"
 
 #include <private/qpixmap_blitter_p.h>
+
+#include <QtGui/QWidget>
+#include <QtGui/QScreen>
+
+QT_BEGIN_NAMESPACE
 
 IDirectFB *QDirectFbConvenience::dfbInterface()
 {
@@ -50,7 +56,7 @@ IDirectFB *QDirectFbConvenience::dfbInterface()
     if (!dfb) {
         DFBResult result = DirectFBCreate(&dfb);
         if (result != DFB_OK) {
-            DirectFBError("QDirectFBConvenience: error creating DirectFB interface",result);
+            DirectFBErrorFatal("QDirectFBConvenience: error creating DirectFB interface", result);
             return 0;
         }
     }
@@ -61,10 +67,9 @@ IDirectFBDisplayLayer *QDirectFbConvenience::dfbDisplayLayer(int display)
 {
     IDirectFBDisplayLayer *layer;
     DFBResult result = QDirectFbConvenience::dfbInterface()->GetDisplayLayer(QDirectFbConvenience::dfbInterface(),display,&layer);
-    if (result != DFB_OK) {
-        DirectFBError("QDirectFbConvenience: "
-                      "Unable to get primary display layer!", result);
-    }
+    if (result != DFB_OK)
+        DirectFBErrorFatal("QDirectFbConvenience: "
+                           "Unable to get primary display layer!", result);
     return layer;
 }
 
@@ -106,13 +111,17 @@ int QDirectFbConvenience::colorDepthForSurface(const DFBSurfacePixelFormat forma
     return ((0x1f << 7) & format) >> 7;
 }
 
-IDirectFBSurface *QDirectFbConvenience::dfbSurfaceForPixmapData(QPixmapData *pixmapData)
+/**
+ * This is borrowing the reference of the QDirectFbBlitter. You may not store this
+ * pointer as a class member but must only use it locally.
+ */
+IDirectFBSurface *QDirectFbConvenience::dfbSurfaceForPlatformPixmap(QPixmapData *handle)
 {
-    QBlittablePixmapData *blittablePmData = static_cast<QBlittablePixmapData *>(pixmapData);
+    QBlittablePixmapData *blittablePmData = static_cast<QBlittablePixmapData *>(handle);
     if (blittablePmData) {
         QBlittable *blittable = blittablePmData->blittable();
         QDirectFbBlitter *dfbBlitter = static_cast<QDirectFbBlitter *>(blittable);
-        return dfbBlitter->m_surface;
+        return dfbBlitter->m_surface.data();
     }
     return 0;
 }
@@ -374,3 +383,15 @@ QDirectFbKeyMap::QDirectFbKeyMap()
     insert(DIKS_CURLY_BRACKET_RIGHT   , Qt::Key_BraceRight);
     insert(DIKS_TILDE                 , Qt::Key_AsciiTilde);
 }
+
+QDirectFbScreen *toDfbScreen(QWidget *window)
+{
+    return static_cast<QDirectFbScreen*>(QPlatformScreen::platformScreenForWidget(window));
+}
+
+IDirectFBDisplayLayer *toDfbLayer(QPlatformScreen *screen)
+{
+    return static_cast<QDirectFbScreen*>(screen)->dfbLayer();
+}
+
+QT_END_NAMESPACE

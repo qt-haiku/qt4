@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -47,7 +47,7 @@
 
 QString toString(QAudioFormat::SampleType sampleType)
 {
-    QString result("Unknown");
+    QString result;
     switch (sampleType) {
     case QAudioFormat::SignedInt:
         result = "SignedInt";
@@ -58,7 +58,9 @@ QString toString(QAudioFormat::SampleType sampleType)
     case QAudioFormat::Float:
         result = "Float";
         break;
+    default:
     case QAudioFormat::Unknown:
+        result = "Unknown";
         break;
     }
     return result;

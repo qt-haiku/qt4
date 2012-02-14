@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -41,7 +41,7 @@
 #ifndef WINDOW_H
 #define WINDOW_H
 
-#include <QDialog>
+#include <QWidget>
 #include <QDir>
 
 QT_BEGIN_NAMESPACE
@@ -53,7 +53,7 @@ class QTableWidgetItem;
 QT_END_NAMESPACE
 
 //! [0]
-class Window : public QDialog
+class Window : public QWidget
 {
     Q_OBJECT
 

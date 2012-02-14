@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtDeclarative module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -50,9 +50,36 @@
 #include <QtDeclarative/qdeclarativecomponent.h>
 #include <QtCore/qdebug.h>
 #include <QtCore/qdir.h>
+#include <QtCore/qdiriterator.h>
 #include <QtCore/qfile.h>
 
 QT_BEGIN_NAMESPACE
+
+/*
+Returns the set of QML files in path (qmldir, *.qml, *.js).  The caller
+is responsible for deleting the returned data.
+*/
+static QSet<QString> *qmlFilesInDirectory(const QString &path)
+{
+    QDirIterator dir(path, QDir::Files);
+    if (!dir.hasNext())
+        return 0;
+    QSet<QString> *files = new QSet<QString>;
+    while (dir.hasNext()) {
+        dir.next();
+        QString fileName = dir.fileName();
+        if (fileName == QLatin1String("qmldir")
+                || fileName.endsWith(QLatin1String(".qml"))
+                || fileName.endsWith(QLatin1String(".js"))) {
+#if defined(Q_OS_WIN32) || defined(Q_OS_WINCE) || defined(Q_OS_DARWIN) || defined(Q_OS_SYMBIAN)
+            fileName = fileName.toLower();
+#endif
+            files->insert(fileName);
+        }
+    }
+    return files;
+}
+
 
 /*!
 \class QDeclarativeDataBlob
@@ -62,6 +89,11 @@ QT_BEGIN_NAMESPACE
 QDeclarativeDataBlob's are loaded by a QDeclarativeDataLoader.  The user creates the QDeclarativeDataBlob
 and then calls QDeclarativeDataLoader::load() or QDeclarativeDataLoader::loadWithStaticData() to load it.
 The QDeclarativeDataLoader invokes callbacks on the QDeclarativeDataBlob as data becomes available.
+*/
+
+/*!
+    \class QDeclarativeTypeLoader
+    \internal
 */
 
 /*!
@@ -434,7 +466,7 @@ void QDeclarativeDataBlob::notifyComplete(QDeclarativeDataBlob *blob)
 
 /*!
 \class QDeclarativeDataLoader
-\brief The QDeclarativeDataLoader class abstracts loading files and their dependecies over the network.
+\brief The QDeclarativeDataLoader class abstracts loading files and their dependencies over the network.
 \internal
 
 The QDeclarativeDataLoader class is provided for the exclusive use of the QDeclarativeTypeLoader class.
@@ -453,9 +485,11 @@ are required before processing can fully complete.
 To complete processing, the QDeclarativeDataBlob::done() callback is invoked.  done() is called when
 one of these three preconditions are met.
 
-1.  The QDeclarativeDataBlob has no dependencies.
-2.  The QDeclarativeDataBlob has an error set.
-3.  All the QDeclarativeDataBlob's dependencies are themselves "done()".
+\list 1
+\o The QDeclarativeDataBlob has no dependencies.
+\o The QDeclarativeDataBlob has an error set.
+\o All the QDeclarativeDataBlob's dependencies are themselves "done()".
+\endlist
 
 Thus QDeclarativeDataBlob::done() will always eventually be called, even if the blob has an error set.
 */
@@ -616,13 +650,17 @@ void QDeclarativeDataLoader::setData(QDeclarativeDataBlob *blob, const QByteArra
 }
 
 /*!
-\class QDeclarativeTypeLoader
+Constructs a new type loader that uses the given \a engine.
 */
 QDeclarativeTypeLoader::QDeclarativeTypeLoader(QDeclarativeEngine *engine)
 : QDeclarativeDataLoader(engine)
 {
 }
 
+/*!
+Destroys the type loader, first clearing the cache of any information about
+loaded files.
+*/
 QDeclarativeTypeLoader::~QDeclarativeTypeLoader()
 {
     clearCache();
@@ -674,7 +712,7 @@ QDeclarativeTypeData *QDeclarativeTypeLoader::get(const QByteArray &data, const 
 }
 
 /*!
-Return a QDeclarativeScriptData for \a url.  The QDeclarativeScriptData may be cached.
+Returns a QDeclarativeScriptData for \a url.  The QDeclarativeScriptData may be cached.
 */
 QDeclarativeScriptData *QDeclarativeTypeLoader::getScript(const QUrl &url)
 {
@@ -695,7 +733,7 @@ QDeclarativeScriptData *QDeclarativeTypeLoader::getScript(const QUrl &url)
 }
 
 /*!
-Return a QDeclarativeQmldirData for \a url.  The QDeclarativeQmldirData may be cached.
+Returns a QDeclarativeQmldirData for \a url.  The QDeclarativeQmldirData may be cached.
 */
 QDeclarativeQmldirData *QDeclarativeTypeLoader::getQmldir(const QUrl &url)
 {
@@ -715,6 +753,71 @@ QDeclarativeQmldirData *QDeclarativeTypeLoader::getQmldir(const QUrl &url)
     return qmldirData;
 }
 
+/*!
+Returns the absolute filename of path via a directory cache for files named
+"qmldir", "*.qml", "*.js"
+Returns a empty string if the path does not exist.
+*/
+QString QDeclarativeTypeLoader::absoluteFilePath(const QString &path)
+{
+    if (path.isEmpty())
+        return QString();
+    if (path.at(0) == QLatin1Char(':')) {
+        // qrc resource
+        QFileInfo fileInfo(path);
+        return fileInfo.isFile() ? fileInfo.absoluteFilePath() : QString();
+    }
+#if defined(Q_OS_WIN32) || defined(Q_OS_WINCE) || defined(Q_OS_DARWIN) || defined(Q_OS_SYMBIAN)
+    QString lowPath(path.toLower());
+#else
+    QString lowPath(path);
+#endif
+    int lastSlash = lowPath.lastIndexOf(QLatin1Char('/'));
+    QString dirPath = lowPath.left(lastSlash);
+
+    StringSet *fileSet = 0;
+    QHash<QString,StringSet*>::const_iterator it = m_importDirCache.find(dirPath);
+    if (it == m_importDirCache.end()) {
+        StringSet *files = qmlFilesInDirectory(path.left(lastSlash));
+        m_importDirCache.insert(dirPath, files);
+        fileSet = files;
+    } else {
+        fileSet = *it;
+    }
+    if (!fileSet)
+        return QString();
+
+    QString absoluteFilePath = fileSet->contains(QString(lowPath.constData()+lastSlash+1, lowPath.length()-lastSlash-1)) ? path : QString();
+    if (absoluteFilePath.length() > 2 && absoluteFilePath.at(0) != QLatin1Char('/') && absoluteFilePath.at(1) != QLatin1Char(':'))
+        absoluteFilePath = QFileInfo(absoluteFilePath).absoluteFilePath();
+
+    return absoluteFilePath;
+}
+
+/*!
+Return a QDeclarativeDirParser for absoluteFilePath.  The QDeclarativeDirParser may be cached.
+*/
+const QDeclarativeDirParser *QDeclarativeTypeLoader::qmlDirParser(const QString &absoluteFilePath)
+{
+    QDeclarativeDirParser *qmldirParser;
+    QHash<QString,QDeclarativeDirParser*>::const_iterator it = m_importQmlDirCache.find(absoluteFilePath);
+    if (it == m_importQmlDirCache.end()) {
+        qmldirParser = new QDeclarativeDirParser;
+        qmldirParser->setFileSource(absoluteFilePath);
+        qmldirParser->setUrl(QUrl::fromLocalFile(absoluteFilePath));
+        qmldirParser->parse();
+        m_importQmlDirCache.insert(absoluteFilePath, qmldirParser);
+    } else {
+        qmldirParser = *it;
+    }
+
+    return qmldirParser;
+}
+
+/*
+Clears cached information about loaded files, including any type data, scripts
+and qmldir information.
+*/
 void QDeclarativeTypeLoader::clearCache()
 {
     for (TypeCache::Iterator iter = m_typeCache.begin(); iter != m_typeCache.end(); ++iter) 
@@ -723,16 +826,20 @@ void QDeclarativeTypeLoader::clearCache()
         (*iter)->release();
     for (QmldirCache::Iterator iter = m_qmldirCache.begin(); iter != m_qmldirCache.end(); ++iter) 
         (*iter)->release();
+    qDeleteAll(m_importDirCache);
+    qDeleteAll(m_importQmlDirCache);
 
     m_typeCache.clear();
     m_scriptCache.clear();
     m_qmldirCache.clear();
+    m_importDirCache.clear();
+    m_importQmlDirCache.clear();
 }
 
 
 QDeclarativeTypeData::QDeclarativeTypeData(const QUrl &url, QDeclarativeTypeLoader::Options options, 
                                            QDeclarativeTypeLoader *manager)
-: QDeclarativeDataBlob(url, QmlFile), m_options(options), m_typesResolved(false), 
+: QDeclarativeDataBlob(url, QmlFile), m_options(options), m_imports(manager), m_typesResolved(false),
   m_compiledData(0), m_typeLoader(manager)
 {
 }

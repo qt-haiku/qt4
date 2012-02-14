@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the qmake application of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -784,7 +784,7 @@ MakefileGenerator::init()
             (*it) = Option::fixPathToLocalOS((*it));
     }
 
-    { //get the output_dir into the pwd
+    if(!project->isActiveConfig("no_include_pwd")) { //get the output_dir into the pwd
         if(Option::output_dir != qmake_getpwd())
             project->values("INCLUDEPATH").append(".");
     }
@@ -1109,7 +1109,7 @@ MakefileGenerator::writePrlFile()
        && project->isActiveConfig("create_prl")
        && (project->first("TEMPLATE") == "lib"
        || project->first("TEMPLATE") == "vclib")
-       && !project->isActiveConfig("plugin")) { //write prl file
+       && (!project->isActiveConfig("plugin") || project->isActiveConfig("static"))) { //write prl file
         QString local_prl = prlFileName();
         QString prl = fileFixify(local_prl);
         mkdir(fileInfo(local_prl).path());
@@ -1769,6 +1769,7 @@ MakefileGenerator::writeExtraCompilerTargets(QTextStream &t)
 {
     QString clean_targets;
     const QStringList &quc = project->values("QMAKE_EXTRA_COMPILERS");
+    QDir outputDir(Option::output_dir);
     for(QStringList::ConstIterator it = quc.begin(); it != quc.end(); ++it) {
         QString tmp_out = fileFixify(project->values((*it) + ".output").first(),
                                      Option::output_dir, Option::output_dir);
@@ -1960,9 +1961,11 @@ MakefileGenerator::writeExtraCompilerTargets(QTextStream &t)
             QString cmd;
             if (isForSymbianSbsv2()) {
                 // In sbsv2 the command inputs and outputs need to use absolute paths
-                cmd = replaceExtraCompilerVariables(tmp_cmd,
-                    fileFixify(escapeFilePaths(inputs), FileFixifyAbsolute),
-                    fileFixify(QStringList(tmp_out), FileFixifyAbsolute));
+                QStringList absoluteInputs;
+                for (int i = 0; i < inputs.size(); ++i)
+                    absoluteInputs.append(escapeFilePath(outputDir.absoluteFilePath(inputs.at(i))));
+                cmd = replaceExtraCompilerVariables(tmp_cmd, absoluteInputs,
+                    QStringList(outputDir.absoluteFilePath(tmp_out)));
             } else {
                 cmd = replaceExtraCompilerVariables(tmp_cmd, escapeFilePaths(inputs), QStringList(tmp_out));
             }
@@ -1996,8 +1999,8 @@ MakefileGenerator::writeExtraCompilerTargets(QTextStream &t)
             if (isForSymbianSbsv2()) {
                 // In sbsv2 the command inputs and outputs need to use absolute paths
                 cmd = replaceExtraCompilerVariables(tmp_cmd,
-                    fileFixify((*input), FileFixifyAbsolute),
-                    fileFixify(out, FileFixifyAbsolute));
+                    outputDir.absoluteFilePath(*input),
+                    outputDir.absoluteFilePath(out));
             } else {
                 cmd = replaceExtraCompilerVariables(tmp_cmd, (*input), out);
             }
@@ -2378,6 +2381,14 @@ MakefileGenerator::writeSubDirs(QTextStream &t)
     qDeleteAll(targets);
 }
 
+void MakefileGenerator::writeSubMakeCall(QTextStream &t, const QString &callPrefix,
+                                         const QString &makeArguments, const QString &callPostfix)
+{
+    t << callPrefix
+      << "$(MAKE)" << makeArguments
+      << callPostfix << endl;
+}
+
 void
 MakefileGenerator::writeSubTargets(QTextStream &t, QList<MakefileGenerator::SubTarget*> targets, int flags)
 {
@@ -2467,7 +2478,7 @@ MakefileGenerator::writeSubTargets(QTextStream &t, QList<MakefileGenerator::SubT
         //qmake it
         if(!subtarget->profile.isEmpty()) {
             QString out = subtarget->makefile;
-            QString in = fileFixify(in_directory + subtarget->profile, FileFixifyAbsolute);
+            QString in = escapeFilePath(fileFixify(in_directory + subtarget->profile, FileFixifyAbsolute));
             if(out.startsWith(in_directory))
                 out = out.mid(in_directory.length());
             t << mkfile << ": " << "\n\t";
@@ -2501,9 +2512,7 @@ MakefileGenerator::writeSubTargets(QTextStream &t, QList<MakefileGenerator::SubT
                 t << " " << valList(subtarget->depends);
             if(project->isEmpty("QMAKE_NOFORCE"))
                 t <<  " FORCE";
-            t << out_directory_cdin
-              << "$(MAKE)" << makefilein
-              << out_directory_cdout << endl;
+            writeSubMakeCall(t, out_directory_cdin, makefilein, out_directory_cdout);
         }
 
         for(int suffix = 0; suffix < targetSuffixes.size(); ++suffix) {
@@ -2523,9 +2532,7 @@ MakefileGenerator::writeSubTargets(QTextStream &t, QList<MakefileGenerator::SubT
                     t << " " << targets.at(target-1)->target << "-" << targetSuffixes.at(suffix) << "-ordered ";
                 if(project->isEmpty("QMAKE_NOFORCE"))
                     t <<  " FORCE";
-                t << out_directory_cdin
-                  << "$(MAKE)" << makefilein << " " << s
-                  << out_directory_cdout << endl;
+                writeSubMakeCall(t, out_directory_cdin,  makefilein + " " + s, out_directory_cdout);
             }
             t << subtarget->target << "-" << targetSuffixes.at(suffix) << ": " << mkfile;
             if(!subtarget->depends.isEmpty())
@@ -2533,9 +2540,7 @@ MakefileGenerator::writeSubTargets(QTextStream &t, QList<MakefileGenerator::SubT
                                     "-"+targetSuffixes.at(suffix));
             if(project->isEmpty("QMAKE_NOFORCE"))
                 t <<  " FORCE";
-            t << out_directory_cdin
-              << "$(MAKE)" << makefilein << " " << s
-              << out_directory_cdout << endl;
+            writeSubMakeCall(t, out_directory_cdin, makefilein + " " + s, out_directory_cdout);
         }
     }
     t << endl;
@@ -2643,10 +2648,7 @@ MakefileGenerator::writeSubTargets(QTextStream &t, QList<MakefileGenerator::SubT
                 QString out_directory_cdin, out_directory_cdout;
                 MAKE_CD_IN_AND_OUT(out_directory);
 
-                //don't need the makefile arg if it isn't changed
-                QString makefilein;
-                if(subtarget->makefile != "$(MAKEFILE)")
-                    makefilein = " -f " + subtarget->makefile;
+                QString makefilein = " -f " + subtarget->makefile;
 
                 //write the rule/depends
                 if(flags & SubTargetOrdered) {
@@ -2669,12 +2671,10 @@ MakefileGenerator::writeSubTargets(QTextStream &t, QList<MakefileGenerator::SubT
 
                 //write the commands
                 if(!out_directory.isEmpty()) {
-                    t << out_directory_cdin
-                      << "$(MAKE)" << makefilein << " " << sub_targ
-                      << out_directory_cdout << endl;
+                    writeSubMakeCall(t, out_directory_cdin, makefilein + " " + sub_targ,
+                                     out_directory_cdout);
                 } else {
-                    t << "\n\t"
-                      << "$(MAKE)" << makefilein << " " << sub_targ << endl;
+                    writeSubMakeCall(t, "\n\t", makefilein + " " + sub_targ, QString());
                 }
             }
         }

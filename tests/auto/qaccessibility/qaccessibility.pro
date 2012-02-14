@@ -1,4 +1,5 @@
 load(qttest_p4)
+requires(contains(QT_CONFIG,accessibility))
 SOURCES  += tst_qaccessibility.cpp
 
 unix:!mac:LIBS+=-lm
@@ -9,3 +10,5 @@ wince*: {
 	accessneeded.path = accessible
 	DEPLOYMENT += accessneeded
 }
+
+CONFIG+=insignificant_test # QTQAINFRA-428

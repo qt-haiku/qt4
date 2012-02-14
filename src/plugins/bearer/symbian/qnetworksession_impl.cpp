@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the plugins of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -64,7 +64,7 @@ QNetworkSessionPrivateImpl::QNetworkSessionPrivateImpl(SymbianEngine *engine)
     ipConnectionNotifier(0), ipConnectionStarter(0),
     iHandleStateNotificationsFromManager(false), iFirstSync(true), iStoppedByUser(false),
     iClosedByUser(false), iError(QNetworkSession::UnknownSessionError), iALREnabled(0),
-    iConnectInBackground(false), isOpening(false)
+    iConnectInBackground(false), iCurrentIap(0), isOpening(false)
 {
 
 #ifdef SNAP_FUNCTIONALITY_AVAILABLE
@@ -77,6 +77,7 @@ QNetworkSessionPrivateImpl::QNetworkSessionPrivateImpl(SymbianEngine *engine)
 void QNetworkSessionPrivateImpl::closeHandles()
 {
     QMutexLocker lock(&mutex);
+    updateCurrentIap(0);
     // Cancel Connection Progress Notifications first.
     // Note: ConnectionNotifier must be destroyed before RConnection::Close()
     //       => deleting ipConnectionNotifier results RConnection::CancelProgressNotification()
@@ -97,7 +98,6 @@ void QNetworkSessionPrivateImpl::closeHandles()
 
     QSymbianSocketManager::instance().setDefaultConnection(0);
 
-    iConnectionMonitor.Close();
 #ifdef QT_BEARERMGMT_SYMBIAN_DEBUG
     qDebug() << "QNS this : " << QString::number((uint)this)
              << " - handles closed";
@@ -111,6 +111,7 @@ QNetworkSessionPrivateImpl::~QNetworkSessionPrivateImpl()
     isOpening = false;
 
     closeHandles();
+    iConnectionMonitor.Close();
 #ifdef QT_BEARERMGMT_SYMBIAN_DEBUG
     qDebug() << "QNS this : " << QString::number((uint)this)
              << " - destroyed";
@@ -449,8 +450,8 @@ void QNetworkSessionPrivateImpl::open()
         isOpen = false;
         isOpening = false;
         iError = QNetworkSession::UnknownSessionError;
-        emit QNetworkSessionPrivate::error(iError);
         closeHandles();
+        emit QNetworkSessionPrivate::error(iError);
         syncStateWithInterface();    
     }
 }
@@ -459,6 +460,8 @@ TUint QNetworkSessionPrivateImpl::iapClientCount(TUint aIAPId) const
 {
     TRequestStatus status;
     TUint connectionCount;
+    if (!iConnectionMonitor.Handle())
+        return 0;
     iConnectionMonitor.GetConnectionCount(connectionCount, status);
     User::WaitForRequest(status);
     if (status.Int() == KErrNone) {
@@ -536,7 +539,8 @@ void QNetworkSessionPrivateImpl::stop()
 #endif
     if (!isOpen &&
         publicConfig.isValid() &&
-        publicConfig.type() == QNetworkConfiguration::InternetAccessPoint) {
+        publicConfig.type() == QNetworkConfiguration::InternetAccessPoint &&
+        iConnectionMonitor.Handle()) {
 #ifdef QT_BEARERMGMT_SYMBIAN_DEBUG
     qDebug() << "QNS this : " << QString::number((uint)this) << " - "
             << "since session is not open, using RConnectionMonitor to stop() the interface";
@@ -634,6 +638,8 @@ void QNetworkSessionPrivateImpl::accept()
 
         QSymbianSocketManager::instance().setDefaultConnection(&iConnection);
 
+        updateCurrentIap(iNewRoamingIap);
+
         newState(QNetworkSession::Connected, iNewRoamingIap);
     }
 #endif
@@ -717,8 +723,8 @@ void QNetworkSessionPrivateImpl::Error(TInt aError)
         activeConfig = QNetworkConfiguration();
         serviceConfig = QNetworkConfiguration();
         iError = QNetworkSession::RoamingError;
-        emit QNetworkSessionPrivate::error(iError);
         closeHandles();
+        emit QNetworkSessionPrivate::error(iError);
         QT_TRY {
             syncStateWithInterface();
             // In some cases IAP is still in Connected state when
@@ -801,6 +807,8 @@ quint64 QNetworkSessionPrivateImpl::transferredData(TUint dataType) const
         return 0;
     }
     
+    if (!iConnectionMonitor.Handle())
+        return 0;
     TUint count;
     TRequestStatus status;
     iConnectionMonitor.GetConnectionCount(count, status);
@@ -862,19 +870,31 @@ quint64 QNetworkSessionPrivateImpl::activeTime() const
     return startTime.secsTo(QDateTime::currentDateTime());
 }
 
+bool QNetworkSessionPrivateImpl::activeIapId(TUint32& iapId) const
+{
+    if (!iConnection.SubSessionHandle())
+        return false;
+    _LIT(KSetting, "IAP\\Id");
+    TInt err = iConnection.GetIntSetting(KSetting, iapId);
+    if (err != KErrNone)
+        return false;
+#ifdef SNAP_FUNCTIONALITY_AVAILABLE
+    // Check if this is an Easy WLAN configuration. On Symbian^3 RConnection may report
+    // the used configuration as 'EasyWLAN' IAP ID if someone has just opened the configuration
+    // from WLAN Scan dialog, _and_ that connection is still up. We need to find the
+    // real matching configuration. Function alters the Easy WLAN ID to real IAP ID (only if
+    // easy WLAN):
+    easyWlanTrueIapId(iapId);
+#endif
+    return true;
+}
+
 QNetworkConfiguration QNetworkSessionPrivateImpl::activeConfiguration(TUint32 iapId) const
 {
     if (iapId == 0) {
-        _LIT(KSetting, "IAP\\Id");
-        iConnection.GetIntSetting(KSetting, iapId);
-#ifdef SNAP_FUNCTIONALITY_AVAILABLE
-        // Check if this is an Easy WLAN configuration. On Symbian^3 RConnection may report
-        // the used configuration as 'EasyWLAN' IAP ID if someone has just opened the configuration
-        // from WLAN Scan dialog, _and_ that connection is still up. We need to find the
-        // real matching configuration. Function alters the Easy WLAN ID to real IAP ID (only if
-        // easy WLAN):
-        easyWlanTrueIapId(iapId);
-#endif
+        bool ok = activeIapId(iapId);
+        if (!ok)
+            return QNetworkConfiguration();
     }
 
 #ifdef SNAP_FUNCTIONALITY_AVAILABLE
@@ -1010,6 +1030,20 @@ QNetworkConfiguration QNetworkSessionPrivateImpl::activeConfiguration(TUint32 ia
     return publicConfig;
 }
 
+void QNetworkSessionPrivateImpl::updateCurrentIap(TUint32 iapId)
+{
+    if (iCurrentIap == iapId)
+        return;
+
+    if (iCurrentIap != 0)
+        QSymbianSocketManager::instance().removeActiveConnection(iCurrentIap);
+
+    iCurrentIap = iapId;
+
+    if (iCurrentIap != 0)
+        QSymbianSocketManager::instance().addActiveConnection(iCurrentIap);
+}
+
 void QNetworkSessionPrivateImpl::ConnectionStartComplete(TInt statusCode)
 {
 #ifdef QT_BEARERMGMT_SYMBIAN_DEBUG
@@ -1023,7 +1057,10 @@ void QNetworkSessionPrivateImpl::ConnectionStartComplete(TInt statusCode)
         case KErrNone: // Connection created successfully
             {
             TInt error = KErrNone;
-            QNetworkConfiguration newActiveConfig = activeConfiguration();
+            TUint32 iapId;
+            QNetworkConfiguration newActiveConfig;
+            if (activeIapId(iapId))
+                newActiveConfig = activeConfiguration(iapId);
             if (!newActiveConfig.isValid()) {
                 // RConnection startup was successful but no configuration
                 // was found. That indicates that user has chosen to create a
@@ -1033,13 +1070,14 @@ void QNetworkSessionPrivateImpl::ConnectionStartComplete(TInt statusCode)
                 error = KErrGeneral;
             } else {
                 QSymbianSocketManager::instance().setDefaultConnection(&iConnection);
+                updateCurrentIap(iapId);
             }
             if (error != KErrNone) {
                 isOpen = false;
                 isOpening = false;
                 iError = QNetworkSession::UnknownSessionError;
-                QT_TRYCATCH_LEAVING(emit QNetworkSessionPrivate::error(iError));
                 closeHandles();
+                QT_TRYCATCH_LEAVING(emit QNetworkSessionPrivate::error(iError));
                 if (!newActiveConfig.isValid()) {
                     // No valid configuration, bail out.
                     // Status updates from QNCM won't be received correctly
@@ -1087,8 +1125,8 @@ void QNetworkSessionPrivateImpl::ConnectionStartComplete(TInt statusCode)
             activeConfig = QNetworkConfiguration();
             serviceConfig = QNetworkConfiguration();
             iError = QNetworkSession::InvalidConfigurationError;
-            QT_TRYCATCH_LEAVING(emit QNetworkSessionPrivate::error(iError));
             closeHandles();
+            QT_TRYCATCH_LEAVING(emit QNetworkSessionPrivate::error(iError));
             QT_TRYCATCH_LEAVING(syncStateWithInterface());
             break;
         case KErrCancel: // Connection attempt cancelled
@@ -1106,8 +1144,8 @@ void QNetworkSessionPrivateImpl::ConnectionStartComplete(TInt statusCode)
             } else {
                 iError = QNetworkSession::UnknownSessionError;
             }
-            QT_TRYCATCH_LEAVING(emit QNetworkSessionPrivate::error(iError));
             closeHandles();
+            QT_TRYCATCH_LEAVING(emit QNetworkSessionPrivate::error(iError));
             QT_TRYCATCH_LEAVING(syncStateWithInterface());
             break;
     }
@@ -1188,8 +1226,8 @@ bool QNetworkSessionPrivateImpl::newState(QNetworkSession::State newState, TUint
         activeConfig = QNetworkConfiguration();
         serviceConfig = QNetworkConfiguration();
         iError = QNetworkSession::SessionAbortedError;
-        emit QNetworkSessionPrivate::error(iError);
         closeHandles();
+        emit QNetworkSessionPrivate::error(iError);
         // Start handling IAP state change signals from QNetworkConfigurationManagerPrivate
         iHandleStateNotificationsFromManager = true;
         emitSessionClosed = true; // Emit SessionClosed after state change has been reported
@@ -1372,6 +1410,9 @@ void QNetworkSessionPrivateImpl::handleSymbianConnectionStatusChange(TInt aConne
             newState(QNetworkSession::Closing,accessPointId);
             break;
 
+        // Connection stopped
+        case KConfigDaemonFinishedDeregistrationStop: //this comes if this is the last session, instead of KLinkLayerClosed
+        case KConfigDaemonFinishedDeregistrationPreserve:
         // Connection closed
         case KConnectionClosed:
         case KLinkLayerClosed:
@@ -1415,6 +1456,8 @@ bool QNetworkSessionPrivateImpl::easyWlanTrueIapId(TUint32 &trueIapId) const
 
     // Loop through all connections that connection monitor is aware
     // and check for IAPs based on easy WLAN
+    if (!iConnectionMonitor.Handle())
+        return false;
     TRequestStatus status;
     TUint connectionCount;
     iConnectionMonitor.GetConnectionCount(connectionCount, status);

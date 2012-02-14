@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtNetwork module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -73,6 +73,8 @@ QHttpNetworkConnectionChannel::QHttpNetworkConnectionChannel()
     , lastStatus(0)
     , pendingEncrypt(false)
     , reconnectAttempts(2)
+    , authenticationCredentialsSent(false)
+    , proxyCredentialsSent(false)
     , authMethod(QAuthenticatorPrivate::None)
     , proxyAuthMethod(QAuthenticatorPrivate::None)
 #ifndef QT_NO_OPENSSL
@@ -201,7 +203,6 @@ bool QHttpNetworkConnectionChannel::sendRequest()
                 || (!url.password().isEmpty() && url.password() != auth.password())) {
                 auth.setUser(url.userName());
                 auth.setPassword(url.password());
-                emit reply->cacheCredentials(request, &auth);
                 connection->d_func()->copyCredentials(connection->d_func()->indexOf(socket), &auth, false);
             }
             // clear the userinfo,  since we use the same request for resending
@@ -556,6 +557,14 @@ bool QHttpNetworkConnectionChannel::ensureConnection()
 
         // reset state
         pipeliningSupported = PipeliningSupportUnknown;
+        authenticationCredentialsSent = false;
+        proxyCredentialsSent = false;
+        authenticator.detach();
+        QAuthenticatorPrivate *priv = QAuthenticatorPrivate::getPrivate(authenticator);
+        priv->hasFailed = false;
+        proxyAuthenticator.detach();
+        priv = QAuthenticatorPrivate::getPrivate(proxyAuthenticator);
+        priv->hasFailed = false;
 
         // This workaround is needed since we use QAuthenticator for NTLM authentication. The "phase == Done"
         // is the usual criteria for emitting authentication signals. The "phase" is set to "Done" when the
@@ -563,7 +572,7 @@ bool QHttpNetworkConnectionChannel::ensureConnection()
         // check the "phase" for generating the Authorization header. NTLM authentication is a two stage
         // process & needs the "phase". To make sure the QAuthenticator uses the current username/password
         // the phase is reset to Start.
-        QAuthenticatorPrivate *priv = QAuthenticatorPrivate::getPrivate(authenticator);
+        priv = QAuthenticatorPrivate::getPrivate(authenticator);
         if (priv && priv->phase == QAuthenticatorPrivate::Done)
             priv->phase = QAuthenticatorPrivate::Start;
         priv = QAuthenticatorPrivate::getPrivate(proxyAuthenticator);
@@ -578,6 +587,17 @@ bool QHttpNetworkConnectionChannel::ensureConnection()
         if (connection->d_func()->networkProxy.type() != QNetworkProxy::NoProxy && !ssl) {
             connectHost = connection->d_func()->networkProxy.hostName();
             connectPort = connection->d_func()->networkProxy.port();
+        }
+        if (socket->proxy().type() == QNetworkProxy::HttpProxy) {
+            // Make user-agent field available to HTTP proxy socket engine (QTBUG-17223)
+            QByteArray value;
+            // ensureConnection is called before any request has been assigned, but can also be called again if reconnecting
+            if (request.url().isEmpty())
+                value = connection->d_func()->predictNextRequest().headerField("user-agent");
+            else
+                value = request.headerField("user-agent");
+            if (!value.isEmpty())
+                socket->setProperty("_q_user-agent", value);
         }
 #endif
         if (ssl) {
@@ -638,8 +658,11 @@ bool QHttpNetworkConnectionChannel::expand(bool dataComplete)
         int ret = Z_OK;
         if (content.size())
             ret = reply->d_func()->gunzipBodyPartially(content, inflated);
-        int retCheck = (dataComplete) ? Z_STREAM_END : Z_OK;
-        if (ret >= retCheck) {
+        if (ret >= Z_OK) {
+            if (dataComplete && ret == Z_OK && !reply->d_func()->streamEnd) {
+                reply->d_func()->gunzipBodyPartiallyEnd();
+                reply->d_func()->streamEnd = true;
+            }
             if (inflated.size()) {
                 reply->d_func()->totalProgress += inflated.size();
                 reply->d_func()->appendUncompressedReplyData(inflated);
@@ -674,7 +697,7 @@ void QHttpNetworkConnectionChannel::allDone()
 #endif
 
     if (!reply) {
-        qWarning() << "QHttpNetworkConnectionChannel::allDone() called without reply. Please report at http://bugreports.qt.nokia.com/";
+        qWarning() << "QHttpNetworkConnectionChannel::allDone() called without reply. Please report at http://bugreports.qt-project.org/";
         return;
     }
 
@@ -775,6 +798,7 @@ void QHttpNetworkConnectionChannel::detectPipeliningSupport()
             && (!serverHeaderField.contains("Netscape-Enterprise/3."))
             // this is adpoted from the knowledge of the Nokia 7.x browser team (DEF143319)
             && (!serverHeaderField.contains("WebLogic"))
+            && (!serverHeaderField.startsWith("Rocket")) // a Python Web Server, see Web2py.com
             ) {
         pipeliningSupported = QHttpNetworkConnectionChannel::PipeliningProbablySupported;
     } else {
@@ -823,6 +847,9 @@ void QHttpNetworkConnectionChannel::handleStatus()
                     closeAndResendCurrentRequest();
                     QMetaObject::invokeMethod(connection, "_q_startNextRequest", Qt::QueuedConnection);
                 }
+            } else {
+                //authentication cancelled, close the channel.
+                close();
             }
         } else {
             emit reply->headerChanged();

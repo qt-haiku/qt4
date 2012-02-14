@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -144,7 +144,7 @@ public:
 	{
 	    if (cskip-- <= 0) {
 		setFrame( (frame()+step+frameCount())%frameCount() );
-		cskip = QABS(skip);
+                cskip = qAbs(skip);
 	    }
 	}
 

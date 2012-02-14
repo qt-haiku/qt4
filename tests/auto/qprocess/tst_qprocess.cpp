@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -39,7 +39,7 @@
 **
 ****************************************************************************/
 
-
+#include "../../shared/util.h"
 #include <QtTest/QtTest>
 #include <QtCore/QProcess>
 #include <QtCore/QDir>
@@ -73,7 +73,7 @@ Q_DECLARE_METATYPE(QProcess::ProcessState);
 { \
 const bool ret = Process.Fn; \
 if (ret == false) \
-	qWarning("QProcess error: %d: %s", Process.error(), qPrintable(Process.errorString())); \
+    qWarning("QProcess error: %d: %s", Process.error(), qPrintable(Process.errorString())); \
 QVERIFY(ret); \
 }
 
@@ -157,6 +157,7 @@ private slots:
     void startFinishStartFinish();
     void invalidProgramString_data();
     void invalidProgramString();
+    void onlyOneStartedSignal();
 
     // keep these at the end, since they use lots of processes and sometimes
     // caused obscure failures to occur in tests that followed them (esp. on the Mac)
@@ -668,7 +669,7 @@ void tst_QProcess::exitStatus()
         QSKIP("This test opens a crash dialog on Windows", SkipSingle);
 #endif
 
-    Q_ASSERT(processList.count() == exitStatus.count());
+    QCOMPARE(exitStatus.count(), processList.count());
     for (int i = 0; i < processList.count(); ++i) {
         process->start(processList.at(i));
         QVERIFY(process->waitForStarted(5000));
@@ -1116,9 +1117,21 @@ public:
         }
     }
 
+    void writeAfterStart(const char *buf, int count)
+    {
+        dataToWrite = QByteArray(buf, count);
+    }
+
+    void start(const QString &program)
+    {
+        QProcess::start(program);
+        writePendingData();
+    }
+
 public slots:
     void terminateSlot()
     {
+        writePendingData(); // In cases 3 and 4 we haven't written the data yet.
         if (killing || (n == 4 && state() != Running)) {
             // Don't try to kill the process before it is running - that can
             // be hazardous, as the actual child process might not be running
@@ -1141,8 +1154,18 @@ public slots:
     }
 
 private:
+    void writePendingData()
+    {
+        if (!dataToWrite.isEmpty()) {
+            write(dataToWrite);
+            dataToWrite.clear();
+        }
+    }
+
+private:
     int n;
     bool killing;
+    QByteArray dataToWrite;
 };
 
 //-----------------------------------------------------------------------------
@@ -1176,11 +1199,10 @@ void tst_QProcess::softExitInSlots()
 
     for (int i = 0; i < 5; ++i) {
         SoftExitProcess proc(i);
+        proc.writeAfterStart("OLEBOLE", 8); // include the \0
         proc.start(appName);
-        proc.write("OLEBOLE", 8); // include the \0
-        QTestEventLoop::instance().enterLoop(10);
+        QTRY_VERIFY(proc.waitedForFinished);
         QCOMPARE(proc.state(), QProcess::NotRunning);
-        QVERIFY(proc.waitedForFinished);
     }
 }
 
@@ -2089,7 +2111,7 @@ void tst_QProcess::setStandardInputFile()
 #endif
 
     QPROCESS_VERIFY(process, waitForFinished());
-	QByteArray all = process.readAll();
+        QByteArray all = process.readAll();
     QCOMPARE(all.size(), int(sizeof data) - 1); // testProcessEcho drops the ending \0
     QVERIFY(all == data);
 }
@@ -2440,6 +2462,29 @@ void tst_QProcess::invalidProgramString()
     QCOMPARE(spy.count(), 1);
 
     QVERIFY(!QProcess::startDetached(programString));
+}
+
+//-----------------------------------------------------------------------------
+void tst_QProcess::onlyOneStartedSignal()
+{
+    QProcess process;
+
+    QSignalSpy spyStarted(&process,  SIGNAL(started()));
+    QSignalSpy spyFinished(&process, SIGNAL(finished(int, QProcess::ExitStatus)));
+
+    process.start("testProcessNormal/testProcessNormal");
+    QVERIFY(process.waitForStarted(5000));
+    QVERIFY(process.waitForFinished(5000));
+    QCOMPARE(spyStarted.count(), 1);
+    QCOMPARE(spyFinished.count(), 1);
+
+    spyStarted.clear();
+    spyFinished.clear();
+
+    process.start("testProcessNormal/testProcessNormal");
+    QVERIFY(process.waitForFinished(5000));
+    QCOMPARE(spyStarted.count(), 1);
+    QCOMPARE(spyFinished.count(), 1);
 }
 
 QTEST_MAIN(tst_QProcess)

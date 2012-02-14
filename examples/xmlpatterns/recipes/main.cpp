@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -47,7 +47,11 @@ int main(int argc, char* argv[])
     Q_INIT_RESOURCE(recipes);
     QApplication app(argc, argv);
     QueryMainWindow* const queryWindow = new QueryMainWindow;
+#ifdef Q_OS_SYMBIAN
+    queryWindow->showMaximized();
+#else
     queryWindow->show();
+#endif
     return app.exec();
 }
 //! [0]

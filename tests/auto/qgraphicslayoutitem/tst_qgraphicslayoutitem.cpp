@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -44,6 +44,7 @@
 #include <qgraphicslayoutitem.h>
 #include <float.h>
 #include <limits.h>
+#include <QtGui/qgraphicswidget.h>
 
 class tst_QGraphicsLayoutItem : public QObject {
 Q_OBJECT
@@ -60,6 +61,8 @@ private slots:
     void contentsRect();
     void effectiveSizeHint_data();
     void effectiveSizeHint();
+    void effectiveSizeHint2_data();
+    void effectiveSizeHint2();
     void getContentsMargins();
     void isLayout_data();
     void isLayout();
@@ -102,6 +105,40 @@ public:
         { updateGeometryCalled++; QGraphicsLayoutItem::updateGeometry(); }
     int updateGeometryCalled;
 
+};
+
+class RectWidget : public QGraphicsWidget
+{
+public:
+    RectWidget(QGraphicsItem *parent = 0) : QGraphicsWidget(parent), m_fnConstraint(fn2000_div_w) {}
+
+
+    QSizeF sizeHint(Qt::SizeHint which, const QSizeF &constraint = QSizeF()) const
+    {
+        if (constraint.width() < 0 && constraint.height() < 0 && m_sizeHints[which].isValid()) {
+            return m_sizeHints[which];
+        }
+        if (m_fnConstraint) {
+            return m_fnConstraint(which, constraint);
+        }
+        return QGraphicsWidget::sizeHint(which, constraint);
+    }
+
+    void setSizeHint(Qt::SizeHint which, const QSizeF &size) {
+        m_sizeHints[which] = size;
+        updateGeometry();
+    }
+
+    void setConstraintFunction(QSizeF (*fnConstraint)(Qt::SizeHint, const QSizeF &)) {
+        m_fnConstraint = fnConstraint;
+    }
+
+    QSizeF m_sizeHints[Qt::NSizeHints];
+    QSizeF (*m_fnConstraint)(Qt::SizeHint, const QSizeF &);
+
+    static QSizeF fn2000_div_w(Qt::SizeHint /*which*/, const QSizeF &constraint = QSizeF()) {
+        return QSizeF(constraint.width(), 2000.0/constraint.width());
+    }
 };
 
 // This will be called before the first test function is executed.
@@ -182,6 +219,77 @@ void tst_QGraphicsLayoutItem::effectiveSizeHint()
     if (constraint.height() != -1)
         QCOMPARE(r.height(), constraint.height());
 }
+
+
+void tst_QGraphicsLayoutItem::effectiveSizeHint2_data()
+{
+    QTest::addColumn<QSizeF>("minimumSize");
+    QTest::addColumn<QSizeF>("preferredSize");
+    QTest::addColumn<QSizeF>("maximumSize");
+    QTest::addColumn<QSizeF>("minimumSizeHint");
+    QTest::addColumn<QSizeF>("preferredSizeHint");
+    QTest::addColumn<QSizeF>("maximumSizeHint");
+
+    QTest::addColumn<QSizeF>("inputConstraint");
+    QTest::addColumn<QSizeF>("expectedMinimumESH");
+    QTest::addColumn<QSizeF>("expectedPreferredESH");
+    QTest::addColumn<QSizeF>("expectedMaximumESH");
+
+    QTest::newRow("P1-a")
+            << QSizeF(  6,   4) << QSizeF( 60,  40) << QSizeF( 600, 400)
+            << QSizeF( -1,  -1) << QSizeF( -1,  -1) << QSizeF( -1,  -1)
+            << QSizeF(-1, -1)
+            << QSizeF(6, 4)     << QSizeF( 60,  40) << QSizeF(600, 400);
+
+    QTest::newRow("P1-hfw-1")
+            << QSizeF( -1,  -1) << QSizeF( -1,  -1) << QSizeF( -1,  -1)
+            << QSizeF(  6,   4) << QSizeF( 60,  40) << QSizeF(600, 400)
+            << QSizeF(200, -1)
+            << QSizeF(200, 10)  << QSizeF(200,  10) << QSizeF(200,  10);
+
+    QTest::newRow("P1-hfw-2")
+            << QSizeF(  6,  -1) << QSizeF( 60,  -1) << QSizeF(600,  -1)
+            << QSizeF( -1,  -1) << QSizeF( -1,  -1) << QSizeF( -1,  -1)
+            << QSizeF(200, -1)
+            << QSizeF(200, 10)  << QSizeF(200,  10) << QSizeF(200,  10);
+
+    // constraint is bigger than max width
+    QTest::newRow("P1-hfw-3")
+            << QSizeF(  5,  -1) << QSizeF( 50,  -1) << QSizeF(500,  -1)
+            << QSizeF( -1,  -1) << QSizeF( -1,  -1) << QSizeF( -1,  -1)
+            << QSizeF(600,  -1)
+            << QSizeF(500,   4)  << QSizeF(500,   4) << QSizeF(500,   4);
+
+}
+
+void tst_QGraphicsLayoutItem::effectiveSizeHint2()
+{
+    QFETCH(QSizeF, minimumSize);
+    QFETCH(QSizeF, preferredSize);
+    QFETCH(QSizeF, maximumSize);
+    QFETCH(QSizeF, minimumSizeHint);
+    QFETCH(QSizeF, preferredSizeHint);
+    QFETCH(QSizeF, maximumSizeHint);
+
+    QFETCH(QSizeF, inputConstraint);
+    QFETCH(QSizeF, expectedMinimumESH);
+    QFETCH(QSizeF, expectedPreferredESH);
+    QFETCH(QSizeF, expectedMaximumESH);
+
+    RectWidget *item = new RectWidget;
+    item->setMinimumSize(minimumSize);
+    item->setPreferredSize(preferredSize);
+    item->setMaximumSize(maximumSize);
+    item->setSizeHint(Qt::MinimumSize, minimumSizeHint);
+    item->setSizeHint(Qt::PreferredSize, preferredSizeHint);
+    item->setSizeHint(Qt::MaximumSize, maximumSizeHint);
+
+    QCOMPARE(item->effectiveSizeHint(Qt::MinimumSize, inputConstraint), expectedMinimumESH);
+    QCOMPARE(item->effectiveSizeHint(Qt::PreferredSize, inputConstraint), expectedPreferredESH);
+    QCOMPARE(item->effectiveSizeHint(Qt::MaximumSize, inputConstraint), expectedMaximumESH);
+
+}
+
 
 // void getContentsMargins(qreal* left, qreal* top, qreal* right, qreal* bottom) const public
 void tst_QGraphicsLayoutItem::getContentsMargins()

@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -118,7 +118,7 @@ void debugBinaryString(const char *data, qint64 maxlen)
  */
 QIODevicePrivate::QIODevicePrivate()
     : openMode(QIODevice::NotOpen), buffer(QIODEVICE_BUFFERSIZE),
-      pos(0), devicePos(0)
+      pos(0), devicePos(0), seqDumpPos(0)
        , pPos(&pos), pDevicePos(&devicePos)
        , baseReadLineDataCalled(false)
        , firstRead(true)
@@ -423,6 +423,8 @@ QIODevice::~QIODevice()
     seeking backwards and forwards in the data stream. Regular files
     are non-sequential.
 
+    The QIODevice implementation returns false.
+
     \sa bytesAvailable()
 */
 bool QIODevice::isSequential() const
@@ -466,11 +468,17 @@ void QIODevice::setOpenMode(OpenMode openMode)
     otherwise the \l Text flag is removed. This feature is useful for classes
     that provide custom end-of-line handling on a QIODevice.
 
+    The IO device should be opened before calling this function.
+
     \sa open(), setOpenMode()
  */
 void QIODevice::setTextModeEnabled(bool enabled)
 {
     Q_D(QIODevice);
+    if (!isOpen()) {
+        qWarning("QIODevice::setTextModeEnabled: The device is not open");
+        return;
+    }
     if (enabled)
         d->openMode |= Text;
     else
@@ -571,6 +579,7 @@ void QIODevice::close()
     d->openMode = NotOpen;
     d->errorString.clear();
     d->pos = 0;
+    d->seqDumpPos = 0;
     d->buffer.clear();
     d->firstRead = true;
 }

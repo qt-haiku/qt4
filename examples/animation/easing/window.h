@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -39,7 +39,6 @@
 ****************************************************************************/
 
 #include <QtGui>
-
 #include "ui_form.h"
 #include "animation.h"
 
@@ -73,6 +72,4 @@ private:
     PixmapItem *m_item;
     Animation *m_anim;
     QSize m_iconSize;
-
-
 };

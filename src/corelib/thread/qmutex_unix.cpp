@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -60,11 +60,12 @@
 # include <linux/futex.h>
 # include <sys/syscall.h>
 # include <unistd.h>
+# include <QtCore/qelapsedtimer.h>
 #endif
 
 QT_BEGIN_NAMESPACE
 
-#if !defined(Q_OS_MAC) && !defined(Q_OS_LINUX)
+#if !defined(Q_OS_LINUX)
 static void report_error(int code, const char *where, const char *what)
 {
     if (code != 0)
@@ -76,11 +77,7 @@ static void report_error(int code, const char *where, const char *what)
 QMutexPrivate::QMutexPrivate(QMutex::RecursionMode mode)
     : QMutexData(mode), maximumSpinTime(MaximumSpinTimeThreshold), averageWaitTime(0), owner(0), count(0)
 {
-#if defined(Q_OS_MAC)
-    kern_return_t r = semaphore_create(mach_task_self(), &mach_semaphore, SYNC_POLICY_FIFO, 0);
-    if (r != KERN_SUCCESS)
-        qWarning("QMutex: failed to create semaphore, error %d", r);
-#elif !defined(Q_OS_LINUX)
+#if !defined(Q_OS_LINUX)
     wakeup = false;
     report_error(pthread_mutex_init(&mutex, NULL), "QMutex", "mutex init");
     report_error(pthread_cond_init(&cond, NULL), "QMutex", "cv init");
@@ -89,44 +86,13 @@ QMutexPrivate::QMutexPrivate(QMutex::RecursionMode mode)
 
 QMutexPrivate::~QMutexPrivate()
 {
-#if defined(Q_OS_MAC)
-    kern_return_t r = semaphore_destroy(mach_task_self(), mach_semaphore);
-    if (r != KERN_SUCCESS)
-        qWarning("QMutex: failed to destroy semaphore, error %d", r);
-#elif !defined(Q_OS_LINUX)
+#if !defined(Q_OS_LINUX)
     report_error(pthread_cond_destroy(&cond), "QMutex", "cv destroy");
     report_error(pthread_mutex_destroy(&mutex), "QMutex", "mutex destroy");
 #endif
 }
 
-#if defined(Q_OS_MAC)
-
-bool QMutexPrivate::wait(int timeout)
-{
-    if (contenders.fetchAndAddAcquire(1) == 0) {
-        // lock acquired without waiting
-        return true;
-    }
-    bool returnValue;
-    if (timeout < 0) {
-        returnValue = semaphore_wait(mach_semaphore) == KERN_SUCCESS;
-    } else {
-        mach_timespec_t ts;
-        ts.tv_nsec = ((timeout % 1000) * 1000) * 1000;
-        ts.tv_sec = (timeout / 1000);
-        kern_return_t r = semaphore_timedwait(mach_semaphore, ts);
-        returnValue = r == KERN_SUCCESS;
-    }
-    contenders.deref();
-    return returnValue;
-}
-
-void QMutexPrivate::wakeUp()
-{
-    semaphore_signal(mach_semaphore);
-}
-
-#elif defined(Q_OS_LINUX)
+#if defined(Q_OS_LINUX)
 
 static inline int _q_futex(volatile int *addr, int op, int val, const struct timespec *timeout, int *addr2, int val2)
 {
@@ -135,16 +101,31 @@ static inline int _q_futex(volatile int *addr, int op, int val, const struct tim
 
 bool QMutexPrivate::wait(int timeout)
 {
+    struct timespec ts, *pts = 0;
+    QElapsedTimer timer;
+    if (timeout >= 0) {
+        ts.tv_nsec = ((timeout % 1000) * 1000) * 1000;
+        ts.tv_sec = (timeout / 1000);
+        pts = &ts;
+        timer.start();
+    }
     while (contenders.fetchAndStoreAcquire(2) > 0) {
-        struct timespec ts, *pts = 0;
-        if (timeout >= 0) {
-            ts.tv_nsec = ((timeout % 1000) * 1000) * 1000;
-            ts.tv_sec = (timeout / 1000);
-            pts = &ts;
-        }
         int r = _q_futex(&contenders._q_value, FUTEX_WAIT, 2, pts, 0, 0);
         if (r != 0 && errno == ETIMEDOUT)
             return false;
+
+        if (pts) {
+            // recalculate the timeout
+            qint64 xtimeout = timeout * 1000 * 1000;
+            xtimeout -= timer.nsecsElapsed();
+            if (xtimeout < 0) {
+                // timer expired after we returned
+                return false;
+            }
+
+            ts.tv_sec = xtimeout / Q_INT64_C(1000) / 1000 / 1000;
+            ts.tv_nsec = xtimeout % (Q_INT64_C(1000) * 1000 * 1000);
+        }
     }
     return true;
 }
@@ -155,7 +136,7 @@ void QMutexPrivate::wakeUp()
     (void) _q_futex(&contenders._q_value, FUTEX_WAKE, 1, 0, 0, 0);
 }
 
-#else // !Q_OS_MAC && !Q_OS_LINUX
+#else // !Q_OS_LINUX
 
 bool QMutexPrivate::wait(int timeout)
 {
@@ -202,7 +183,7 @@ void QMutexPrivate::wakeUp()
     report_error(pthread_mutex_unlock(&mutex), "QMutex::unlock", "mutex unlock");
 }
 
-#endif // !Q_OS_MAC && !Q_OS_LINUX
+#endif // !Q_OS_LINUX
 
 QT_END_NAMESPACE
 

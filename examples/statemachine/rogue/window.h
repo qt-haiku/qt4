@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -49,8 +49,13 @@ class QStateMachine;
 class QTransition;
 QT_END_NAMESPACE
 
+#if defined(Q_OS_SYMBIAN) || defined(Q_WS_SIMULATOR)
+#define WIDTH 43
+#define HEIGHT 14
+#else
 #define WIDTH 35
 #define HEIGHT 20
+#endif
 
 //![0]
 class Window : public QWidget

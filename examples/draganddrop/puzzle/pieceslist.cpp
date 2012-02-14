@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -42,12 +42,12 @@
 
 #include "pieceslist.h"
 
-PiecesList::PiecesList(QWidget *parent)
-    : QListWidget(parent)
+PiecesList::PiecesList(int pieceSize, QWidget *parent)
+    : QListWidget(parent), m_PieceSize(pieceSize)
 {
     setDragEnabled(true);
     setViewMode(QListView::IconMode);
-    setIconSize(QSize(60, 60));
+    setIconSize(QSize(m_PieceSize, m_PieceSize));
     setSpacing(10);
     setAcceptDrops(true);
     setDropIndicatorShown(true);

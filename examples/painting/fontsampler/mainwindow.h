@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -61,11 +61,15 @@ public:
 public slots:
     void on_clearAction_triggered();
     void on_markAction_triggered();
+#ifndef QT_NO_PRINTER
     void on_printAction_triggered();
     void on_printPreviewAction_triggered();
+#endif
     void on_unmarkAction_triggered();
+#ifndef QT_NO_PRINTER
     void printDocument(QPrinter *printer);
     void printPage(int index, QPainter *painter, QPrinter *printer);
+#endif
     void showFont(QTreeWidgetItem *item);
     void updateStyles(QTreeWidgetItem *item, int column);
 

@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the qmake application of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -559,6 +559,8 @@ void VCXProjectWriter::write(XmlOutput &xml, VCProjectSingleConfig &tool)
         outputFilter(tempProj, xml, xmlFilter, tempProj.ExtraCompilers.at(x));
     }
 
+    outputFilter(tempProj, xml, xmlFilter, "Root Files");
+
     xml << import("Project", "$(VCTargetsPath)\\Microsoft.Cpp.targets");
 
     xml << tag("ImportGroup")
@@ -653,7 +655,7 @@ void VCXProjectWriter::write(XmlOutput &xml, VCProject &tool)
                 << valueTagT(tool.SingleProjects.at(i).Configuration.linker.IgnoreImportLibrary);
         }
 
-        if ( tool.SingleProjects.at(i).Configuration.linker.LinkIncremental != unset) {
+        if ( tool.SingleProjects.at(i).Configuration.linker.LinkIncremental != linkIncrementalDefault) {
             const triState ts = (tool.SingleProjects.at(i).Configuration.linker.LinkIncremental == linkIncrementalYes ? _True : _False);
             xml << tag("LinkIncremental")
                 << attrTag("Condition", QString("'$(Configuration)|$(Platform)'=='%1'").arg(tool.SingleProjects.at(i).Configuration.Name))
@@ -902,10 +904,14 @@ static inline QString toString(inlineExpansionOption option)
 static inline QString toString(optimizeOption option)
 {
     switch (option) {
+    case optimizeDisabled:
+        return "Disabled";
     case optimizeMinSpace:
         return "MinSpace";
     case optimizeMaxSpeed:
         return "MaxSpeed";
+    case optimizeFull:
+        return "Full";
     }
     return QString();
 }
@@ -1524,8 +1530,8 @@ void VCXProjectWriter::write(XmlOutput &xml, const VCEventTool &tool)
 {
     xml
         << tag(tool.EventName)
-        << attrTagS(_Command, tool.CommandLine.join(vcxCommandSeparator()))
-        << attrTagS(_Message, tool.Description)
+            << tag(_Command) << valueTag(tool.CommandLine.join(vcxCommandSeparator()))
+            << tag(_Message) << valueTag(tool.Description)
         << closetag(tool.EventName);
 }
 

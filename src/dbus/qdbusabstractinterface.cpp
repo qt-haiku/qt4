@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtDBus module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -88,6 +88,7 @@ QDBusAbstractInterfacePrivate::QDBusAbstractInterfacePrivate(const QString &serv
     : connection(con), service(serv), path(p), interface(iface),
       lastError(checkIfValid(serv, p, iface, isDynamic, (connectionPrivate() &&
                                                          connectionPrivate()->mode == QDBusConnectionPrivate::PeerMode))),
+      timeout(-1),
       isValid(!lastError.isValid())
 {
     if (!isValid)
@@ -144,7 +145,7 @@ void QDBusAbstractInterfacePrivate::property(const QMetaProperty &mp, QVariant &
                                                       QLatin1String("Get"));
     QDBusMessagePrivate::setParametersValidated(msg, true);
     msg << interface << QString::fromUtf8(mp.name());
-    QDBusMessage reply = connection.call(msg, QDBus::Block);
+    QDBusMessage reply = connection.call(msg, QDBus::Block, timeout);
 
     if (reply.type() != QDBusMessage::ReplyMessage) {
         lastError = reply;
@@ -210,7 +211,7 @@ bool QDBusAbstractInterfacePrivate::setProperty(const QMetaProperty &mp, const Q
                                                 QLatin1String("Set"));
     QDBusMessagePrivate::setParametersValidated(msg, true);
     msg << interface << QString::fromUtf8(mp.name()) << QVariant::fromValue(QDBusVariant(value));
-    QDBusMessage reply = connection.call(msg, QDBus::Block);
+    QDBusMessage reply = connection.call(msg, QDBus::Block, timeout);
 
     if (reply.type() != QDBusMessage::ReplyMessage) {
         lastError = reply;
@@ -384,6 +385,28 @@ QDBusError QDBusAbstractInterface::lastError() const
 }
 
 /*!
+    Sets the timeout in seconds for all future DBus calls to \a timeout.
+    -1 means the default DBus timeout (usually 25 seconds).
+
+    \since 4.8
+*/
+void QDBusAbstractInterface::setTimeout(int timeout)
+{
+    d_func()->timeout = timeout;
+}
+
+/*!
+    Returns the current value of the timeout in seconds.
+    -1 means the default DBus timeout (usually 25 seconds).
+
+    \since 4.8
+*/
+int QDBusAbstractInterface::timeout() const
+{
+    return d_func()->timeout;
+}
+
+/*!
     Places a call to the remote method specified by \a method on this interface, using \a args as
     arguments. This function returns the message that was received as a reply, which can be a normal
     QDBusMessage::ReplyMessage (indicating success) or QDBusMessage::ErrorMessage (if the call
@@ -442,7 +465,7 @@ QDBusMessage QDBusAbstractInterface::callWithArgumentList(QDBus::CallMode mode,
     QDBusMessagePrivate::setParametersValidated(msg, true);
     msg.setArguments(args);
 
-    QDBusMessage reply = d->connection.call(msg, mode);
+    QDBusMessage reply = d->connection.call(msg, mode, d->timeout);
     if (thread() == QThread::currentThread())
         d->lastError = reply;       // will clear if reply isn't an error
 
@@ -475,7 +498,7 @@ QDBusPendingCall QDBusAbstractInterface::asyncCallWithArgumentList(const QString
     QDBusMessage msg = QDBusMessage::createMethodCall(service(), path(), interface(), method);
     QDBusMessagePrivate::setParametersValidated(msg, true);
     msg.setArguments(args);
-    return d->connection.asyncCall(msg);
+    return d->connection.asyncCall(msg, d->timeout);
 }
 
 /*!

@@ -1,3 +1,4 @@
 SOURCES = iconv.cpp
 CONFIG -= qt dylib app_bundle
-mac|win32-g++*|haiku:LIBS += -liconv
+mac|win32-g++*|blackberry-*-qcc|haiku:LIBS += -liconv
+

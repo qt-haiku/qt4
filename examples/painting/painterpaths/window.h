@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -71,9 +71,7 @@ private:
 //! [1]
 
 //! [2]
-    enum { NumRenderAreas = 9 };
-
-    RenderArea *renderAreas[NumRenderAreas];
+    QList<RenderArea*> renderAreas;
     QLabel *fillRuleLabel;
     QLabel *fillGradientLabel;
     QLabel *fillToLabel;

@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -59,6 +59,22 @@
 
 QT_BEGIN_NAMESPACE
 
+#ifdef QT_GUI_PASSWORD_ECHO_DELAY
+static const int qt_passwordEchoDelay = QT_GUI_PASSWORD_ECHO_DELAY;
+#endif
+
+/*!
+    \macro QT_GUI_PASSWORD_ECHO_DELAY
+
+    \internal
+
+    Defines the amount of time in milliseconds the last entered character
+    should be displayed unmasked in the Password echo mode.
+
+    If not defined in qplatformdefs.h there will be no delay in masking
+    password characters.
+*/
+
 /*!
     \internal
 
@@ -74,9 +90,25 @@ void QLineControl::updateDisplayText(bool forceUpdate)
     else
         str = m_text;
 
-    if (m_echoMode == QLineEdit::Password || (m_echoMode == QLineEdit::PasswordEchoOnEdit
-                && !m_passwordEchoEditing))
+    if (m_echoMode == QLineEdit::Password) {
         str.fill(m_passwordCharacter);
+#ifdef QT_GUI_PASSWORD_ECHO_DELAY
+        if (m_passwordEchoTimer != 0 && m_cursor > 0 && m_cursor <= m_text.length()) {
+            int cursor = m_cursor - 1;
+            QChar uc = m_text.at(cursor);
+            str[cursor] = uc;
+            if (cursor > 0 && uc.unicode() >= 0xdc00 && uc.unicode() < 0xe000) {
+                // second half of a surrogate, check if we have the first half as well,
+                // if yes restore both at once
+                uc = m_text.at(cursor - 1);
+                if (uc.unicode() >= 0xd800 && uc.unicode() < 0xdc00)
+                    str[cursor - 1] = uc;
+            }
+        }
+#endif
+    } else if (m_echoMode == QLineEdit::PasswordEchoOnEdit && !m_passwordEchoEditing) {
+        str.fill(m_passwordCharacter);
+    }
 
     // replace certain non-printable characters with spaces (to avoid
     // drawing boxes when using fonts that don't have glyphs for such
@@ -166,12 +198,10 @@ void QLineControl::backspace()
             --m_cursor;
             if (m_maskData)
                 m_cursor = prevMaskBlank(m_cursor);
-            QChar uc = m_text.at(m_cursor);
-            if (m_cursor > 0 && uc.unicode() >= 0xdc00 && uc.unicode() < 0xe000) {
+            if (m_cursor > 0 && m_text.at(m_cursor).isLowSurrogate()) {
                 // second half of a surrogate, check if we have the first half as well,
                 // if yes delete both at once
-                uc = m_text.at(m_cursor - 1);
-                if (uc.unicode() >= 0xd800 && uc.unicode() < 0xdc00) {
+                if (m_text.at(m_cursor - 1).isHighSurrogate()) {
                     internalDelete(true);
                     --m_cursor;
                 }
@@ -311,6 +341,7 @@ void QLineControl::init(const QString &txt)
 */
 void QLineControl::updatePasswordEchoEditing(bool editing)
 {
+    cancelPasswordEchoTimer();
     m_passwordEchoEditing = editing;
     updateDisplayText();
 }
@@ -414,6 +445,8 @@ void QLineControl::moveCursor(int pos, bool mark)
 void QLineControl::processInputMethodEvent(QInputMethodEvent *event)
 {
     int priorState = 0;
+    int originalSelectionStart = m_selstart;
+    int originalSelectionEnd = m_selend;
     bool isGettingInput = !event->commitString().isEmpty()
             || event->preeditString() != preeditAreaText()
             || event->replacementLength() > 0;
@@ -435,6 +468,8 @@ void QLineControl::processInputMethodEvent(QInputMethodEvent *event)
         c += event->commitString().length() - qMin(-event->replacementStart(), event->replacementLength());
 
     m_cursor += event->replacementStart();
+    if (m_cursor < 0)
+        m_cursor = 0;
 
     // insert commit string
     if (event->replacementLength()) {
@@ -447,7 +482,7 @@ void QLineControl::processInputMethodEvent(QInputMethodEvent *event)
         cursorPositionChanged = true;
     }
 
-    m_cursor = qMin(c, m_text.length());
+    m_cursor = qBound(0, c, m_text.length());
 
     for (int i = 0; i < event->attributes().size(); ++i) {
         const QInputMethodEvent::Attribute &a = event->attributes().at(i);
@@ -490,6 +525,8 @@ void QLineControl::processInputMethodEvent(QInputMethodEvent *event)
     }
     m_textLayout.setAdditionalFormats(formats);
     updateDisplayText(/*force*/ true);
+    if (originalSelectionStart != m_selstart || originalSelectionEnd != m_selend)
+        emit selectionChanged();
     if (cursorPositionChanged)
         emitCursorPositionChanged();
     else if (m_preeditCursor != oldPreeditCursor)
@@ -638,6 +675,7 @@ bool QLineControl::finishChange(int validateFromState, bool update, bool edited)
 */
 void QLineControl::internalSetText(const QString &txt, int pos, bool edited)
 {
+    cancelPasswordEchoTimer();
     internalDeselect();
     emit resetInputContext();
     QString oldText = m_text;
@@ -651,7 +689,14 @@ void QLineControl::internalSetText(const QString &txt, int pos, bool edited)
     m_modifiedState =  m_undoState = 0;
     m_cursor = (pos < 0 || pos > m_text.length()) ? m_text.length() : pos;
     m_textDirty = (oldText != m_text);
-    finishChange(-1, true, edited);
+    bool changed = finishChange(-1, true, edited);
+
+#ifndef QT_NO_ACCESSIBILITY
+    if (changed)
+        QAccessible::updateAccessibility(parent(), 0, QAccessible::TextUpdated);
+#else
+    Q_UNUSED(changed);
+#endif
 }
 
 
@@ -685,6 +730,13 @@ void QLineControl::addCommand(const Command &cmd)
 */
 void QLineControl::internalInsert(const QString &s)
 {
+#ifdef QT_GUI_PASSWORD_ECHO_DELAY
+    if (m_echoMode == QLineEdit::Password) {
+        if (m_passwordEchoTimer != 0)
+            killTimer(m_passwordEchoTimer);
+        m_passwordEchoTimer = startTimer(qt_passwordEchoDelay);
+    }
+#endif
     if (hasSelectedText())
         addCommand(Command(SetSelection, m_cursor, 0, m_selstart, m_selend));
     if (m_maskData) {
@@ -722,6 +774,7 @@ void QLineControl::internalInsert(const QString &s)
 void QLineControl::internalDelete(bool wasBackspace)
 {
     if (m_cursor < (int) m_text.length()) {
+        cancelPasswordEchoTimer();
         if (hasSelectedText())
             addCommand(Command(SetSelection, m_cursor, 0, m_selstart, m_selend));
         addCommand(Command((CommandType)((m_maskData ? 2 : 0) + (wasBackspace ? Remove : Delete)),
@@ -748,6 +801,7 @@ void QLineControl::internalDelete(bool wasBackspace)
 void QLineControl::removeSelectedText()
 {
     if (m_selstart < m_selend && m_selend <= (int) m_text.length()) {
+        cancelPasswordEchoTimer();
         separate();
         int i ;
         addCommand(Command(SetSelection, m_cursor, 0, m_selstart, m_selend));
@@ -1146,6 +1200,7 @@ void QLineControl::internalUndo(int until)
 {
     if (!isUndoAvailable())
         return;
+    cancelPasswordEchoTimer();
     internalDeselect();
     while (m_undoState && m_undoState > until) {
         Command& cmd = m_history[--m_undoState];
@@ -1238,6 +1293,9 @@ void QLineControl::emitCursorPositionChanged()
         const int oldLast = m_lastCursorPos;
         m_lastCursorPos = m_cursor;
         cursorPositionChanged(oldLast, m_cursor);
+#ifndef QT_NO_ACCESSIBILITY
+        QAccessible::updateAccessibility(parent(), 0, QAccessible::TextCaretMoved);
+#endif
     }
 }
 
@@ -1347,6 +1405,12 @@ void QLineControl::timerEvent(QTimerEvent *event)
     } else if (event->timerId() == m_tripleClickTimer) {
         killTimer(m_tripleClickTimer);
         m_tripleClickTimer = 0;
+#ifdef QT_GUI_PASSWORD_ECHO_DELAY
+    } else if (event->timerId() == m_passwordEchoTimer) {
+        killTimer(m_passwordEchoTimer);
+        m_passwordEchoTimer = 0;
+        updateDisplayText();
+#endif
     }
 }
 
@@ -1382,9 +1446,9 @@ bool QLineControl::processEvent(QEvent* ev)
         case QEvent::GraphicsSceneMouseRelease:
         case QEvent::GraphicsSceneMousePress:{
                QGraphicsSceneMouseEvent *gvEv = static_cast<QGraphicsSceneMouseEvent*>(ev);
-               QMouseEvent* mouse = new QMouseEvent(ev->type(),
+               QMouseEvent mouse(ev->type(),
                     gvEv->pos().toPoint(), gvEv->button(), gvEv->buttons(), gvEv->modifiers());
-               processMouseEvent(mouse); break;
+               processMouseEvent(&mouse); break;
         }
 #endif
         case QEvent::MouseButtonPress:
@@ -1585,6 +1649,7 @@ void QLineControl::processKeyEvent(QKeyEvent* event)
     }
 
     bool unknown = false;
+    bool visual = cursorMoveStyle() == Qt::VisualMoveStyle;
 
     if (false) {
     }
@@ -1649,11 +1714,11 @@ void QLineControl::processKeyEvent(QKeyEvent* event)
 #endif
             moveCursor(selectionEnd(), false);
         } else {
-            cursorForward(0, layoutDirection() == Qt::LeftToRight ? 1 : -1);
+            cursorForward(0, visual ? 1 : (layoutDirection() == Qt::LeftToRight ? 1 : -1));
         }
     }
     else if (event == QKeySequence::SelectNextChar) {
-        cursorForward(1, layoutDirection() == Qt::LeftToRight ? 1 : -1);
+        cursorForward(1, visual ? 1 : (layoutDirection() == Qt::LeftToRight ? 1 : -1));
     }
     else if (event == QKeySequence::MoveToPreviousChar) {
 #if !defined(Q_WS_WIN) || defined(QT_NO_COMPLETER)
@@ -1664,11 +1729,11 @@ void QLineControl::processKeyEvent(QKeyEvent* event)
 #endif
             moveCursor(selectionStart(), false);
         } else {
-            cursorForward(0, layoutDirection() == Qt::LeftToRight ? -1 : 1);
+            cursorForward(0, visual ? -1 : (layoutDirection() == Qt::LeftToRight ? -1 : 1));
         }
     }
     else if (event == QKeySequence::SelectPreviousChar) {
-        cursorForward(1, layoutDirection() == Qt::LeftToRight ? -1 : 1);
+        cursorForward(1, visual ? -1 : (layoutDirection() == Qt::LeftToRight ? -1 : 1));
     }
     else if (event == QKeySequence::MoveToNextWord) {
         if (echoMode() == QLineEdit::Normal)

@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -41,7 +41,7 @@
 #ifndef SENDER_H
 #define SENDER_H
 
-#include <QDialog>
+#include <QWidget>
 
 QT_BEGIN_NAMESPACE
 class QDialogButtonBox;
@@ -51,7 +51,7 @@ class QTimer;
 class QUdpSocket;
 QT_END_NAMESPACE
 
-class Sender : public QDialog
+class Sender : public QWidget
 {
     Q_OBJECT
 

@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -43,7 +43,11 @@
 
 #include <QtGui/QWidget>
 #include <QWebFrame>
-#include "ui_formextractor.h"
+#if defined Q_OS_SYMBIAN || defined Q_WS_HILDON || defined Q_WS_MAEMO_5 || defined Q_WS_SIMULATOR
+    #include "ui_formextractor_mobiles.h"
+#else
+    #include "ui_formextractor.h"
+#endif
 
 class FormExtractor : public QWidget
 {

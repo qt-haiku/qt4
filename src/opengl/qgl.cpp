@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtOpenGL module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -100,8 +100,10 @@
 #if defined(QT_OPENGL_ES) && !defined(QT_NO_EGL)
 #include <EGL/egl.h>
 #endif
-#ifdef QGL_USE_TEXTURE_POOL
+
+#ifdef Q_OS_SYMBIAN
 #include <private/qgltexturepool_p.h>
+#include <private/qeglcontext_p.h>
 #endif
 
 // #define QT_GL_CONTEXT_RESOURCE_DEBUG
@@ -366,6 +368,10 @@ void QGL::setPreferredPaintEngine(QPaintEngine::Type engineType)
 
 static inline void transform_point(GLdouble out[4], const GLdouble m[16], const GLdouble in[4])
 {
+#if defined(Q_CC_GNU) && (__GNUC__ * 100 + __GNUC_MINOR__ >= 406)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
 #define M(row,col)  m[col*4+row]
     out[0] =
         M(0, 0) * in[0] + M(0, 1) * in[1] + M(0, 2) * in[2] + M(0, 3) * in[3];
@@ -376,6 +382,9 @@ static inline void transform_point(GLdouble out[4], const GLdouble m[16], const 
     out[3] =
         M(3, 0) * in[0] + M(3, 1) * in[1] + M(3, 2) * in[2] + M(3, 3) * in[3];
 #undef M
+#if defined(Q_CC_GNU) && (__GNUC__ * 100 + __GNUC_MINOR__ >= 406)
+# pragma GCC diagnostic pop
+#endif
 }
 
 static inline GLint qgluProject(GLdouble objx, GLdouble objy, GLdouble objz,
@@ -1734,6 +1743,7 @@ void QGLContextPrivate::init(QPaintDevice *dev, const QGLFormat &format)
     workaround_brokenTextureFromPixmap = false;
     workaround_brokenTextureFromPixmap_init = false;
 
+    workaround_brokenScissor = false;
     workaround_brokenAlphaTexSubImage = false;
     workaround_brokenAlphaTexSubImage_init = false;
 
@@ -1993,7 +2003,7 @@ struct DDSFormat {
     If you're using double buffering you can swap the screen contents
     with the off-screen buffer using swapBuffers().
 
-    Please note that QGLContext is not thread safe.
+    Please note that QGLContext is not \l{thread-safe}.
 */
 
 /*!
@@ -2034,10 +2044,6 @@ struct DDSFormat {
     indicate that the pixmap should be memory managed along side with
     the pixmap/image that it stems from, e.g. installing destruction
     hooks in them.
-
-    \omitvalue TemporarilyCachedBindOption Used by paint engines on some
-    platforms to indicate that the pixmap or image texture is possibly
-    cached only temporarily and must be destroyed immediately after the use.
 
     \omitvalue InternalBindOption
 */
@@ -2543,7 +2549,8 @@ QGLTexture* QGLContextPrivate::bindTexture(const QImage &image, GLenum target, G
 #endif
 
     const QImage &constRef = img; // to avoid detach in bits()...
-#ifdef QGL_USE_TEXTURE_POOL
+#ifdef Q_OS_SYMBIAN
+    // On Symbian we always use texture pool to reserve the texture
     QGLTexturePool::instance()->createPermanentTexture(tx_id,
                                                         target,
                                                         0, internalFormat,
@@ -2555,6 +2562,7 @@ QGLTexture* QGLContextPrivate::bindTexture(const QImage &image, GLenum target, G
     glTexImage2D(target, 0, internalFormat, img.width(), img.height(), 0, externalFormat,
                  pixel_type, constRef.bits());
 #endif
+
 #if defined(QT_OPENGL_ES_2)
     if (genMipmap)
         glGenerateMipmap(target);
@@ -2578,6 +2586,13 @@ QGLTexture* QGLContextPrivate::bindTexture(const QImage &image, GLenum target, G
     QGLTexture *texture = new QGLTexture(q, tx_id, target, options);
     QGLTextureCache::instance()->insert(q, key, texture, cost);
 
+#ifdef Q_OS_SYMBIAN
+    // Store the key so that QGLTexturePool
+    // is able to release this texture when needed.
+    texture->boundKey = key;
+    // And append to LRU list
+    QGLTexturePool::instance()->useTexture(texture);
+#endif
     return texture;
 }
 
@@ -2658,6 +2673,20 @@ QGLTexture *QGLContextPrivate::bindTexture(const QPixmap &pixmap, GLenum target,
 #endif
 
     if (!texture) {
+#ifdef Q_OS_SYMBIAN
+        // On Symbian pixmaps are backed up by native CFbsBitmap
+        // which can be shared across processes. QVolatileImage wraps
+        // it and provides locking mechanism to pixel access.
+        QVolatileImage volatileImage = pd->toVolatileImage();
+        if (volatileImage.isNull()) { // TODO: raster graphics system don't provide volatile image (yet)
+            // NOTE! On Symbian raster graphics system QPixmap::toImage() makes deep copy
+            texture = bindTexture(pixmap.toImage(), target, format, key, options);
+        } else {
+            volatileImage.beginDataAccess();
+            texture = bindTexture(volatileImage.imageRef(), target, format, key, options);
+            volatileImage.endDataAccess(true);
+        }
+#else
         QImage image = pixmap.toImage();
         // If the system depth is 16 and the pixmap doesn't have an alpha channel
         // then we convert it to RGB16 in the hope that it gets uploaded as a 16
@@ -2665,6 +2694,7 @@ QGLTexture *QGLContextPrivate::bindTexture(const QPixmap &pixmap, GLenum target,
         if (pixmap.depth() == 16 && !image.hasAlphaChannel() )
             image = image.convertToFormat(QImage::Format_RGB16);
         texture = bindTexture(image, target, format, key, options);
+#endif
     }
     // NOTE: bindTexture(const QImage&, GLenum, GLint, const qint64, bool) should never return null
     Q_ASSERT(texture);
@@ -3266,18 +3296,13 @@ bool QGLContext::areSharing(const QGLContext *context1, const QGLContext *contex
     \fn QColor QGLContext::overlayTransparentColor() const
 
     If this context is a valid context in an overlay plane, returns
-    the plane's transparent color. Otherwise returns an \link
-    QColor::isValid() invalid \endlink color.
-
-    The returned color's \link QColor::pixel() pixel \endlink value is
-    the index of the transparent color in the colormap of the overlay
-    plane. (Naturally, the color's RGB values are meaningless.)
+    the plane's transparent color. Otherwise returns an
+    \{QColor::isValid()}{invalid} color.
 
     The returned QColor object will generally work as expected only
     when passed as the argument to QGLWidget::qglColor() or
     QGLWidget::qglClearColor(). Under certain circumstances it can
-    also be used to draw transparent graphics with a QPainter. See the
-    examples/opengl/overlay_x11 example for details.
+    also be used to draw transparent graphics with a QPainter.
 */
 
 
@@ -3409,8 +3434,25 @@ const QGLContext* QGLContext::currentContext()
     return 0;
 #else
     QGLThreadContext *threadContext = qgl_context_storage.localData();
-    if (threadContext)
+    if (threadContext) {
+#ifdef Q_OS_SYMBIAN
+        // Query the current context and return null if it is different.
+        // This is needed to support mixed VG-GL rendering.
+        // QtOpenVG is free to make a QEglContext current at any time and
+        // QGLContext gets no notification that its underlying QEglContext is
+        // not current anymore. We query directly from EGL to be thread-safe.
+        // QEglContext does not store all the contexts per-thread.
+        if (threadContext->context) {
+            QEglContext *eglcontext = threadContext->context->d_func()->eglContext;
+            if (eglcontext) {
+                EGLContext ctx = eglcontext->context();
+                if (ctx != eglGetCurrentContext())
+                    return 0;
+            }
+        }
+#endif
         return threadContext->context;
+    }
     return 0;
 #endif //Q_WS_QPA
 }
@@ -4340,7 +4382,7 @@ bool QGLWidget::event(QEvent *e)
         // if we've reparented a window that has the current context
         // bound, we need to rebind that context to the new window id
         if (d->glcx == QGLContext::currentContext())
-            makeCurrent();
+            makeCurrent(); // Shouldn't happen but keep it here just for sure
 
         if (testAttribute(Qt::WA_TranslucentBackground))
             setContext(new QGLContext(d->glcx->requestedFormat(), this));
@@ -4348,8 +4390,11 @@ bool QGLWidget::event(QEvent *e)
 
     // A re-parent is likely to destroy the Symbian window and re-create it. It is important
     // that we free the EGL surface _before_ the winID changes - otherwise we can leak.
-    if (e->type() == QEvent::ParentAboutToChange)
+    if (e->type() == QEvent::ParentAboutToChange) {
+        if (d->glcx == QGLContext::currentContext())
+            d->glcx->doneCurrent();
         d->glcx->d_func()->destroyEglSurfaceForDevice();
+    }
 
     if ((e->type() == QEvent::ParentChange) || (e->type() == QEvent::WindowStateChange)) {
         // The window may have been re-created during re-parent or state change - if so, the EGL
@@ -5454,7 +5499,8 @@ QGLExtensions::Extensions QGLExtensions::currentContextExtensions()
         glExtensions |= NVFloatBuffer;
     if (extensions.match("GL_ARB_pixel_buffer_object"))
         glExtensions |= PixelBufferObject;
-    if (extensions.match("GL_IMG_texture_format_BGRA8888"))
+    if (extensions.match("GL_IMG_texture_format_BGRA8888")
+        || extensions.match("GL_EXT_texture_format_BGRA8888"))
         glExtensions |= BGRATextureFormat;
 #if defined(QT_OPENGL_ES_2)
     glExtensions |= FramebufferObject;
@@ -5489,6 +5535,16 @@ QGLExtensions::Extensions QGLExtensions::currentContextExtensions()
 
     if (extensions.match("GL_EXT_bgra"))
         glExtensions |= BGRATextureFormat;
+
+    {
+        GLboolean srgbCapableFramebuffers;
+        glGetBooleanv(FRAMEBUFFER_SRGB_CAPABLE_EXT, &srgbCapableFramebuffers);
+        if (srgbCapableFramebuffers)
+            glExtensions |= SRGBFrameBuffer;
+        // Clear possible error which is generated if
+        // FRAMEBUFFER_SRGB_CAPABLE_EXT isn't supported.
+        glGetError();
+    }
 
     return glExtensions;
 }
@@ -5674,6 +5730,11 @@ void QGLContextGroupResourceBase::cleanup(const QGLContext *ctx)
     }
 }
 
+void QGLContextGroupResourceBase::contextDeleted(const QGLContext *ctx)
+{
+    Q_UNUSED(ctx);
+}
+
 void QGLContextGroupResourceBase::cleanup(const QGLContext *ctx, void *value)
 {
 #ifdef QT_GL_CONTEXT_RESOURCE_DEBUG
@@ -5689,12 +5750,16 @@ void QGLContextGroupResourceBase::cleanup(const QGLContext *ctx, void *value)
 
 void QGLContextGroup::cleanupResources(const QGLContext *context)
 {
+    // Notify all resources that a context has been deleted
+    QHash<QGLContextGroupResourceBase *, void *>::ConstIterator it;
+    for (it = m_resources.begin(); it != m_resources.end(); ++it)
+        it.key()->contextDeleted(context);
+
     // If there are still shares, then no cleanup to be done yet.
     if (m_shares.size() > 1)
         return;
 
     // Iterate over all resources and free each in turn.
-    QHash<QGLContextGroupResourceBase *, void *>::ConstIterator it;
     for (it = m_resources.begin(); it != m_resources.end(); ++it)
         it.key()->cleanup(context, it.value());
 }
@@ -6053,5 +6118,28 @@ QSize QGLTexture::bindCompressedTexturePVR(const char *buf, int len)
 }
 
 #undef ctx
+
+#ifdef Q_OS_SYMBIAN
+void QGLTexture::freeTexture()
+{
+    if (!id)
+        return;
+
+    if (inTexturePool)
+        QGLTexturePool::instance()->detachTexture(this);
+
+    if (boundPixmap)
+        boundPixmap->releaseNativeImageHandle();
+
+    if (options & QGLContext::MemoryManagedBindOption) {
+        Q_ASSERT(context);
+        context->d_ptr->texture_destroyer->emitFreeTexture(context, 0, id);
+    }
+
+    id = 0;
+    boundPixmap = 0;
+    boundKey = 0;
+}
+#endif
 
 QT_END_NAMESPACE

@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -299,6 +299,7 @@ QWidgetPrivate::QWidgetPrivate(int version)
 #ifndef QT_NO_IM
       , inheritsInputMethodHints(0)
 #endif
+      , inSetParent(0)
 #if defined(Q_WS_X11)
       , picture(0)
 #elif defined(Q_WS_WIN)
@@ -313,6 +314,7 @@ QWidgetPrivate::QWidgetPrivate(int version)
 #elif defined(Q_OS_SYMBIAN)
       , symbianScreenNumber(0)
       , fixNativeOrientationCalled(false)
+      , isGLGlobalShareWidget(0)
 #endif
 {
     if (!qApp) {
@@ -344,6 +346,10 @@ QWidgetPrivate::QWidgetPrivate(int version)
 
 QWidgetPrivate::~QWidgetPrivate()
 {
+#ifdef Q_OS_SYMBIAN
+    _q_cleanupWinIds();
+#endif
+
     if (widgetItem)
         widgetItem->wid = 0;
 
@@ -612,7 +618,7 @@ void QWidget::setAutoFillBackground(bool enabled)
     \brief The QWidget class is the base class of all user interface objects.
 
     \ingroup basicwidgets
-    
+
     The widget is the atom of the user interface: it receives mouse, keyboard
     and other events from the window system, and paints a representation of
     itself on the screen. Every widget is rectangular, and they are sorted in a
@@ -1389,16 +1395,6 @@ void QWidgetPrivate::init(QWidget *parentWidget, Qt::WindowFlags f)
     QApplication::postEvent(q, new QEvent(QEvent::PolishRequest));
 
     extraPaintEngine = 0;
-
-#ifdef QT_MAC_USE_COCOA
-    // If we add a child to the unified toolbar, we have to redirect the painting.
-    if (parentWidget && parentWidget->d_func() && parentWidget->d_func()->isInUnifiedToolbar) {
-        if (parentWidget->d_func()->unifiedSurface) {
-            QWidget *toolbar = parentWidget->d_func()->toolbar_ancestor;
-            parentWidget->d_func()->unifiedSurface->recursiveRedirect(toolbar, toolbar, toolbar->d_func()->toolbar_offset);
-        }
-    }
-#endif // QT_MAC_USE_COCOA
 }
 
 
@@ -1602,6 +1598,7 @@ QWidget::~QWidget()
 
     // delete layout while we still are a valid widget
     delete d->layout;
+    d->layout = 0;
     // Remove myself from focus list
 
     Q_ASSERT(d->focus_next->d_func()->focus_prev == this);
@@ -1691,6 +1688,10 @@ QWidget::~QWidget()
 
     if (!d->children.isEmpty())
         d->deleteChildren();
+
+#ifndef QT_NO_ACCESSIBILITY
+    QAccessible::updateAccessibility(this, 0, QAccessible::ObjectDestroyed);
+#endif
 
     QApplication::removePostedEvents(this);
 
@@ -2274,10 +2275,16 @@ void QWidgetPrivate::updateIsOpaque()
 #endif
 
 #ifdef Q_WS_S60
-    if (q->windowType() == Qt::Dialog && q->testAttribute(Qt::WA_TranslucentBackground)
-                && S60->avkonComponentsSupportTransparency) {
-        setOpaque(false);
-        return;
+    if (q->testAttribute(Qt::WA_TranslucentBackground)) {
+        if (q->windowType() & Qt::Dialog || q->windowType() & Qt::Popup) {
+            if (S60->avkonComponentsSupportTransparency) {
+                setOpaque(false);
+                return;
+            }
+        } else {
+            setOpaque(false);
+            return;
+        }
     }
 #endif
 
@@ -2297,11 +2304,16 @@ void QWidgetPrivate::updateIsOpaque()
     }
 
     if (q->isWindow() && !q->testAttribute(Qt::WA_NoSystemBackground)) {
+#ifdef Q_WS_S60
+        setOpaque(true);
+        return;
+#else
         const QBrush &windowBrush = q->palette().brush(QPalette::Window);
         if (windowBrush.style() != Qt::NoBrush && windowBrush.isOpaque()) {
             setOpaque(true);
             return;
         }
+#endif
     }
     setOpaque(false);
 }
@@ -2612,6 +2624,22 @@ WId QWidget::effectiveWinId() const
     if (id || !testAttribute(Qt::WA_WState_Created))
         return id;
     QWidget *realParent = nativeParentWidget();
+    if (!realParent && d_func()->inSetParent) {
+        // In transitional state. This is really just a workaround. The real problem
+        // is that QWidgetPrivate::setParent_sys (platform specific code) first sets
+        // the window id to 0 (setWinId(0)) before it sets the Qt::WA_WState_Created
+        // attribute to false. The correct way is to do it the other way around, and
+        // in that case the Qt::WA_WState_Created logic above will kick in and
+        // return 0 whenever the widget is in a transitional state. However, changing
+        // the original logic for all platforms is far more intrusive and might
+        // break existing applications.
+        // Note: The widget can only be in a transitional state when changing its
+        // parent -- everything else is an internal error -- hence explicitly checking
+        // against 'inSetParent' rather than doing an unconditional return whenever
+        // 'realParent' is 0 (which may cause strange artifacts and headache later).
+        return 0;
+    }
+    // This widget *must* have a native parent widget.
     Q_ASSERT(realParent);
     Q_ASSERT(realParent->internalWinId());
     return realParent->internalWinId();
@@ -3331,8 +3359,8 @@ QList<QAction*> QWidget::actions() const
     \property QWidget::enabled
     \brief whether the widget is enabled
 
-    An enabled widget handles keyboard and mouse events; a disabled
-    widget does not.
+    In general an enabled widget handles keyboard and mouse events; a disabled
+    widget does not. An exception is made with \l{QAbstractButton}.
 
     Some widgets display themselves differently when they are
     disabled. For example a button might draw its label grayed out. If
@@ -6439,6 +6467,10 @@ void QWidget::setFocus(Qt::FocusReason reason)
         // The negation of the condition in setFocus_sys
         if (!(testAttribute(Qt::WA_WState_Created) && window()->windowType() != Qt::Popup && internalWinId()))
             //setFocusWidget will already post a focus event for us (that the AT client receives) on Windows
+# endif
+# ifdef  Q_OS_UNIX
+        // menus update the focus manually and this would create bogus events
+        if (!(f->inherits("QMenuBar") || f->inherits("QMenu") || f->inherits("QMenuItem")))
 # endif
             QAccessible::updateAccessibility(f, 0, QAccessible::Focus);
 #endif
@@ -10124,6 +10156,7 @@ void QWidget::setParent(QWidget *parent)
 void QWidget::setParent(QWidget *parent, Qt::WindowFlags f)
 {
     Q_D(QWidget);
+    d->inSetParent = true;
     bool resized = testAttribute(Qt::WA_Resized);
     bool wasCreated = testAttribute(Qt::WA_WState_Created);
     QWidget *oldtlw = window();
@@ -10284,6 +10317,8 @@ void QWidget::setParent(QWidget *parent, Qt::WindowFlags f)
             ancestorProxy->d_func()->embedSubWindow(this);
     }
 #endif
+
+    d->inSetParent = false;
 }
 
 /*!
@@ -10939,11 +10974,14 @@ void QWidget::setAttribute(Qt::WidgetAttribute attribute, bool on)
         }
         break;
     case Qt::WA_TranslucentBackground:
+#if defined(Q_OS_SYMBIAN)
+        setAttribute(Qt::WA_NoSystemBackground, on);
+#else
         if (on) {
             setAttribute(Qt::WA_NoSystemBackground);
             d->updateIsTranslucent();
         }
-
+#endif
         break;
     case Qt::WA_AcceptTouchEvents:
 #if defined(Q_WS_WIN) || defined(Q_WS_MAC) || defined(Q_OS_SYMBIAN)
@@ -11040,7 +11078,7 @@ bool QWidget::testAttribute_helper(Qt::WidgetAttribute attribute) const
 qreal QWidget::windowOpacity() const
 {
     Q_D(const QWidget);
-    return (isWindow() && d->maybeTopData()) ? d->maybeTopData()->opacity / 255. : 1.0;
+    return (isWindow() && d->maybeTopData()) ? d->maybeTopData()->opacity / qreal(255.) : qreal(1.0);
 }
 
 void QWidget::setWindowOpacity(qreal opacity)
@@ -11219,6 +11257,7 @@ void QWidget::setAccessibleName(const QString &name)
 {
     Q_D(QWidget);
     d->accessibleName = name;
+    QAccessible::updateAccessibility(this, 0, QAccessible::NameChanged);
 }
 
 QString QWidget::accessibleName() const
@@ -11240,6 +11279,7 @@ void QWidget::setAccessibleDescription(const QString &description)
 {
     Q_D(QWidget);
     d->accessibleDescription = description;
+    QAccessible::updateAccessibility(this, 0, QAccessible::DescriptionChanged);
 }
 
 QString QWidget::accessibleDescription() const
@@ -11355,8 +11395,10 @@ void QWidget::updateMicroFocus()
     }
 #endif
 #ifndef QT_NO_ACCESSIBILITY
-    // ##### is this correct
-    QAccessible::updateAccessibility(this, 0, QAccessible::StateChanged);
+    if (isVisible()) {
+        // ##### is this correct
+        QAccessible::updateAccessibility(this, 0, QAccessible::StateChanged);
+    }
 #endif
 }
 
@@ -12659,9 +12701,11 @@ void QWidget::clearMask()
 */
 
 #ifdef Q_OS_SYMBIAN
-void QWidgetPrivate::_q_delayedDestroy(WId winId)
+void QWidgetPrivate::_q_cleanupWinIds()
 {
-    delete winId;
+    foreach (WId wid, widCleanupList)
+        delete wid;
+    widCleanupList.clear();
 }
 #endif
 

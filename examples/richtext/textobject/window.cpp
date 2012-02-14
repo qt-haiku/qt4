@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -96,7 +96,7 @@ void Window::setupGui()
     fileNameLineEdit = new QLineEdit;
     insertTextObjectButton = new QPushButton(tr("Insert Image"));
 
-    fileNameLineEdit->setText("./files/heart.svg");
+    fileNameLineEdit->setText(":/files/heart.svg");
     connect(insertTextObjectButton, SIGNAL(clicked()),
             this, SLOT(insertTextObject()));
 

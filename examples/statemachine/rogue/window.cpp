@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -52,16 +52,22 @@ Window::Window()
 
     QFontDatabase database;
     QFont font;
-    if (database.families().contains("Monospace"))
-        font = QFont("Monospace", 12);
+    if (database.families().contains("Monospace")) {
+        font = QFont("Monospace");
+    }
     else {
         foreach (QString family, database.families()) {
             if (database.isFixedPitch(family)) {
-                font = QFont(family, 12);
+                font = QFont(family);
                 break;
             }
         }
     }
+#if defined(Q_OS_SYMBIAN) || defined(Q_WS_SIMULATOR)
+    font.setPointSize(5);
+#else
+    font.setPointSize(12);
+#endif
     setFont(font);
 
 //![1]

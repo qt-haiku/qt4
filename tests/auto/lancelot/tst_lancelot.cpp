@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -62,6 +62,7 @@ public:
     tst_Lancelot();
 
     static bool simfail;
+    static PlatformInfo clientInfo;
 
 private:
     enum GraphicsEngine {
@@ -98,6 +99,7 @@ private slots:
 };
 
 bool tst_Lancelot::simfail = false;
+PlatformInfo tst_Lancelot::clientInfo;
 
 tst_Lancelot::tst_Lancelot()
 {
@@ -112,7 +114,7 @@ void tst_Lancelot::initTestCase()
 #if defined(Q_OS_SOMEPLATFORM)
     QSKIP("This test is not supported on this platform.", SkipAll);
 #endif
-    if (!proto.connect(QLatin1String("tst_Lancelot"), &dryRunMode))
+    if (!proto.connect(QLatin1String("tst_Lancelot"), &dryRunMode, clientInfo))
         QSKIP(qPrintable(proto.errorMessage()), SkipAll);
 
 #if defined(USE_RUNTIME_DIR)
@@ -254,7 +256,8 @@ void tst_Lancelot::runTestSuite(GraphicsEngine engine, QImage::Format format)
 
 
     if (baseline.status == ImageItem::BaselineNotFound) {
-        proto.submitNewBaseline(rendered, 0);
+        if (!proto.submitNewBaseline(rendered, 0))
+            QWARN("Failed to submit new baseline: " + proto.errorMessage().toLatin1());
         QSKIP("Baseline not found; new baseline created.", SkipSingle);
     }
 
@@ -328,13 +331,26 @@ QTEST_MAIN(tst_Lancelot)
 
 int main(int argc, char *argv[])
 {
+    tst_Lancelot::clientInfo = PlatformInfo::localHostInfo();
+
     char *fargv[20];
     int fargc = 0;
     for (int i = 0; i < qMin(argc, 19); i++) {
-        if (!qstrcmp(argv[i], "-simfail"))
+        if (!qstrcmp(argv[i], "-simfail")) {
             tst_Lancelot::simfail = true;
-        else
+        } else if (!qstrcmp(argv[i], "-compareto") && i < argc-1) {
+            QString arg = QString::fromLocal8Bit(argv[++i]);
+            int split = arg.indexOf(QLC('='));
+            if (split < 0)
+                continue;
+            QString key = arg.left(split).trimmed();
+            QString value = arg.mid(split+1).trimmed();
+            if (key.isEmpty() || value.isEmpty())
+                continue;
+            tst_Lancelot::clientInfo.addOverride(key, value);
+        } else {
             fargv[fargc++] = argv[i];
+        }
     }
     fargv[fargc] = 0;
     return rmain(fargc, fargv);

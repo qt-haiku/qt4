@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -66,9 +66,14 @@
 #include <qdebug.h>
 
 @interface NSEvent (Qt_Compile_Leopard_DeviceDelta)
+  // SnowLeopard:
   - (CGFloat)deviceDeltaX;
   - (CGFloat)deviceDeltaY;
   - (CGFloat)deviceDeltaZ;
+  // Lion:
+  - (CGFloat)scrollingDeltaX;
+  - (CGFloat)scrollingDeltaY;
+  - (CGFloat)scrollingDeltaZ;
 @end
 
 @interface NSEvent (Qt_Compile_Leopard_Gestures)
@@ -320,7 +325,7 @@ static int qCocoaViewCount = 0;
 
             }
 
-            CGContextFlush(context);
+            CGContextSynchronize(context);
             qt_mac_release_graphics_context(context);
             return;
         }
@@ -614,7 +619,6 @@ static int qCocoaViewCount = 0;
 
     int deltaX = 0;
     int deltaY = 0;
-    int deltaZ = 0;
 
     const EventRef carbonEvent = (EventRef)[theEvent eventRef];
     const UInt32 carbonEventKind = carbonEvent ? ::GetEventKind(carbonEvent) : 0;
@@ -627,15 +631,20 @@ static int qCocoaViewCount = 0;
         // It looks like 1/4 degrees per pixel behaves most native.
         // (NB: Qt expects the unit for delta to be 8 per degree):
         const int pixelsToDegrees = 2; // 8 * 1/4
-        deltaX = [theEvent deviceDeltaX] * pixelsToDegrees;
-        deltaY = [theEvent deviceDeltaY] * pixelsToDegrees;
-        deltaZ = [theEvent deviceDeltaZ] * pixelsToDegrees;
+        if (QSysInfo::MacintoshVersion <= QSysInfo::MV_10_6) {
+            // Mac OS 10.6
+            deltaX = [theEvent deviceDeltaX] * pixelsToDegrees;
+            deltaY = [theEvent deviceDeltaY] * pixelsToDegrees;
+        } else {
+            // Mac OS 10.7+
+            deltaX = [theEvent scrollingDeltaX] * pixelsToDegrees;
+            deltaY = [theEvent scrollingDeltaY] * pixelsToDegrees;
+        }
     } else {
         // carbonEventKind == kEventMouseWheelMoved
         // Remove acceleration, and use either -120 or 120 as delta:
         deltaX = qBound(-120, int([theEvent deltaX] * 10000), 120);
         deltaY = qBound(-120, int([theEvent deltaY] * 10000), 120);
-        deltaZ = qBound(-120, int([theEvent deltaZ] * 10000), 120);
     }
 
 #ifndef QT_NO_WHEELEVENT
@@ -651,13 +660,6 @@ static int qCocoaViewCount = 0;
 
     if (deltaY != 0) {
         QWheelEvent qwe(qlocal, qglobal, deltaY, buttons, keyMods, Qt::Vertical);
-        qt_sendSpontaneousEvent(widgetToGetMouse, &qwe);
-    }
-
-    if (deltaZ != 0) {
-        // Qt doesn't explicitly support wheels with a Z component. In a misguided attempt to
-        // try to be ahead of the pack, I'm adding this extra value.
-        QWheelEvent qwe(qlocal, qglobal, deltaZ, buttons, keyMods, (Qt::Orientation)3);
         qt_sendSpontaneousEvent(widgetToGetMouse, &qwe);
     }
 
@@ -1012,7 +1014,13 @@ static int qCocoaViewCount = 0;
     // When entering characters through Character Viewer or Keyboard Viewer, the text is passed
     // through this insertText method. Since we dont receive a keyDown Event in such cases, the
     // composing flag will be false.
-    if (([aString length] && composing) || !fromKeyDownEvent) {
+    //
+    // Characters can be sent through input method directly without composing process as well,
+    // for instance a Chinese input method will send "，" (U+FF0C) to insertText: when "," key
+    // is pressed. In that case we want to set commit string directly instead of going through
+    // key events handling again. Hence we only leave the string with Unicode value less than
+    // 256 to the key events handling process.
+    if (([aString length] && (composing || commitText.at(0).unicode() > 0xff)) || !fromKeyDownEvent) {
         // Send the commit string to the widget.
         composing = false;
         sendKeyEvents = false;

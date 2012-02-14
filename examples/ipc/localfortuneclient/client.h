@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -41,7 +41,12 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
+#ifdef Q_WS_MAEMO_5
+#include <QWidget>
+#else
 #include <QDialog>
+#endif
+
 #include <qlocalsocket.h>
 
 QT_BEGIN_NAMESPACE
@@ -52,7 +57,11 @@ class QPushButton;
 class QLocalSocket;
 QT_END_NAMESPACE
 
+#ifdef Q_WS_MAEMO_5
+class Client : public QWidget
+#else
 class Client : public QDialog
+#endif
 {
     Q_OBJECT
 

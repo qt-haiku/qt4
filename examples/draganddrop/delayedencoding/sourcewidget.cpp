@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -60,6 +60,7 @@ SourceWidget::SourceWidget(QWidget *parent)
     QLabel *instructTopLabel = new QLabel(tr("This is an SVG drawing:"));
     QLabel *instructBottomLabel = new QLabel(
         tr("Drag the icon to copy the drawing as a PNG file:"));
+    instructBottomLabel->setWordWrap(true);
     QPushButton *dragIcon = new QPushButton(tr("Export"));
     dragIcon->setIcon(QIcon(":/images/drag.png"));
 

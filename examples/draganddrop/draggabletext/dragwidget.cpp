@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -62,16 +62,18 @@ DragWidget::DragWidget(QWidget *parent)
             wordLabel->show();
             wordLabel->setAttribute(Qt::WA_DeleteOnClose);
             x += wordLabel->width() + 2;
-            if (x >= 195) {
+            if (x >= 245) {
                 x = 5;
                 y += wordLabel->height() + 2;
             }
         }
     }
 
+    /*
     QPalette newPalette = palette();
     newPalette.setColor(QPalette::Window, Qt::white);
     setPalette(newPalette);
+    */
 
     setAcceptDrops(true);
     setMinimumSize(400, qMax(200, y));

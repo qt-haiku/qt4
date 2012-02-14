@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -64,9 +64,24 @@ int main(int argc, char **argv)
 
 #else
 
-int main()
+#include <QLabel>
+
+int main(int argc, char *argv[])
 {
-	qDebug() << "Qt Concurrent is not yet supported on this platform";
+    QApplication app(argc, argv);
+    QString text("Qt Concurrent is not yet supported on this platform");
+
+    QLabel *label = new QLabel(text);
+    label->setWordWrap(true);
+
+#if defined(Q_WS_S60) || defined(Q_WS_MAEMO_5)
+    label->showMaximized();
+#else
+    label->show();
+#endif
+    qDebug() << text;
+
+    app.exec();
 }
 
 #endif

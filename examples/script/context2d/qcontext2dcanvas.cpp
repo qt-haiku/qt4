@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -84,8 +84,8 @@ void QContext2DCanvas::contentsChanged(const QImage &image)
 void QContext2DCanvas::paintEvent(QPaintEvent *e)
 {
     QPainter p(this);
-#ifdef Q_WS_S60
-// Draw white rect first since in with some themes the js-file content will produce black-on-black.
+#ifdef Q_OS_SYMBIAN
+    // Draw white rect first since in with some themes the js-file content will produce black-on-black.
     QBrush whiteBgBrush(Qt::white);
     p.fillRect(e->rect(), whiteBgBrush);
 #endif

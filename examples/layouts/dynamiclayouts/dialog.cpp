@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -43,7 +43,11 @@
 #include "dialog.h"
 
 Dialog::Dialog(QWidget *parent)
+#if defined(Q_OS_SYMBIAN) || defined(Q_WS_MAEMO_5) || defined(Q_WS_SIMULATOR)
+    : QWidget(parent)
+#else
     : QDialog(parent)
+#endif
 {
     createRotableGroupBox();
     createOptionsGroupBox();

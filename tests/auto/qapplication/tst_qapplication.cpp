@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -1406,6 +1406,101 @@ public slots:
         QApplication::sendPostedEvents(0, QEvent::DeferredDelete);
         QVERIFY(!p);
     }
+
+#ifdef Q_OS_SYMBIAN
+    void deleteLaterAndProcessEventsSymbian()
+    {
+        CActiveSchedulerWait *eventLoop = new CActiveSchedulerWait;
+        currentSymLoop = eventLoop;
+
+        QPointer<QObject> p = this;
+        deleteLater();
+
+        // this will not be deleted, but deleteLater on an object within that loop will work
+        m_ptr = new QObject;
+        QMetaObject::invokeMethod(m_ptr, "deleteLater", Qt::QueuedConnection);
+        QTimer::singleShot(100, this, SLOT(quitSymLoop()));
+        eventLoop->Start();
+        QVERIFY(p);
+        QVERIFY(!m_ptr);
+
+        // further nesting of symbian event loop still works correctly
+        m_ptr = new QObject;
+        QMetaObject::invokeMethod(m_ptr, "deleteLater", Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, "extraSymbianNesting", Qt::QueuedConnection);
+        QTimer::singleShot(100, this, SLOT(invokeCheckMPtr()));     // queue the check event to ensure wakeup runs before we check that deleteLater has not happened
+        QTimer::singleShot(200, this, SLOT(quitSymLoop()));
+        QTimer::singleShot(300, this, SLOT(invokeQuitSymLoop()));   // need to queue a new event to trigger wakeup, since Symbian's scheduler loop exit doesn't generate events on exit
+        eventLoop->Start();
+        QVERIFY(p);
+        QVERIFY(!m_ptr);
+
+        // trying to delete this object in a deeper eventloop just won't work
+        QMetaObject::invokeMethod(this,
+                                  "processEventsOnly",
+                                  Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, "quitSymLoop", Qt::QueuedConnection);
+        eventLoop->Start();
+        QVERIFY(p);
+        QMetaObject::invokeMethod(this,
+                                  "processEventsWithDeferredDeletion",
+                                  Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, "quitSymLoop", Qt::QueuedConnection);
+        eventLoop->Start();
+        QVERIFY(p);
+        QMetaObject::invokeMethod(this,
+                                  "sendPostedEventsWithDeferredDelete",
+                                  Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, "quitSymLoop", Qt::QueuedConnection);
+        eventLoop->Start();
+        QVERIFY(p);
+
+        // trying to delete it from this eventloop still doesn't work
+        QApplication::processEvents();
+        QVERIFY(p);
+
+        // however, it *will* work with this magic incantation
+        QApplication::processEvents(QEventLoop::DeferredDeletion);
+        QVERIFY(!p);
+
+        delete eventLoop;
+        currentSymLoop = 0;
+    }
+
+    void quitSymLoop()
+    {
+        currentSymLoop->AsyncStop();
+    }
+
+    void invokeQuitSymLoop()
+    {
+        QMetaObject::invokeMethod(this, "quitSymLoop", Qt::QueuedConnection);
+    }
+
+    void extraSymbianNesting()
+    {
+        CActiveSchedulerWait *old = currentSymLoop;
+        CActiveSchedulerWait *thisLevel = new CActiveSchedulerWait;
+        currentSymLoop = thisLevel;
+        thisLevel->Start();
+        currentSymLoop = old;
+        delete thisLevel;
+    }
+
+    void checkMPtr()
+    {
+        QVERIFY(m_ptr);
+    }
+
+    void invokeCheckMPtr()
+    {
+        QMetaObject::invokeMethod(this, "checkMPtr", Qt::QueuedConnection);
+    }
+
+private:
+    QPointer<QObject> m_ptr;
+    CActiveSchedulerWait *currentSymLoop;
+#endif
 };
 
 void tst_QApplication::testDeleteLaterProcessEvents()
@@ -1512,10 +1607,27 @@ void tst_QApplication::testDeleteLaterProcessEvents()
         loop.exec();
         QVERIFY(!p);
     }
+
+#ifdef Q_OS_SYMBIAN
+    {
+        // when the event loop that calls deleteLater() also calls
+        // processEvents() immediately afterwards, the object should
+        // not die until the parent loop continues
+        QApplication app(argc, 0, QApplication::GuiServer);
+        QEventLoop loop;
+        EventLoopNester *nester = new EventLoopNester();
+        p = nester;
+        QTimer::singleShot(3000, &loop, SLOT(quit()));
+        QTimer::singleShot(0, nester, SLOT(deleteLaterAndProcessEventsSymbian()));
+
+        loop.exec();
+        QVERIFY(!p);
+    }
+#endif
 }
 
 /*
-    Test for crash whith QApplication::setDesktopSettingsAware(false).
+    Test for crash with QApplication::setDesktopSettingsAware(false).
 */
 void tst_QApplication::desktopSettingsAware()
 {

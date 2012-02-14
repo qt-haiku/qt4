@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtNetwork module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -127,7 +127,7 @@
 QT_BEGIN_NAMESPACE
 
 // forward declaration
-static QMap<QString, QString> _q_mapFromOnelineName(char *name);
+static QMap<QString, QString> _q_mapFromX509Name(X509_NAME *name);
 
 /*!
     Constructs a QSslCertificate by reading \a format encoded data
@@ -324,7 +324,7 @@ QString QSslCertificate::issuerInfo(SubjectInfo info) const
     // lazy init
     if (d->issuerInfo.isEmpty() && d->x509)
         d->issuerInfo =
-                _q_mapFromOnelineName(q_X509_NAME_oneline(q_X509_get_issuer_name(d->x509), 0, 0));
+                _q_mapFromX509Name(q_X509_get_issuer_name(d->x509));
 
     return d->issuerInfo.value(_q_SubjectInfoToString(info));
 }
@@ -341,7 +341,7 @@ QString QSslCertificate::issuerInfo(const QByteArray &tag) const
     // lazy init
     if (d->issuerInfo.isEmpty() && d->x509)
         d->issuerInfo =
-                _q_mapFromOnelineName(q_X509_NAME_oneline(q_X509_get_issuer_name(d->x509), 0, 0));
+                _q_mapFromX509Name(q_X509_get_issuer_name(d->x509));
 
     return d->issuerInfo.value(QString::fromLatin1(tag));
 }
@@ -360,7 +360,7 @@ QString QSslCertificate::subjectInfo(SubjectInfo info) const
     // lazy init
     if (d->subjectInfo.isEmpty() && d->x509)
         d->subjectInfo =
-                _q_mapFromOnelineName(q_X509_NAME_oneline(q_X509_get_subject_name(d->x509), 0, 0));
+                _q_mapFromX509Name(q_X509_get_subject_name(d->x509));
 
     return d->subjectInfo.value(_q_SubjectInfoToString(info));
 }
@@ -376,7 +376,7 @@ QString QSslCertificate::subjectInfo(const QByteArray &tag) const
     // lazy init
     if (d->subjectInfo.isEmpty() && d->x509)
         d->subjectInfo =
-                _q_mapFromOnelineName(q_X509_NAME_oneline(q_X509_get_subject_name(d->x509), 0, 0));
+                _q_mapFromX509Name(q_X509_get_subject_name(d->x509));
 
     return d->subjectInfo.value(QString::fromLatin1(tag));
 }
@@ -666,37 +666,17 @@ QByteArray QSslCertificatePrivate::QByteArray_from_X509(X509 *x509, QSsl::Encodi
     return BEGINCERTSTRING "\n" + tmp + ENDCERTSTRING "\n";
 }
 
-static QMap<QString, QString> _q_mapFromOnelineName(char *name)
+static QMap<QString, QString> _q_mapFromX509Name(X509_NAME *name)
 {
     QMap<QString, QString> info;
-    QString infoStr = QString::fromLocal8Bit(name);
-    q_CRYPTO_free(name);
-
-    // ### The right-hand encoding seems to allow hex (Regulierungsbeh\xC8orde)
-    //entry.replace(QLatin1String("\\x"), QLatin1String("%"));
-    //entry = QUrl::fromPercentEncoding(entry.toLatin1());
-    // ### See RFC-4630 for more details!
-
-    QRegExp rx(QLatin1String("/([A-Za-z]+)=(.+)"));
-
-    int pos = 0;
-    while ((pos = rx.indexIn(infoStr, pos)) != -1) {
-        const QString name = rx.cap(1);
-
-        QString value = rx.cap(2);
-        const int valuePos = rx.pos(2);
-
-        const int next = rx.indexIn(value);
-        if (next == -1) {
-            info.insert(name, value);
-            break;
-        }
-
-        value = value.left(next);
-        info.insert(name, value);
-        pos = valuePos + value.length();
+    for (int i = 0; i < q_X509_NAME_entry_count(name); ++i) {
+        X509_NAME_ENTRY *e = q_X509_NAME_get_entry(name, i);
+        const char *obj = q_OBJ_nid2sn(q_OBJ_obj2nid(q_X509_NAME_ENTRY_get_object(e)));
+        unsigned char *data = 0;
+        int size = q_ASN1_STRING_to_UTF8(&data, q_X509_NAME_ENTRY_get_data(e));
+        info[QString::fromUtf8(obj)] = QString::fromUtf8((char*)data, size);
+        q_CRYPTO_free(data);
     }
-
     return info;
 }
 
@@ -803,22 +783,50 @@ QList<QSslCertificate> QSslCertificatePrivate::certificatesFromDer(const QByteAr
 // These certificates are known to be fraudulent and were created during the comodo
 // compromise. See http://www.comodo.com/Comodo-Fraud-Incident-2011-03-23.html
 static const char *certificate_blacklist[] = {
-    "04:7e:cb:e9:fc:a5:5f:7b:d0:9e:ae:36:e1:0c:ae:1e",
-    "f5:c8:6a:f3:61:62:f1:3a:64:f5:4f:6d:c9:58:7c:06",
-    "d7:55:8f:da:f5:f1:10:5b:b2:13:28:2b:70:77:29:a3",
-    "39:2a:43:4f:0e:07:df:1f:8a:a3:05:de:34:e0:c2:29",
-    "3e:75:ce:d4:6b:69:30:21:21:88:30:ae:86:a8:2a:71",
-    "e9:02:8b:95:78:e4:15:dc:1a:71:0a:2b:88:15:44:47",
-    "92:39:d5:34:8f:40:d1:69:5a:74:54:70:e1:f2:3f:43",
-    "b0:b7:13:3e:d0:96:f9:b5:6f:ae:91:c8:74:bd:3a:c0",
-    "d8:f3:5f:4e:b7:87:2b:2d:ab:06:92:e3:15:38:2f:b0",
+    "04:7e:cb:e9:fc:a5:5f:7b:d0:9e:ae:36:e1:0c:ae:1e", "mail.google.com", // Comodo
+    "f5:c8:6a:f3:61:62:f1:3a:64:f5:4f:6d:c9:58:7c:06", "www.google.com", // Comodo
+    "d7:55:8f:da:f5:f1:10:5b:b2:13:28:2b:70:77:29:a3", "login.yahoo.com", // Comodo
+    "39:2a:43:4f:0e:07:df:1f:8a:a3:05:de:34:e0:c2:29", "login.yahoo.com", // Comodo
+    "3e:75:ce:d4:6b:69:30:21:21:88:30:ae:86:a8:2a:71", "login.yahoo.com", // Comodo
+    "e9:02:8b:95:78:e4:15:dc:1a:71:0a:2b:88:15:44:47", "login.skype.com", // Comodo
+    "92:39:d5:34:8f:40:d1:69:5a:74:54:70:e1:f2:3f:43", "addons.mozilla.org", // Comodo
+    "b0:b7:13:3e:d0:96:f9:b5:6f:ae:91:c8:74:bd:3a:c0", "login.live.com", // Comodo
+    "d8:f3:5f:4e:b7:87:2b:2d:ab:06:92:e3:15:38:2f:b0", "global trustee", // Comodo
+
+    "05:e2:e6:a4:cd:09:ea:54:d6:65:b0:75:fe:22:a2:56", "*.google.com", // leaf certificate issued by DigiNotar
+    "0c:76:da:9c:91:0c:4e:2c:9e:fe:15:d0:58:93:3c:4c", "DigiNotar Root CA", // DigiNotar root
+    "f1:4a:13:f4:87:2b:56:dc:39:df:84:ca:7a:a1:06:49", "DigiNotar Services CA", // DigiNotar intermediate signed by DigiNotar Root
+    "36:16:71:55:43:42:1b:9d:e6:cb:a3:64:41:df:24:38", "DigiNotar Services 1024 CA", // DigiNotar intermediate signed by DigiNotar Root
+    "0a:82:bd:1e:14:4e:88:14:d7:5b:1a:55:27:be:bf:3e", "DigiNotar Root CA G2", // other DigiNotar Root CA
+    "a4:b6:ce:e3:2e:d3:35:46:26:3c:b3:55:3a:a8:92:21", "CertiID Enterprise Certificate Authority", // DigiNotar intermediate signed by "DigiNotar Root CA G2"
+    "5b:d5:60:9c:64:17:68:cf:21:0e:35:fd:fb:05:ad:41", "DigiNotar Qualified CA", // DigiNotar intermediate signed by DigiNotar Root
+
+    "1184640176",                                      "DigiNotar Services 1024 CA", // DigiNotar intermediate cross-signed by Entrust
+    "120000525",                                       "DigiNotar Cyber CA", // DigiNotar intermediate cross-signed by CyberTrust
+    "120000505",                                       "DigiNotar Cyber CA", // DigiNotar intermediate cross-signed by CyberTrust
+    "120000515",                                       "DigiNotar Cyber CA", // DigiNotar intermediate cross-signed by CyberTrust
+    "20015536",                                        "DigiNotar PKIoverheid CA Overheid en Bedrijven", // DigiNotar intermediate cross-signed by the Dutch government
+    "20001983",                                        "DigiNotar PKIoverheid CA Organisatie - G2", // DigiNotar intermediate cross-signed by the Dutch government
+    "d6:d0:29:77:f1:49:fd:1a:83:f2:b9:ea:94:8c:5c:b4", "DigiNotar Extended Validation CA", // DigiNotar intermediate signed by DigiNotar EV Root
+    "1e:7d:7a:53:3d:45:30:41:96:40:0f:71:48:1f:45:04", "DigiNotar Public CA 2025", // DigiNotar intermediate
+//    "(has not been seen in the wild so far)", "DigiNotar Public CA - G2", // DigiNotar intermediate
+//    "(has not been seen in the wild so far)", "Koninklijke Notariele Beroepsorganisatie CA", // compromised during DigiNotar breach
+//    "(has not been seen in the wild so far)", "Stichting TTP Infos CA," // compromised during DigiNotar breach
+    "1184640175", "DigiNotar Root CA", // DigiNotar intermediate cross-signed by Entrust
+    "1184644297", "DigiNotar Root CA", // DigiNotar intermediate cross-signed by Entrust
+
+    "120001705", "Digisign Server ID (Enrich)", // (Malaysian) Digicert Sdn. Bhd. cross-signed by Verizon CyberTrust
+    "1276011370", "Digisign Server ID - (Enrich)", // (Malaysian) Digicert Sdn. Bhd. cross-signed by Entrust
     0
 };
 
 bool QSslCertificatePrivate::isBlacklisted(const QSslCertificate &certificate)
 {
     for (int a = 0; certificate_blacklist[a] != 0; a++) {
-        if (certificate.serialNumber() == certificate_blacklist[a])
+        QString blacklistedCommonName = QString::fromUtf8(certificate_blacklist[(a+1)]);
+        if (certificate.serialNumber() == certificate_blacklist[a++] &&
+            (certificate.subjectInfo(QSslCertificate::CommonName) == blacklistedCommonName ||
+             certificate.issuerInfo(QSslCertificate::CommonName) == blacklistedCommonName))
             return true;
     }
     return false;

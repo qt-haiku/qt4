@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -210,7 +210,11 @@ int main(int argc, char **argv)
     view->setBackgroundBrush(bgPix);
     view->setCacheMode(QGraphicsView::CacheBackground);
     view->setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
+#ifdef Q_OS_SYMBIAN
+    view->showMaximized();
+#else
     view->show();
+#endif
 
     QStateMachine states;
     states.addState(rootState);

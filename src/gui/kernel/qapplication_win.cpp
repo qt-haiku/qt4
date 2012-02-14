@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -218,9 +218,9 @@ static bool aygResolved = false;
 static void resolveAygLibs()
 {
     if (!aygResolved) {
-        aygResolved = true;
         QSystemLibrary ayglib(QLatin1String("aygshell"));
         ptrRecognizeGesture = (AygRecognizeGesture) ayglib.resolve("SHRecognizeGesture");
+        aygResolved = true;
     }
 }
 #endif // QT_NO_GESTURES
@@ -237,6 +237,7 @@ static void resolveAygLibs()
 #  define FE_FONTSMOOTHINGCLEARTYPE 0x0002
 #endif
 
+Q_GUI_EXPORT qreal qt_fontsmoothing_gamma;
 Q_GUI_EXPORT bool qt_cleartype_enabled;
 Q_GUI_EXPORT bool qt_win_owndc_required; // CS_OWNDC is required if we use the GL graphicssystem as default
 
@@ -653,8 +654,18 @@ static void qt_win_read_cleartype_settings()
     if (SystemParametersInfo(SPI_GETFONTSMOOTHINGTYPE, 0, &result, 0))
         qt_cleartype_enabled = (result == FE_FONTSMOOTHINGCLEARTYPE);
 #endif
-}
 
+    int winSmooth;
+    if (SystemParametersInfo(0x200C /* SPI_GETFONTSMOOTHINGCONTRAST */, 0, &winSmooth, 0)) {
+        qt_fontsmoothing_gamma = winSmooth / qreal(1000.0);
+    } else {
+        qt_fontsmoothing_gamma = 1.0;
+    }
+
+    // Safeguard ourselves against corrupt registry values...
+    if (qt_fontsmoothing_gamma > 5 || qt_fontsmoothing_gamma < 1)
+        qt_fontsmoothing_gamma = qreal(1.4);
+}
 
 static void qt_set_windows_resources()
 {
@@ -671,7 +682,7 @@ void QApplicationPrivate::initializeWidgetPaletteHash()
     QColor menuText(qt_colorref2qrgb(GetSysColor(COLOR_MENUTEXT)));
     BOOL isFlat = false;
     if ((QSysInfo::WindowsVersion >= QSysInfo::WV_XP
-        && QSysInfo::WindowsVersion < QSysInfo::WV_NT_based))
+        && (QSysInfo::WindowsVersion & QSysInfo::WV_NT_based)))
         SystemParametersInfo(SPI_GETFLATMENU, 0, &isFlat, 0);
     QPalette menu(pal);
     // we might need a special color group for the menu.
@@ -686,7 +697,7 @@ void QApplicationPrivate::initializeWidgetPaletteHash()
     menu.setColor(QPalette::Disabled, QPalette::Highlight,
                     QColor(qt_colorref2qrgb(GetSysColor(
                                             (QSysInfo::WindowsVersion >= QSysInfo::WV_XP
-                                            && QSysInfo::WindowsVersion < QSysInfo::WV_NT_based)
+                                            && (QSysInfo::WindowsVersion & QSysInfo::WV_NT_based))
                                             && isFlat ? COLOR_MENUHILIGHT : COLOR_HIGHLIGHT))));
     menu.setColor(QPalette::Disabled, QPalette::HighlightedText, disabled);
     menu.setColor(QPalette::Disabled, QPalette::Button,
@@ -708,7 +719,7 @@ void QApplicationPrivate::initializeWidgetPaletteHash()
     QApplication::setPalette(menu, "QMenu");
 
     if ((QSysInfo::WindowsVersion >= QSysInfo::WV_XP
-        && QSysInfo::WindowsVersion < QSysInfo::WV_NT_based) && isFlat) {
+        && (QSysInfo::WindowsVersion & QSysInfo::WV_NT_based)) && isFlat) {
         QColor menubar(qt_colorref2qrgb(GetSysColor(COLOR_MENUBAR)));
         menu.setColor(QPalette::Active, QPalette::Button, menubar);
         menu.setColor(QPalette::Disabled, QPalette::Button, menubar);
@@ -843,19 +854,15 @@ void qt_init(QApplicationPrivate *priv, int)
     qt_win_initialize_directdraw();
 
 #ifndef Q_OS_WINCE
-    ptrUpdateLayeredWindowIndirect =
-        (PtrUpdateLayeredWindowIndirect) QSystemLibrary::resolve(QLatin1String("user32"),
-                                                           "UpdateLayeredWindowIndirect");
-    ptrUpdateLayeredWindow =
-        (PtrUpdateLayeredWindow) QSystemLibrary::resolve(QLatin1String("user32"),
-                                                   "UpdateLayeredWindow");
+    QSystemLibrary user32(QLatin1String("user32"));
+    ptrUpdateLayeredWindowIndirect = (PtrUpdateLayeredWindowIndirect)user32.resolve("UpdateLayeredWindowIndirect");
+    ptrUpdateLayeredWindow = (PtrUpdateLayeredWindow)user32.resolve("UpdateLayeredWindow");
 
     if (ptrUpdateLayeredWindow && !ptrUpdateLayeredWindowIndirect)
         ptrUpdateLayeredWindowIndirect = qt_updateLayeredWindowIndirect;
 
     // Notify Vista and Windows 7 that we support highter DPI settings
-    ptrSetProcessDPIAware = (PtrSetProcessDPIAware)
-        QSystemLibrary::resolve(QLatin1String("user32"), "SetProcessDPIAware");
+    ptrSetProcessDPIAware = (PtrSetProcessDPIAware)user32.resolve("SetProcessDPIAware");
     if (ptrSetProcessDPIAware)
         ptrSetProcessDPIAware();
 #endif
@@ -875,29 +882,16 @@ void qt_init(QApplicationPrivate *priv, int)
     priv->GetGestureExtraArgs = (PtrGetGestureExtraArgs) &TKGetGestureExtraArguments;
 #elif !defined(Q_WS_WINCE)
   #if !defined(QT_NO_NATIVE_GESTURES)
-    priv->GetGestureInfo =
-            (PtrGetGestureInfo)QSystemLibrary::resolve(QLatin1String("user32"),
-                                                 "GetGestureInfo");
-    priv->GetGestureExtraArgs =
-            (PtrGetGestureExtraArgs)QSystemLibrary::resolve(QLatin1String("user32"),
-                                                      "GetGestureExtraArgs");
-    priv->CloseGestureInfoHandle =
-            (PtrCloseGestureInfoHandle)QSystemLibrary::resolve(QLatin1String("user32"),
-                                                         "CloseGestureInfoHandle");
-    priv->SetGestureConfig =
-            (PtrSetGestureConfig)QSystemLibrary::resolve(QLatin1String("user32"),
-                                                   "SetGestureConfig");
-    priv->GetGestureConfig =
-            (PtrGetGestureConfig)QSystemLibrary::resolve(QLatin1String("user32"),
-                                                   "GetGestureConfig");
+    priv->GetGestureInfo = (PtrGetGestureInfo)user32.resolve("GetGestureInfo");
+    priv->GetGestureExtraArgs = (PtrGetGestureExtraArgs)user32.resolve("GetGestureExtraArgs");
+    priv->CloseGestureInfoHandle = (PtrCloseGestureInfoHandle)user32.resolve("CloseGestureInfoHandle");
+    priv->SetGestureConfig = (PtrSetGestureConfig)user32.resolve("SetGestureConfig");
+    priv->GetGestureConfig = (PtrGetGestureConfig)user32.resolve("GetGestureConfig");
   #endif // QT_NO_NATIVE_GESTURES
     QSystemLibrary libTheme(QLatin1String("uxtheme"));
-    priv->BeginPanningFeedback =
-            (PtrBeginPanningFeedback)libTheme.resolve("BeginPanningFeedback");
-    priv->UpdatePanningFeedback =
-            (PtrUpdatePanningFeedback)libTheme.resolve("UpdatePanningFeedback");
-    priv->EndPanningFeedback =
-        (PtrEndPanningFeedback)libTheme.resolve("EndPanningFeedback");
+    priv->BeginPanningFeedback = (PtrBeginPanningFeedback)libTheme.resolve("BeginPanningFeedback");
+    priv->UpdatePanningFeedback = (PtrUpdatePanningFeedback)libTheme.resolve("UpdatePanningFeedback");
+    priv->EndPanningFeedback = (PtrEndPanningFeedback)libTheme.resolve("EndPanningFeedback");
 #endif
 #endif // QT_NO_GESTURES
 }
@@ -988,7 +982,7 @@ const QString qt_reg_winclass(QWidget *w)        // register window class
         style = CS_DBLCLKS;
         if (w->inherits("QTipLabel") || w->inherits("QAlphaWidget")) {
             if ((QSysInfo::WindowsVersion >= QSysInfo::WV_XP
-                && QSysInfo::WindowsVersion < QSysInfo::WV_NT_based)) {
+                && (QSysInfo::WindowsVersion & QSysInfo::WV_NT_based))) {
                 style |= CS_DROPSHADOW;
             }
             cname = QLatin1String("QToolTip");
@@ -1006,7 +1000,7 @@ const QString qt_reg_winclass(QWidget *w)        // register window class
         style |= CS_SAVEBITS;
 #endif
         if ((QSysInfo::WindowsVersion >= QSysInfo::WV_XP
-            && QSysInfo::WindowsVersion < QSysInfo::WV_NT_based))
+            && (QSysInfo::WindowsVersion & QSysInfo::WV_NT_based)))
             style |= CS_DROPSHADOW;
         icon = false;
     } else {
@@ -1306,6 +1300,11 @@ Qt::KeyboardModifiers qt_win_getKeyboardModifiers()
     if (GetKeyState(VK_MENU) < 0)
         modifiers |= Qt::AltModifier;
     return modifiers;
+}
+
+Qt::KeyboardModifiers QApplication::queryKeyboardModifiers()
+{
+    return qt_win_getKeyboardModifiers();
 }
 
 /*****************************************************************************
@@ -1715,8 +1714,8 @@ extern "C" LRESULT QT_WIN_CALLBACK QtWndProc(HWND hwnd, UINT message, WPARAM wPa
                         shrg.ptDown.x = GET_X_LPARAM(lParam);
                         shrg.ptDown.y = GET_Y_LPARAM(lParam);
                         shrg.dwFlags = SHRG_RETURNCMD | SHRG_NOANIMATION;
-                        resolveAygLibs();
 #ifndef QT_NO_GESTURES
+                        resolveAygLibs();
                         if (ptrRecognizeGesture && (ptrRecognizeGesture(&shrg) == GN_CONTEXTMENU)) {
                             if (QApplication::activePopupWidget())
                                 QApplication::activePopupWidget()->close();
@@ -2361,8 +2360,14 @@ extern "C" LRESULT QT_WIN_CALLBACK QtWndProc(HWND hwnd, UINT message, WPARAM wPa
 #ifndef QT_NO_ACCESSIBILITY
         case WM_GETOBJECT:
             {
+#if !defined(Q_OS_WINCE)
+                /* On Win64, lParam can be 0x00000000fffffffc or 0xfffffffffffffffc (!),
+                   but MSDN says that lParam should be converted to a DWORD
+                   before its compared against OBJID_CLIENT
+                */
+                const DWORD dwObjId = (DWORD)lParam;
                 // Ignoring all requests while starting up
-                if (QApplication::startingUp() || QApplication::closingDown() || lParam != (LPARAM)OBJID_CLIENT) {
+                if (QApplication::startingUp() || QApplication::closingDown() || dwObjId != OBJID_CLIENT) {
                     result = false;
                     break;
                 }
@@ -2370,12 +2375,10 @@ extern "C" LRESULT QT_WIN_CALLBACK QtWndProc(HWND hwnd, UINT message, WPARAM wPa
                 typedef LRESULT (WINAPI *PtrLresultFromObject)(REFIID, WPARAM, LPUNKNOWN);
                 static PtrLresultFromObject ptrLresultFromObject = 0;
                 static bool oleaccChecked = false;
-
                 if (!oleaccChecked) {
+                    QSystemLibrary oleacclib(QLatin1String("oleacc"));
+                    ptrLresultFromObject = (PtrLresultFromObject)oleacclib.resolve("LresultFromObject");
                     oleaccChecked = true;
-#if !defined(Q_OS_WINCE)
-                    ptrLresultFromObject = (PtrLresultFromObject)QSystemLibrary::resolve(QLatin1String("oleacc"), "LresultFromObject");
-#endif
                 }
                 if (ptrLresultFromObject) {
                     QAccessibleInterface *acc = QAccessible::queryAccessibleInterface(widget);
@@ -2392,6 +2395,7 @@ extern "C" LRESULT QT_WIN_CALLBACK QtWndProc(HWND hwnd, UINT message, WPARAM wPa
                     if (res > 0)
                         RETURN(res);
                 }
+#endif
             }
             result = false;
             break;
@@ -3177,8 +3181,8 @@ bool QETWidget::translateMouseEvent(const MSG &msg)
 
             if (curWin != 0) {
                 if (!trackMouseEventLookup) {
-                    trackMouseEventLookup = true;
                     ptrTrackMouseEvent = (PtrTrackMouseEvent)QSystemLibrary::resolve(QLatin1String("comctl32"), "_TrackMouseEvent");
+                    trackMouseEventLookup = true;
                 }
                 if (ptrTrackMouseEvent && !qApp->d_func()->inPopupMode()) {
                     // We always have to set the tracking, since
@@ -4140,7 +4144,8 @@ PtrCloseTouchInputHandle QApplicationPrivate::CloseTouchInputHandle = 0;
 
 void QApplicationPrivate::initializeMultitouch_sys()
 {
-    if (QSysInfo::windowsVersion() >= QSysInfo::WV_WINDOWS7) {
+    if (QSysInfo::windowsVersion() >= QSysInfo::WV_WINDOWS7
+        && (QSysInfo::WindowsVersion & QSysInfo::WV_NT_based)) {
         static const int QT_SM_DIGITIZER = 94;
         int value = GetSystemMetrics(QT_SM_DIGITIZER);
         static const int QT_NID_INTEGRATED_TOUCH = 0x01;

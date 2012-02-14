@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -66,13 +66,12 @@
 
 #ifndef QT_NO_QOBJECT
 #include "qcoreapplication.h"
+#endif
 
 #ifdef Q_OS_WIN // for homedirpath reading from registry
 #include "qt_windows.h"
 #include <private/qsystemlibrary_p.h>
-
-#endif // Q_OS_WIN
-#endif // QT_NO_QOBJECT
+#endif
 
 #ifdef Q_OS_VXWORKS
 #  include <ioLib.h>
@@ -791,6 +790,9 @@ bool QSettingsPrivate::iniUnescapedStringList(const QByteArray &str, int from, i
                                               QString &stringResult, QStringList &stringListResult,
                                               QTextCodec *codec)
 {
+#ifdef QT_NO_TEXTCODE
+    Q_UNUSED(codec);
+#endif
     static const char escapeCodes[][2] =
     {
         { 'a', '\a' },
@@ -981,23 +983,6 @@ QStringList QSettingsPrivate::splitArgs(const QString &s, int idx)
 // ************************************************************************
 // QConfFileSettingsPrivate
 
-/*
-    If we don't have the permission to read the file, returns false.
-    If the file doesn't exist, returns true.
-*/
-static bool checkAccess(const QString &name)
-{
-    QFileInfo fileInfo(name);
-
-    if (fileInfo.exists()) {
-        QFile file(name);
-        // if the file exists but we can't open it, report an error
-        return file.open(QFile::ReadOnly);
-    } else {
-        return true;
-    }
-}
-
 void QConfFileSettingsPrivate::initFormat()
 {
     extension = (format == QSettings::NativeFormat) ? QLatin1String(".conf") : QLatin1String(".ini");
@@ -1026,17 +1011,12 @@ void QConfFileSettingsPrivate::initFormat()
 
 void QConfFileSettingsPrivate::initAccess()
 {
-    bool readAccess = false;
     if (confFiles[spec]) {
-        readAccess = checkAccess(confFiles[spec]->name);
         if (format > QSettings::IniFormat) {
             if (!readFunc)
-                readAccess = false;
+                setStatus(QSettings::AccessError);
         }
     }
-
-    if (!readAccess)
-        setStatus(QSettings::AccessError);
 
     sync();       // loads the files the first time
 }
@@ -1046,9 +1026,6 @@ static QString windowsConfigPath(int type)
 {
     QString result;
 
-#ifndef QT_NO_QOBJECT
-    // We can't use QLibrary if there is QT_NO_QOBJECT is defined
-    // This only happens when bootstrapping qmake.
 #ifndef Q_OS_WINCE
     QSystemLibrary library(QLatin1String("shell32"));
 #else
@@ -1061,8 +1038,6 @@ static QString windowsConfigPath(int type)
         SHGetSpecialFolderPath(0, path, type, FALSE);
         result = QString::fromWCharArray(path);
     }
-
-#endif // QT_NO_QOBJECT
 
     if (result.isEmpty()) {
         switch (type) {
@@ -1136,11 +1111,11 @@ static void initDefaultPaths(QMutexLocker *locker)
             userPath += QLatin1String(".config");
 #endif
         } else if (*env == '/') {
-            userPath = QLatin1String(env);
+            userPath = QFile::decodeName(env);
         } else {
             userPath = homePath;
             userPath += QLatin1Char('/');
-            userPath += QLatin1String(env);
+            userPath += QFile::decodeName(env);
         }
         userPath += QLatin1Char('/');
 
@@ -1432,7 +1407,7 @@ void QConfFileSettingsPrivate::syncConfFile(int confFileNo)
         We can often optimize the read-only case, if the file on disk
         hasn't changed.
     */
-    if (readOnly) {
+    if (readOnly && confFile->size > 0) {
         QFileInfo fileInfo(confFile->name);
         if (confFile->size == fileInfo.size() && confFile->timeStamp == fileInfo.lastModified())
             return;
@@ -1454,6 +1429,9 @@ void QConfFileSettingsPrivate::syncConfFile(int confFileNo)
         file.open(QFile::ReadWrite);
     if (!file.isOpen())
         file.open(QFile::ReadOnly);
+
+    if (!createFile && !file.isOpen())
+        setStatus(QSettings::AccessError);
 
 #ifdef Q_OS_WIN
     HANDLE readSemaphore = 0;
@@ -2357,6 +2335,25 @@ void QConfFileSettingsPrivate::ensureSectionParsed(QConfFile *confFile,
     %COMMON_APPDATA% path is usually \tt{C:\\Documents and
     Settings\\All Users\\Application Data}.
 
+    On Symbian, the following files are used for both IniFormat and
+    NativeFormat (in this example, we assume that the application is
+    installed on the \c e-drive and its Secure ID is \c{0xECB00931}):
+
+    \list 1
+    \o \c{c:\data\.config\MySoft\Star Runner.conf}
+    \o \c{c:\data\.config\MySoft.conf}
+    \o \c{e:\private\ecb00931\MySoft\Star Runner.conf}
+    \o \c{e:\private\ecb00931\MySoft.conf}
+    \endlist
+
+    The SystemScope settings location is determined from the installation
+    drive and Secure ID (UID3) of the application. If the application is
+    built-in on the ROM, the drive used for SystemScope is \c c:.
+
+    \note Symbian SystemScope settings are by default private to the
+    application and not shared between applications, unlike other
+    environments.
+
     The paths for the \c .ini and \c .conf files can be changed using
     setPath(). On Unix and Mac OS X, the user can override them by by
     setting the \c XDG_CONFIG_HOME environment variable; see
@@ -2413,6 +2410,32 @@ void QConfFileSettingsPrivate::ensureSectionParsed(QConfFile *confFile,
 
     On other platforms than Windows, "Default" and "." would be
     treated as regular subkeys.
+
+    \section2 Securing application settings in Symbian
+
+    UserScope settings in Symbian are writable by any application by
+    default. To protect the application settings from access and tampering
+    by other applications, the settings need to be placed in the private
+    secure area of the application. This can be done by specifying the
+    settings storage path directly to the private area. The following
+    snippet changes the UserScope to \c{c:/private/ecb00931/MySoft.conf}
+    (provided the application is installed on the \c{c-drive} and its
+    Secure ID is \c{0xECB00931}:
+
+    \snippet doc/src/snippets/code/src_corelib_io_qsettings.cpp 30
+
+    Framework libraries (like Qt itself) may store configuration and cache
+    settings using UserScope, which is accessible and writable by other
+    applications. If the application is very security sensitive or uses
+    high platform security capabilities, it may be prudent to also force
+    framework settings to be stored in the private directory of the
+    application. This can be done by changing the default path of UserScope
+    before QApplication is created:
+
+    \snippet doc/src/snippets/code/src_corelib_io_qsettings.cpp 31
+
+    Note that this may affect framework libraries' functionality if they expect
+    the settings to be shared between applications.
 
     \section2 Platform Limitations
 
@@ -3448,6 +3471,8 @@ void QSettings::setUserIniPath(const QString &dir)
     \row                                                        \o SystemScope \o \c /etc/xdg
     \row    \o{1,2} Mac OS X    \o{1,2} IniFormat               \o UserScope   \o \c $HOME/.config
     \row                                                        \o SystemScope \o \c /etc/xdg
+    \row    \o{1,2} Symbian     \o{1,2} NativeFormat, IniFormat \o UserScope   \o \c c:/data/.config
+    \row                                                        \o SystemScope \o \c <drive>/private/<uid>
     \endtable
 
     The default UserScope paths on Unix and Mac OS X (\c

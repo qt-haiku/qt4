@@ -1,36 +1,36 @@
 
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -52,6 +52,7 @@
 #include <qmap.h>
 #include <qsettings.h>
 #include <qdatetime.h>
+#include <private/qcoreapplication_p.h>
 #ifdef Q_OS_MAC
 #  include <private/qcore_mac_p.h>
 #endif
@@ -408,12 +409,6 @@ static bool qt_unix_query(const QString &library, uint *version, bool *debug, QB
 typedef QMap<QString, QLibraryPrivate*> LibraryMap;
 
 struct LibraryData {
-    LibraryData() : settings(0) { }
-    ~LibraryData() {
-        delete settings;
-    }
-
-    QSettings *settings;
     LibraryMap libraryMap;
     QSet<QLibraryPrivate*> loadedLibs;
 };
@@ -654,7 +649,12 @@ bool qt_get_verificationdata(QtPluginQueryVerificationDataFunction pfn, uint *qt
 #else
     szData = pfn();
 #endif
-    return qt_parse_pattern(szData, qt_version, debug, key);
+
+#ifdef QT_NO_PLUGIN_CHECK
+	return true;
+#else
+	return qt_parse_pattern(szData, qt_version, debug, key);
+#endif
 }
 
 bool QLibraryPrivate::isPlugin(QSettings *settings)
@@ -711,11 +711,7 @@ bool QLibraryPrivate::isPlugin(QSettings *settings)
     QStringList reg;
 #ifndef QT_NO_SETTINGS
     if (!settings) {
-        settings = libraryData()->settings;
-        if (!settings) {
-            settings = new QSettings(QSettings::UserScope, QLatin1String("Trolltech"));
-            libraryData()->settings = settings;
-        }
+        settings = QCoreApplicationPrivate::trolltechConf();
     }
     reg = settings->value(regkey).toStringList();
 #endif
@@ -793,7 +789,7 @@ bool QLibraryPrivate::isPlugin(QSettings *settings)
                     // An exception was thrown when calling qt_plugin_query_verification_data().
                     // This usually happens when plugin is compiled with the /clr compiler flag,
                     // & will only work if the dependencies are loaded & DLLMain() is called.
-                    // LoadLibrary() will do this, try once with this & if it fails dont load.
+                    // LoadLibrary() will do this, try once with this & if it fails don't load.
                     retryLoadLibrary = !retryLoadLibrary;
                 }
 #endif

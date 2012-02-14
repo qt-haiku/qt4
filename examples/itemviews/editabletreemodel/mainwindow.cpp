@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -47,6 +47,11 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
     setupUi(this);
+
+#ifdef Q_WS_MAEMO_5
+    // Alternating row colors look bad on Maemo
+    view->setAlternatingRowColors(false);
+#endif
 
     QStringList headers;
     headers << tr("Title") << tr("Description");

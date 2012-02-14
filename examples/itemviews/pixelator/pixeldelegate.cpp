@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -80,7 +80,7 @@ void PixelDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
         painter->setBrush(option.palette.highlightedText());
     else
 //! [2]
-        painter->setBrush(QBrush(Qt::black));
+        painter->setBrush(option.palette.text());
 //! [9]
 
 //! [10]

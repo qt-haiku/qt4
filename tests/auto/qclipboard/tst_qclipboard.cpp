@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -73,6 +73,7 @@ private slots:
 #ifdef Q_OS_SYMBIAN
     void pasteCopySymbian();
     void copyPasteSymbian();
+    void copyCopyPasteSymbian();
 #endif
 
 private:
@@ -140,8 +141,8 @@ void tst_QClipboard::modes()
 }
 
 /*
-    Test that the apropriate signals are emitted when the cliboard
-    contents is changed by calling the qt funcitons.
+    Test that the appropriate signals are emitted when the cliboard
+    contents is changed by calling the qt functions.
 */
 void tst_QClipboard::testSignals()
 {
@@ -170,7 +171,7 @@ void tst_QClipboard::testSignals()
 
     changedSpy.clear();
 
-    // Test the selction mode signal.
+    // Test the selection mode signal.
     if (clipboard->supportsSelection()) {
         clipboard->setText(text, QClipboard::Selection);
         QCOMPARE(selectionChangedSpy.count(), 1);
@@ -347,17 +348,17 @@ void tst_QClipboard::clearBeforeSetText()
     QCOMPARE(QApplication::clipboard()->text(), text);
 }
 
+#ifdef Q_OS_SYMBIAN
 /*
     Test that text copied from qt application
     can be pasted with symbian clipboard
 */
-#ifdef Q_OS_SYMBIAN
 // ### This test case only makes sense in symbian
 void tst_QClipboard::pasteCopySymbian()
 {
     if (!nativeClipboardWorking())
         QSKIP("Native clipboard not working in this setup", SkipAll);
-    const QString string("Test string symbian.");
+    const QString string("Test string qt->symbian.");
     QApplication::clipboard()->setText(string);
 
     const TInt KPlainTextBegin = 0;
@@ -381,19 +382,9 @@ void tst_QClipboard::pasteCopySymbian()
 
     QCOMPARE(string, storeString);
 }
-#endif
 
-/*
-    Test that text copied to symbian clipboard
-    can be pasted to qt clipboard
-*/
-#ifdef Q_OS_SYMBIAN
-// ### This test case only makes sense in symbian
-void tst_QClipboard::copyPasteSymbian()
+static void nativeCopyHelper(const QString &string)
 {
-    if (!nativeClipboardWorking())
-        QSKIP("Native clipboard not working in this setup", SkipAll);
-    const QString string("Test string symbian.");
     const TInt KPlainTextBegin = 0;
 
     RFs fs = qt_s60GetRFs();
@@ -412,8 +403,55 @@ void tst_QClipboard::copyPasteSymbian()
     (cb->StreamDictionary()).AssignL(KClipboardUidTypePlainText, symbianStId);
     cb->CommitL();
     CleanupStack::PopAndDestroy(2, cb);
+}
+
+/*
+    Test that text copied to symbian clipboard
+    can be pasted to qt clipboard
+*/
+// ### This test case only makes sense in symbian
+void tst_QClipboard::copyPasteSymbian()
+{
+    if (!nativeClipboardWorking())
+        QSKIP("Native clipboard not working in this setup", SkipAll);
+    const QString string("Test string symbian->qt.");
+
+    nativeCopyHelper(string);
 
     QCOMPARE(QApplication::clipboard()->text(), string);
+}
+
+/*
+    Test that text copied to symbian clipboard
+    can be pasted to qt clipboard, even if Qt
+    clipboard already had copied formatted text
+*/
+// ### This test case only makes sense in symbian
+void tst_QClipboard::copyCopyPasteSymbian()
+{
+    if (!nativeClipboardWorking())
+        QSKIP("Native clipboard not working in this setup", SkipAll);
+
+    //first copy some mime data with text/html and text/plain representations
+    QMimeData *mimeData = new QMimeData;
+    const QString preCopy(QLatin1String("qt_symbian"));
+    mimeData->setText(preCopy);
+    mimeData->setHtml(preCopy);
+    QApplication::clipboard()->setMimeData(mimeData);
+
+    //check both representations are pastable
+    QCOMPARE(QApplication::clipboard()->mimeData()->html(), preCopy);
+    QCOMPARE(QApplication::clipboard()->mimeData()->text(), preCopy);
+
+    //native copy some plain text
+    const QString string("symbian_qt");
+    nativeCopyHelper(string);
+
+    //check text/plain is pastable
+    QCOMPARE(QApplication::clipboard()->text(), string);
+    QCOMPARE(QApplication::clipboard()->mimeData()->text(), string);
+    //check text/html is cleared
+    QVERIFY(QApplication::clipboard()->mimeData()->html().isEmpty());
 }
 #endif
 

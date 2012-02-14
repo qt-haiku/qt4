@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -163,6 +163,10 @@ QApplicationPrivate *QApplicationPrivate::self = 0;
 QInputContext *QApplicationPrivate::inputContext = 0;
 
 bool QApplicationPrivate::quitOnLastWindowClosed = true;
+
+#ifdef Q_OS_SYMBIAN
+bool QApplicationPrivate::inputContextBeingCreated = false;
+#endif
 
 #ifdef Q_WS_WINCE
 int QApplicationPrivate::autoMaximizeThreshold = -1;
@@ -874,6 +878,10 @@ void QApplicationPrivate::construct(
     if (qt_is_gui_used)
         qt_guiPlatformPlugin();
 #endif
+
+#ifdef Q_OS_SYMBIAN
+    symbianHandleLiteModeStartup();
+#endif
 }
 
 #if defined(Q_WS_X11)
@@ -1017,6 +1025,10 @@ void QApplicationPrivate::initialize()
 
 #ifndef QT_NO_WHEELEVENT
     QApplicationPrivate::wheel_scroll_lines = 3;
+#endif
+
+#ifdef Q_WS_S60
+    q->setAttribute(Qt::AA_S60DisablePartialScreenInputMode);
 #endif
 
     if (qt_is_gui_used)
@@ -1288,8 +1300,8 @@ bool QApplication::compressEvent(QEvent *event, QObject *receiver, QPostEventLis
           || event->type() == QEvent::LanguageChange
           || event->type() == QEvent::UpdateSoftKeys
           || event->type() == QEvent::InputMethod)) {
-        for (int i = 0; i < postedEvents->size(); ++i) {
-            const QPostEvent &cur = postedEvents->at(i);
+        for (QPostEventList::const_iterator it = postedEvents->constBegin(); it != postedEvents->constEnd(); ++it) {
+            const QPostEvent &cur = *it;
             if (cur.receiver != receiver || cur.event == 0 || cur.event->type() != event->type())
                 continue;
             if (cur.event->type() == QEvent::LayoutRequest
@@ -3317,13 +3329,32 @@ bool QApplication::desktopSettingsAware()
     one of the above events. If no keys are being held Qt::NoModifier is
     returned.
 
-    \sa mouseButtons()
+    \sa mouseButtons(), queryKeyboardModifiers()
 */
 
 Qt::KeyboardModifiers QApplication::keyboardModifiers()
 {
     return QApplicationPrivate::modifier_buttons;
 }
+
+/*!
+    \fn Qt::KeyboardModifiers QApplication::queryKeyboardModifiers()
+
+    Queries and returns the state of the modifier keys on the keyboard.
+    Unlike keyboardModifiers, this method returns the actual keys held
+    on the input device at the time of calling the method.
+
+    It does not rely on the keypress events having been received by this
+    process, which makes it possible to check the modifiers while moving
+    a window, for instance. Note that in most cases, you should use
+    keyboardModifiers(), which is faster and more accurate since it contains
+    the state of the modifiers as they were when the currently processed
+    event was received.
+
+    \sa keyboardModifiers()
+
+    \since 4.8
+*/
 
 /*!
     Returns the current state of the buttons on the mouse. The current state is
@@ -3399,7 +3430,35 @@ QString QApplication::sessionKey() const
 }
 #endif
 
+/*!
+    \since 4.7.4
+    \fn void QApplication::aboutToReleaseGpuResources()
 
+    This signal is emitted when application is about to release all
+    GPU resources associated to contexts owned by application.
+
+    The signal is particularly useful if your application has allocated
+    GPU resources directly apart from Qt and needs to do some last-second
+    cleanup.
+
+    \warning This signal is only emitted on Symbian.
+
+    \sa aboutToUseGpuResources()
+*/
+
+/*!
+    \since 4.7.4
+    \fn void QApplication::aboutToUseGpuResources()
+
+    This signal is emitted when application is about to use GPU resources.
+
+    The signal is particularly useful if your application needs to know
+    when GPU resources are be available.
+
+   \warning This signal is only emitted on Symbian.
+
+   \sa aboutToFreeGpuResources()
+*/
 
 /*!
     \since 4.2
@@ -5453,7 +5512,11 @@ QInputContext *QApplication::inputContext() const
         if (keys.contains(QLatin1String("hbim"))) {
             that->d_func()->inputContext = QInputContextFactory::create(QLatin1String("hbim"), that);
         } else if (keys.contains(QLatin1String("coefep"))) {
-            that->d_func()->inputContext = QInputContextFactory::create(QLatin1String("coefep"), that);
+            if (!that->d_func()->inputContextBeingCreated) {
+                that->d_func()->inputContextBeingCreated = true;
+                that->d_func()->inputContext = QInputContextFactory::create(QLatin1String("coefep"), that);
+                that->d_func()->inputContextBeingCreated = false;
+            }
         } else {
             for (int c = 0; c < keys.size() && !d->inputContext; ++c) {
                 that->d_func()->inputContext = QInputContextFactory::create(keys[c], that);

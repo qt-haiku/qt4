@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -48,7 +48,11 @@ int main(int argv, char **args)
     app.setApplicationName("Audio Input Test");
 
     InputTest input;
+#if defined(Q_OS_SYMBIAN)
+    input.showMaximized();
+#else
     input.show();
+#endif
 
     return app.exec();
 }

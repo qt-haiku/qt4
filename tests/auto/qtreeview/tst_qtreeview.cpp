@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -45,6 +45,7 @@
 
 #include <QtTest/QtTest>
 #include <QtGui/QtGui>
+#include <private/qabstractitemview_p.h>
 #include "../../shared/util.h"
 
 //TESTED_CLASS=
@@ -112,6 +113,7 @@ struct PublicView : public QTreeView
 
     inline QStyleOptionViewItem viewOptions() const { return QTreeView::viewOptions(); }
     inline int sizeHintForColumn(int column) const { return QTreeView::sizeHintForColumn(column); }
+    QAbstractItemViewPrivate* aiv_priv() { return static_cast<QAbstractItemViewPrivate*>(d_ptr.data()); }
 };
 
 class tst_QTreeView : public QObject
@@ -277,7 +279,8 @@ public:
     }
 
     int rowCount(const QModelIndex& parent = QModelIndex()) const {
-        Q_ASSERT(fetched);
+        if (!fetched)
+            qFatal("%s: rowCount should not be called before fetching", Q_FUNC_INFO);
         if ((parent.column() > 0) || (level(parent) > levels))
             return 0;
         return rows;
@@ -2383,6 +2386,14 @@ void tst_QTreeView::extendedSelection()
     QTreeView view(&topLevel);
     view.resize(qMax(mousePressPos.x() * 2, 200), qMax(mousePressPos.y() * 2, 200));
     view.setModel(&model);
+
+    //ensure that mousePressPos is below the last row if we want to unselect
+    if (!selectedCount) {
+        int minimumHeight = model.rowCount() * view.visualRect(model.index(0,0)).size().height();
+        if (mousePressPos.y() < minimumHeight)
+            mousePressPos.setY(minimumHeight + 10);
+    }
+
     view.setSelectionMode(QAbstractItemView::ExtendedSelection);
     topLevel.show();
     QTest::mousePress(view.viewport(), Qt::LeftButton, 0, mousePressPos);
@@ -2536,7 +2547,7 @@ void tst_QTreeView::sortByColumn()
 
 /*
     This is a model that every time kill() is called it will completely change
-    all of its nodes for new nodes.  It then asserts if you later use a dead node.
+    all of its nodes for new nodes.  It then qFatal's if you later use a dead node.
  */
 class EvilModel: public QAbstractItemModel
 {
@@ -2567,7 +2578,8 @@ public:
                 }
             }
             if (parent == 0) {
-                Q_ASSERT(children.isEmpty());
+                if (!children.isEmpty())
+                    qFatal("%s: children should be empty when parent is null", Q_FUNC_INFO);
                 populate();
             } else {
                 isDead = true;
@@ -2624,7 +2636,8 @@ public:
         Node *parentNode = root;
         if (parent.isValid()) {
             parentNode = static_cast<Node*>(parent.internalPointer());
-            Q_ASSERT(!parentNode->isDead);
+            if (parentNode->isDead)
+                qFatal("%s: parentNode is dead!", Q_FUNC_INFO);
         }
         return parentNode->children.count();
     }
@@ -2639,9 +2652,11 @@ public:
         Node *grandparentNode = static_cast<Node*>(parent.internalPointer());
         Node *parentNode = root;
         if (parent.isValid()) {
-            Q_ASSERT(!grandparentNode->isDead);
+            if (grandparentNode->isDead)
+                qFatal("%s: grandparentNode is dead!", Q_FUNC_INFO);
             parentNode = grandparentNode->children[parent.row()];
-            Q_ASSERT(!parentNode->isDead);
+            if (parentNode->isDead)
+                qFatal("%s: grandparentNode is dead!", Q_FUNC_INFO);
         }
         return createIndex(row, column, parentNode);
     }
@@ -2661,7 +2676,8 @@ public:
             Node *parentNode = root;
             if (idx.isValid()) {
                 parentNode = static_cast<Node*>(idx.internalPointer());
-                Q_ASSERT(!parentNode->isDead);
+                if (parentNode->isDead)
+                    qFatal("%s: grandparentNode is dead!", Q_FUNC_INFO);
             }
             return QString("[%1,%2,%3]").arg(idx.row()).arg(idx.column())
                 .arg(parentNode->isDead ? "dead" : "alive");
@@ -2889,6 +2905,10 @@ void tst_QTreeView::styleOptionViewItem()
 {
     class MyDelegate : public QStyledItemDelegate
     {
+        static QString posToString(QStyleOptionViewItemV4::ViewItemPosition pos) {
+            static const char* s_pos[] = { "Invalid", "Beginning", "Middle", "End", "OnlyOne" };
+            return s_pos[pos];
+        }
         public:
             void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index ) const
             {
@@ -2905,16 +2925,16 @@ void tst_QTreeView::styleOptionViewItem()
                 QCOMPARE(!(opt.features & QStyleOptionViewItemV2::HasCheckIndicator), !opt.text.contains("Checkable"));
 
                 if (opt.text.contains("Beginning"))
-                    QCOMPARE(opt.viewItemPosition, QStyleOptionViewItemV4::Beginning);
+                    QCOMPARE(posToString(opt.viewItemPosition), posToString(QStyleOptionViewItemV4::Beginning));
 
                 if (opt.text.contains("Middle"))
-                    QCOMPARE(opt.viewItemPosition, QStyleOptionViewItemV4::Middle);
+                    QCOMPARE(posToString(opt.viewItemPosition), posToString(QStyleOptionViewItemV4::Middle));
 
                 if (opt.text.contains("End"))
-                    QCOMPARE(opt.viewItemPosition, QStyleOptionViewItemV4::End);
+                    QCOMPARE(posToString(opt.viewItemPosition), posToString(QStyleOptionViewItemV4::End));
 
                 if (opt.text.contains("OnlyOne"))
-                    QCOMPARE(opt.viewItemPosition, QStyleOptionViewItemV4::OnlyOne);
+                    QCOMPARE(posToString(opt.viewItemPosition), posToString(QStyleOptionViewItemV4::OnlyOne));
 
                 if (opt.text.contains("Checked"))
                     QCOMPARE(opt.checkState, Qt::Checked);
@@ -2933,47 +2953,51 @@ void tst_QTreeView::styleOptionViewItem()
             bool allCollapsed;
     };
 
-    QTreeView view;
+    PublicView view;
     QStandardItemModel model;
     view.setModel(&model);
     MyDelegate delegate;
     view.setItemDelegate(&delegate);
     model.appendRow(QList<QStandardItem*>()
-        << new QStandardItem("Beginning") <<  new QStandardItem("Middle") << new QStandardItem("Middle") << new QStandardItem("End") );
+        << new QStandardItem("Beginning") << new QStandardItem("Hidden") << new QStandardItem("Middle") << new QStandardItem("Middle") << new QStandardItem("End") );
     QStandardItem *par1 = new QStandardItem("Beginning HasChildren");
     model.appendRow(QList<QStandardItem*>()
-        << par1 <<  new QStandardItem("Middle HasChildren") << new QStandardItem("Middle HasChildren") << new QStandardItem("End HasChildren") );
+        << par1 << new QStandardItem("Hidden") << new QStandardItem("Middle HasChildren") << new QStandardItem("Middle HasChildren") << new QStandardItem("End HasChildren") );
     model.appendRow(QList<QStandardItem*>()
-        << new QStandardItem("OnlyOne") <<  new QStandardItem("Assert") << new QStandardItem("Assert") << new QStandardItem("Assert") );
+        << new QStandardItem("OnlyOne") << new QStandardItem("Hidden") << new QStandardItem("Assert") << new QStandardItem("Assert") << new QStandardItem("Assert") );
     QStandardItem *checkable = new QStandardItem("Checkable");
     checkable->setCheckable(true);
     QStandardItem *checked = new QStandardItem("Checkable Checked");
-    checkable->setCheckable(true);
+    checked->setCheckable(true);
     checked->setCheckState(Qt::Checked);
     model.appendRow(QList<QStandardItem*>()
-        << new QStandardItem("Beginning") <<  checkable << checked << new QStandardItem("End") );
+        << new QStandardItem("Beginning") << new QStandardItem("Hidden") << checkable << checked << new QStandardItem("End") );
     model.appendRow(QList<QStandardItem*>()
-        << new QStandardItem("Beginning Last") <<  new QStandardItem("Middle Last") << new QStandardItem("Middle Last") << new QStandardItem("End Last") );
+        << new QStandardItem("Beginning Last") << new QStandardItem("Hidden") << new QStandardItem("Middle Last") << new QStandardItem("Middle Last") << new QStandardItem("End Last") );
 
     par1->appendRow(QList<QStandardItem*>()
-        << new QStandardItem("Beginning") <<  new QStandardItem("Middle") << new QStandardItem("Middle") << new QStandardItem("End") );
+        << new QStandardItem("Beginning") << new QStandardItem("Hidden") << new QStandardItem("Middle") << new QStandardItem("Middle") << new QStandardItem("End") );
     QStandardItem *par2 = new QStandardItem("Beginning HasChildren");
     par1->appendRow(QList<QStandardItem*>()
-        << par2 <<  new QStandardItem("Middle HasChildren") << new QStandardItem("Middle HasChildren") << new QStandardItem("End HasChildren") );
+        << par2 << new QStandardItem("Hidden") << new QStandardItem("Middle HasChildren") << new QStandardItem("Middle HasChildren") << new QStandardItem("End HasChildren") );
     par2->appendRow(QList<QStandardItem*>()
-        << new QStandardItem("Beginning Last") <<  new QStandardItem("Middle Last") << new QStandardItem("Middle Last") << new QStandardItem("End Last") );
+        << new QStandardItem("Beginning Last") << new QStandardItem("Hidden") << new QStandardItem("Middle Last") << new QStandardItem("Middle Last") << new QStandardItem("End Last") );
 
     QStandardItem *par3 = new QStandardItem("Beginning Last");
     par1->appendRow(QList<QStandardItem*>()
-        << par3 <<  new QStandardItem("Middle Last") << new QStandardItem("Middle Last") << new QStandardItem("End Last") );
+        << par3 << new QStandardItem("Hidden") << new QStandardItem("Middle Last") << new QStandardItem("Middle Last") << new QStandardItem("End Last") );
     par3->appendRow(QList<QStandardItem*>()
-        << new QStandardItem("Assert") <<  new QStandardItem("Assert") << new QStandardItem("Assert") << new QStandardItem("Asser") );
+        << new QStandardItem("Assert") << new QStandardItem("Hidden") << new QStandardItem("Assert") << new QStandardItem("Assert") << new QStandardItem("Asser") );
     view.setRowHidden(0, par3->index(), true);
     par1->appendRow(QList<QStandardItem*>()
-        << new QStandardItem("Assert") <<  new QStandardItem("Assert") << new QStandardItem("Assert") << new QStandardItem("Asser") );
+        << new QStandardItem("Assert") << new QStandardItem("Hidden") << new QStandardItem("Assert") << new QStandardItem("Assert") << new QStandardItem("Asser") );
     view.setRowHidden(3, par1->index(), true);
 
+    view.setColumnHidden(1, true);
+    const int visibleColumns = 4;
+    const int modelColumns = 5;
 
+    view.header()->swapSections(2, 3);
     view.setFirstColumnSpanned(2, QModelIndex(), true);
     view.setAlternatingRowColors(true);
 
@@ -2992,6 +3016,12 @@ void tst_QTreeView::styleOptionViewItem()
     QApplication::processEvents();
     QTRY_VERIFY(delegate.count >= 4);
 
+    // test that the rendering of drag pixmap sets the correct options too (QTBUG-15834)
+    delegate.count = 0;
+    QItemSelection sel(model.index(0,0), model.index(0,modelColumns-1));
+    QRect rect;
+    view.aiv_priv()->renderToPixmap(sel.indexes(), &rect);
+    QTRY_VERIFY(delegate.count == visibleColumns);
 
     //test dynamic models
     {

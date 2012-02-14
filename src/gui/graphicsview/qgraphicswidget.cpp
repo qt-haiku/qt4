@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -152,7 +152,7 @@ QT_BEGIN_NAMESPACE
     \row    \o Qt::WA_SetPalette
                     \o Set by setPalette().
     \row    \o Qt::WA_SetFont
-                    \o Set by setPalette().
+                    \o Set by setFont().
     \row    \o Qt::WA_WindowPropagation
                     \o Enables propagation to window widgets.
     \endtable
@@ -347,15 +347,16 @@ void QGraphicsWidget::setGeometry(const QRectF &rect)
 {
     QGraphicsWidgetPrivate *wd = QGraphicsWidget::d_func();
     QGraphicsLayoutItemPrivate *d = QGraphicsLayoutItem::d_ptr.data();
-    QRectF newGeom;
+    QRectF newGeom = rect;
     QPointF oldPos = d->geom.topLeft();
     if (!wd->inSetPos) {
         setAttribute(Qt::WA_Resized);
-        newGeom = rect;
         newGeom.setSize(rect.size().expandedTo(effectiveSizeHint(Qt::MinimumSize))
                                    .boundedTo(effectiveSizeHint(Qt::MaximumSize)));
-        if (newGeom == d->geom)
-            return;
+
+        if (newGeom == d->geom) {
+            goto relayoutChildrenAndReturn;
+        }
 
         // setPos triggers ItemPositionChange, which can adjust position
         wd->inSetGeometry = 1;
@@ -363,8 +364,9 @@ void QGraphicsWidget::setGeometry(const QRectF &rect)
         wd->inSetGeometry = 0;
         newGeom.moveTopLeft(pos());
 
-        if (newGeom == d->geom)
-           return;
+        if (newGeom == d->geom) {
+            goto relayoutChildrenAndReturn;
+        }
 
          // Update and prepare to change the geometry (remove from index) if the size has changed.
         if (wd->scene) {
@@ -375,35 +377,47 @@ void QGraphicsWidget::setGeometry(const QRectF &rect)
     }
 
     // Update the layout item geometry
-    bool moved = oldPos != pos();
-    if (moved) {
-        // Send move event.
-        QGraphicsSceneMoveEvent event;
-        event.setOldPos(oldPos);
-        event.setNewPos(pos());
-        QApplication::sendEvent(this, &event);
-        if (wd->inSetPos) {
-            //set the new pos
-            d->geom.moveTopLeft(pos());
-            emit geometryChanged();
-            return;
+    {
+        bool moved = oldPos != pos();
+        if (moved) {
+            // Send move event.
+            QGraphicsSceneMoveEvent event;
+            event.setOldPos(oldPos);
+            event.setNewPos(pos());
+            QApplication::sendEvent(this, &event);
+            if (wd->inSetPos) {
+                //set the new pos
+                d->geom.moveTopLeft(pos());
+                emit geometryChanged();
+                goto relayoutChildrenAndReturn;
+            }
+        }
+        QSizeF oldSize = size();
+        QGraphicsLayoutItem::setGeometry(newGeom);
+        // Send resize event
+        bool resized = newGeom.size() != oldSize;
+        if (resized) {
+            QGraphicsSceneResizeEvent re;
+            re.setOldSize(oldSize);
+            re.setNewSize(newGeom.size());
+            if (oldSize.width() != newGeom.size().width())
+                emit widthChanged();
+            if (oldSize.height() != newGeom.size().height())
+                emit heightChanged();
+            QApplication::sendEvent(this, &re);
         }
     }
-    QSizeF oldSize = size();
-    QGraphicsLayoutItem::setGeometry(newGeom);
-    // Send resize event
-    bool resized = newGeom.size() != oldSize;
-    if (resized) {
-        QGraphicsSceneResizeEvent re;
-        re.setOldSize(oldSize);
-        re.setNewSize(newGeom.size());
-        if (oldSize.width() != newGeom.size().width())
-            emit widthChanged();
-        if (oldSize.height() != newGeom.size().height())
-            emit heightChanged();
-        QApplication::sendEvent(this, &re);
-    }
+
     emit geometryChanged();
+relayoutChildrenAndReturn:
+    if (QGraphicsLayout::instantInvalidatePropagation()) {
+        if (QGraphicsLayout *lay = wd->layout) {
+            if (!lay->isActivated()) {
+                QEvent layoutRequest(QEvent::LayoutRequest);
+                QApplication::sendEvent(this, &layoutRequest);
+            }
+        }
+    }
 }
 
 /*!
@@ -1052,16 +1066,34 @@ void QGraphicsWidget::updateGeometry()
     QGraphicsLayoutItem *parentItem = parentLayoutItem();
 
     if (parentItem && parentItem->isLayout()) {
-        parentItem->updateGeometry();
+        if (QGraphicsLayout::instantInvalidatePropagation()) {
+            static_cast<QGraphicsLayout *>(parentItem)->invalidate();
+        } else {
+            parentItem->updateGeometry();
+        }
     } else {
         if (parentItem) {
+            // This is for custom layouting
             QGraphicsWidget *parentWid = parentWidget();    //###
             if (parentWid->isVisible())
                 QApplication::postEvent(parentWid, new QEvent(QEvent::LayoutRequest));
+        } else {
+            /**
+             * If this is the topmost widget, post a LayoutRequest event to the widget.
+             * When the event is received, it will start flowing all the way down to the leaf
+             * widgets in one go. This will make a relayout flicker-free.
+             */
+            if (QGraphicsLayout::instantInvalidatePropagation()) {
+                Q_D(QGraphicsWidget);
+                ++d->refCountInvokeRelayout;
+                QMetaObject::invokeMethod(this, "_q_relayout", Qt::QueuedConnection);
+            }
         }
-        bool wasResized = testAttribute(Qt::WA_Resized);
-        resize(size()); // this will restrict the size
-        setAttribute(Qt::WA_Resized, wasResized);
+        if (!QGraphicsLayout::instantInvalidatePropagation()) {
+            bool wasResized = testAttribute(Qt::WA_Resized);
+            resize(size()); // this will restrict the size
+            setAttribute(Qt::WA_Resized, wasResized);
+        }
     }
 }
 
@@ -1139,6 +1171,12 @@ QVariant QGraphicsWidget::itemChange(GraphicsItemChange change, const QVariant &
         // Deliver ToolTipChange.
         QEvent event(QEvent::ToolTipChange);
         QApplication::sendEvent(this, &event);
+        break;
+    }
+    case ItemChildAddedChange: {
+        QGraphicsItem *child = qVariantValue<QGraphicsItem *>(value);
+        if (child->isWidget())
+            static_cast<QGraphicsWidget *>(child)->d_func()->resolveLayoutDirection();
         break;
     }
     default:
@@ -1636,7 +1674,7 @@ void QGraphicsWidget::hoverLeaveEvent(QGraphicsSceneHoverEvent *event)
 
 /*!
     This event handler, for \a event, can be reimplemented in a subclass to
-    receive notifications for Qt::GrabMouse events.
+    receive notifications for QEvent::GrabMouse events.
 
     \sa grabMouse(), grabKeyboard()
 */
@@ -1647,7 +1685,7 @@ void QGraphicsWidget::grabMouseEvent(QEvent *event)
 
 /*!
     This event handler, for \a event, can be reimplemented in a subclass to
-    receive notifications for Qt::UngrabMouse events.
+    receive notifications for QEvent::UngrabMouse events.
 
     \sa ungrabMouse(), ungrabKeyboard()
 */
@@ -1658,7 +1696,7 @@ void QGraphicsWidget::ungrabMouseEvent(QEvent *event)
 
 /*!
     This event handler, for \a event, can be reimplemented in a subclass to
-    receive notifications for Qt::GrabKeyboard events.
+    receive notifications for QEvent::GrabKeyboard events.
 
     \sa grabKeyboard(), grabMouse()
 */
@@ -1669,7 +1707,7 @@ void QGraphicsWidget::grabKeyboardEvent(QEvent *event)
 
 /*!
     This event handler, for \a event, can be reimplemented in a subclass to
-    receive notifications for Qt::UngrabKeyboard events.
+    receive notifications for QEvent::UngrabKeyboard events.
 
     \sa ungrabKeyboard(), ungrabMouse()
 */

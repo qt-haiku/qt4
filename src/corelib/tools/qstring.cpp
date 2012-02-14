@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -57,6 +57,7 @@
 #include "qhash.h"
 #include "qdebug.h"
 #include "qendian.h"
+#include "qmutex.h"
 
 #ifdef Q_OS_MAC
 #include <private/qcore_mac_p.h>
@@ -104,15 +105,14 @@ QTextCodec *QString::codecForCStrings;
 
 #ifdef QT3_SUPPORT
 static QHash<void *, QByteArray> *asciiCache = 0;
+Q_GLOBAL_STATIC(QMutex, asciiCacheMutex)
+
 #endif
 
 #ifdef QT_USE_ICU
 // qlocale_icu.cpp
 extern bool qt_ucol_strcoll(const QChar *source, int sourceLength, const QChar *target, int targetLength, int *result);
-extern bool qt_u_strToUpper(const QString &str, QString *out, const QLocale &locale);
-extern bool qt_u_strToLower(const QString &str, QString *out, const QLocale &locale);
 #endif
-
 
 // internal
 int qFindString(const QChar *haystack, int haystackLen, int from,
@@ -777,15 +777,11 @@ const QString::Null QString::null = { };
 
     \snippet doc/src/snippets/qstring/stringbuilder.cpp 5
 
-    A more global approach is to include this define:
+    A more global approach which is the most convenient but
+    not entirely source compatible, is to this define in your
+    .pro file:
 
     \snippet doc/src/snippets/qstring/stringbuilder.cpp 3
-
-    and use \c{'%'} instead of \c{'+'} for string concatenation
-    everywhere. The third approach, which is the most convenient but
-    not entirely source compatible, is to include two defines:
-
-    \snippet doc/src/snippets/qstring/stringbuilder.cpp 4
 
     and the \c{'+'} will automatically be performed as the
     \c{QStringBuilder} \c{'%'} everywhere.
@@ -839,6 +835,28 @@ int QString::grow(int size)
     iterator for QString.
 
     \sa QString::const_iterator
+*/
+
+/*!
+    \typedef QString::const_reference
+    \since 4.8
+
+    The QString::const_reference typedef provides an STL-style
+    const reference for QString.
+*/
+/*!
+    \typedef QString::reference
+    \since 4.8
+
+    The QString::const_reference typedef provides an STL-style
+    reference for QString.
+*/
+/*!
+    \typedef QString::value_type
+    \since 4.8
+
+    The QString::const_reference typedef provides an STL-style
+    value type for QString.
 */
 
 /*! \fn QString::iterator QString::begin()
@@ -1209,6 +1227,7 @@ void QString::free(Data *d)
 {
 #ifdef QT3_SUPPORT
     if (d->asciiCache) {
+        QMutexLocker locker(asciiCacheMutex());
         Q_ASSERT(asciiCache);
         asciiCache->remove(d);
     }
@@ -1343,6 +1362,7 @@ void QString::realloc(int alloc)
     } else {
 #ifdef QT3_SUPPORT
         if (d->asciiCache) {
+            QMutexLocker locker(asciiCacheMutex());
             Q_ASSERT(asciiCache);
             asciiCache->remove(d);
         }
@@ -3560,6 +3580,61 @@ bool QString::endsWith(const QChar &c, Qt::CaseSensitivity cs) const
     Use toLocal8Bit() instead.
 */
 
+#if defined(QT_ALWAYS_HAVE_SSE2)
+static inline __m128i mergeQuestionMarks(__m128i chunk)
+{
+    const __m128i questionMark = _mm_set1_epi16('?');
+
+# ifdef __SSE4_2__
+    // compare the unsigned shorts for the range 0x0100-0xFFFF
+    // note on the use of _mm_cmpestrm:
+    //  The MSDN documentation online (http://technet.microsoft.com/en-us/library/bb514080.aspx)
+    //  says for range search the following:
+    //    For each character c in a, determine whether b0 <= c <= b1 or b2 <= c <= b3
+    //
+    //  However, all examples on the Internet, including from Intel
+    //  (see http://software.intel.com/en-us/articles/xml-parsing-accelerator-with-intel-streaming-simd-extensions-4-intel-sse4/)
+    //  put the range to be searched first
+    //
+    //  Disassembly and instruction-level debugging with GCC and ICC show
+    //  that they are doing the right thing. Inverting the arguments in the
+    //  instruction does cause a bunch of test failures.
+
+    const int mode = _SIDD_UWORD_OPS | _SIDD_CMP_RANGES | _SIDD_UNIT_MASK;
+    const __m128i rangeMatch = _mm_cvtsi32_si128(0xffff0100);
+    const __m128i offLimitMask = _mm_cmpestrm(rangeMatch, 2, chunk, 8, mode);
+
+    // replace the non-Latin 1 characters in the chunk with question marks
+    chunk = _mm_blendv_epi8(chunk, questionMark, offLimitMask);
+# else
+    // SSE has no compare instruction for unsigned comparison.
+    // The variables must be shiffted + 0x8000 to be compared
+    const __m128i signedBitOffset = _mm_set1_epi16(0x8000);
+    const __m128i thresholdMask = _mm_set1_epi16(0xff + 0x8000);
+
+    const __m128i signedChunk = _mm_add_epi16(chunk, signedBitOffset);
+    const __m128i offLimitMask = _mm_cmpgt_epi16(signedChunk, thresholdMask);
+
+#  ifdef __SSE4_1__
+    // replace the non-Latin 1 characters in the chunk with question marks
+    chunk = _mm_blendv_epi8(chunk, questionMark, offLimitMask);
+#  else
+    // offLimitQuestionMark contains '?' for each 16 bits that was off-limit
+    // the 16 bits that were correct contains zeros
+    const __m128i offLimitQuestionMark = _mm_and_si128(offLimitMask, questionMark);
+
+    // correctBytes contains the bytes that were in limit
+    // the 16 bits that were off limits contains zeros
+    const __m128i correctBytes = _mm_andnot_si128(offLimitMask, chunk);
+
+    // merge offLimitQuestionMark and correctBytes to have the result
+    chunk = _mm_or_si128(correctBytes, offLimitQuestionMark);
+#  endif
+# endif
+    return chunk;
+}
+#endif
+
 static QByteArray toLatin1_helper(const QChar *data, int length)
 {
     QByteArray ba;
@@ -3570,41 +3645,15 @@ static QByteArray toLatin1_helper(const QChar *data, int length)
 #if defined(QT_ALWAYS_HAVE_SSE2)
         if (length >= 16) {
             const int chunkCount = length >> 4; // divided by 16
-            const __m128i questionMark = _mm_set1_epi16('?');
-            // SSE has no compare instruction for unsigned comparison.
-            // The variables must be shiffted + 0x8000 to be compared
-            const __m128i signedBitOffset = _mm_set1_epi16(0x8000);
-            const __m128i thresholdMask = _mm_set1_epi16(0xff + 0x8000);
+
             for (int i = 0; i < chunkCount; ++i) {
                 __m128i chunk1 = _mm_loadu_si128((__m128i*)src); // load
+                chunk1 = mergeQuestionMarks(chunk1);
                 src += 8;
-                {
-                    // each 16 bit is equal to 0xFF if the source is outside latin 1 (>0xff)
-                    const __m128i signedChunk = _mm_add_epi16(chunk1, signedBitOffset);
-                    const __m128i offLimitMask = _mm_cmpgt_epi16(signedChunk, thresholdMask);
-
-                    // offLimitQuestionMark contains '?' for each 16 bits that was off-limit
-                    // the 16 bits that were correct contains zeros
-                    const __m128i offLimitQuestionMark = _mm_and_si128(offLimitMask, questionMark);
-
-                    // correctBytes contains the bytes that were in limit
-                    // the 16 bits that were off limits contains zeros
-                    const __m128i correctBytes = _mm_andnot_si128(offLimitMask, chunk1);
-
-                    // merge offLimitQuestionMark and correctBytes to have the result
-                    chunk1 = _mm_or_si128(correctBytes, offLimitQuestionMark);
-                }
 
                 __m128i chunk2 = _mm_loadu_si128((__m128i*)src); // load
+                chunk2 = mergeQuestionMarks(chunk2);
                 src += 8;
-                {
-                    // exactly the same operations as for the previous chunk of data
-                    const __m128i signedChunk = _mm_add_epi16(chunk2, signedBitOffset);
-                    const __m128i offLimitMask = _mm_cmpgt_epi16(signedChunk, thresholdMask);
-                    const __m128i offLimitQuestionMark = _mm_and_si128(offLimitMask, questionMark);
-                    const __m128i correctBytes = _mm_andnot_si128(offLimitMask, chunk2);
-                    chunk2 = _mm_or_si128(correctBytes, offLimitQuestionMark);
-                }
 
                 // pack the two vector to 16 x 8bits elements
                 const __m128i result = _mm_packus_epi16(chunk1, chunk2);
@@ -3860,6 +3909,7 @@ QString QString::fromLatin1(const char *str, int size)
 */
 const char *QString::ascii_helper() const
 {
+    QMutexLocker locker(asciiCacheMutex());
     if (!asciiCache)
         asciiCache = new QHash<void *, QByteArray>();
 
@@ -3877,6 +3927,7 @@ const char *QString::ascii_helper() const
 */
 const char *QString::latin1_helper() const
 {
+    QMutexLocker locker(asciiCacheMutex());
     if (!asciiCache)
         asciiCache = new QHash<void *, QByteArray>();
 
@@ -4968,7 +5019,10 @@ QString QString::rightJustified(int width, QChar fill, bool truncate) const
 
     \snippet doc/src/snippets/qstring/main.cpp 75
 
-    \sa toUpper()
+    The case conversion will always happen in the 'C' locale. For locale dependent
+    case folding use QLocale::toLower()
+
+    \sa toUpper(), QLocale::toLower()
 */
 
 QString QString::toLower() const
@@ -4978,15 +5032,6 @@ QString QString::toLower() const
         return *this;
     if (!d->size)
         return *this;
-
-#ifdef QT_USE_ICU
-    {
-        QString result;
-        if (qt_u_strToLower(*this, &result, QLocale()))
-            return result;
-        // else fall through and use Qt's toUpper
-    }
-#endif
 
     const ushort *e = d->data + d->size;
 
@@ -5068,7 +5113,10 @@ QString QString::toCaseFolded() const
 
     \snippet doc/src/snippets/qstring/main.cpp 81
 
-    \sa toLower()
+    The case conversion will always happen in the 'C' locale. For locale dependent
+    case folding use QLocale::toUpper()
+
+    \sa toLower(), QLocale::toLower()
 */
 
 QString QString::toUpper() const
@@ -5078,15 +5126,6 @@ QString QString::toUpper() const
         return *this;
     if (!d->size)
         return *this;
-
-#ifdef QT_USE_ICU
-    {
-        QString result;
-        if (qt_u_strToUpper(*this, &result, QLocale()))
-            return result;
-        // else fall through and use Qt's toUpper
-    }
-#endif
 
     const ushort *e = d->data + d->size;
 
@@ -6334,7 +6373,7 @@ void qt_string_normalize(QString *data, QString::NormalizationForm mode, QChar::
     if (mode == QString::NormalizationForm_D || mode == QString::NormalizationForm_KD)
         return;
 
-    composeHelper(data, from);
+    composeHelper(data, version, from);
 }
 
 
@@ -7206,6 +7245,7 @@ QString &QString::setRawData(const QChar *unicode, int size)
     } else {
 #ifdef QT3_SUPPORT
         if (d->asciiCache) {
+            QMutexLocker locker(asciiCacheMutex());
             Q_ASSERT(asciiCache);
             asciiCache->remove(d);
         }
@@ -9115,7 +9155,7 @@ QByteArray QStringRef::toUtf8() const
     UCS-4 is a Unicode codec and is lossless. All characters from this string
     can be encoded in UCS-4.
 
-    \sa fromUtf8(), toAscii(), toLatin1(), toLocal8Bit(), QTextCodec, fromUcs4(), toWCharArray()
+    \sa toAscii(), toLatin1(), toLocal8Bit(), QTextCodec
 */
 QVector<uint> QStringRef::toUcs4() const
 {

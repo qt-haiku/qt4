@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -44,7 +44,11 @@
 #include "client.h"
 
 Client::Client(QWidget *parent)
+#ifdef Q_WS_MAEMO_5
+    : QWidget(parent)
+#else
     : QDialog(parent)
+#endif
 {
     hostLabel = new QLabel(tr("&Server name:"));
     hostLineEdit = new QLineEdit("fortune");
@@ -53,6 +57,7 @@ Client::Client(QWidget *parent)
 
     statusLabel = new QLabel(tr("This examples requires that you run the "
                                 "Fortune Server example as well."));
+    statusLabel->setWordWrap(true);
 
     getFortuneButton = new QPushButton(tr("Get Fortune"));
     getFortuneButton->setDefault(true);

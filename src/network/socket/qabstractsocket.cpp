@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtNetwork module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -301,20 +301,23 @@
     \value ProxyAuthenticationRequiredError The socket is using a proxy, and
            the proxy requires authentication.
     \value SslHandshakeFailedError The SSL/TLS handshake failed, so
-           the connection was closed (only used in QSslSocket)
+           the connection was closed (only used in QSslSocket) (This value was introduced in 4.4.)
     \value UnfinishedSocketOperationError Used by QAbstractSocketEngine only,
            The last operation attempted has not finished yet (still in progress in
-            the background).
+            the background). (This value was introduced in 4.4.)
     \value ProxyConnectionRefusedError Could not contact the proxy server because
-           the connection to that server was denied
+           the connection to that server was denied (This value was introduced in 4.5.)
     \value ProxyConnectionClosedError The connection to the proxy server was closed
            unexpectedly (before the connection to the final peer was established)
+           (This value was introduced in 4.5.)
     \value ProxyConnectionTimeoutError The connection to the proxy server timed out
            or the proxy server stopped responding in the authentication phase.
+           (This value was introduced in 4.5.)
     \value ProxyNotFoundError The proxy address set with setProxy() (or the application
-           proxy) was not found.
+           proxy) was not found. (This value was introduced in 4.5.)
     \value ProxyProtocolError The connection negotiation with the proxy server
            because the response from the proxy server could not be understood.
+           (This value was introduced in 4.5.)
 
     \value UnknownSocketError An unidentified error occurred.
     \sa QAbstractSocket::error()
@@ -547,15 +550,19 @@ bool QAbstractSocketPrivate::initSocketLayer(QAbstractSocket::NetworkLayerProtoc
 
     resetSocketLayer();
     socketEngine = QAbstractSocketEngine::createSocketEngine(q->socketType(), proxyInUse, q);
-#ifndef QT_NO_BEARERMANAGEMENT
-    //copy network session down to the socket engine (if it has been set)
-    socketEngine->setProperty("_q_networksession", q->property("_q_networksession"));
-#endif
     if (!socketEngine) {
         socketError = QAbstractSocket::UnsupportedSocketOperationError;
         q->setErrorString(QAbstractSocket::tr("Operation on socket is not supported"));
         return false;
     }
+#ifndef QT_NO_BEARERMANAGEMENT
+    //copy network session down to the socket engine (if it has been set)
+    socketEngine->setProperty("_q_networksession", q->property("_q_networksession"));
+#endif
+#ifndef QT_NO_NETWORKPROXY
+    //copy user agent to socket engine (if it has been set)
+    socketEngine->setProperty("_q_user-agent", q->property("_q_user-agent"));
+#endif
     if (!socketEngine->initialize(q->socketType(), protocol)) {
 #if defined (QABSTRACTSOCKET_DEBUG)
         qDebug("QAbstractSocketPrivate::initSocketLayer(%s, %s) failed (%s)",
@@ -1605,15 +1612,15 @@ bool QAbstractSocket::setSocketDescriptor(int socketDescriptor, SocketState sock
 
     d->resetSocketLayer();
     d->socketEngine = QAbstractSocketEngine::createSocketEngine(socketDescriptor, this);
-#ifndef QT_NO_BEARERMANAGEMENT
-    //copy network session down to the socket engine (if it has been set)
-    d->socketEngine->setProperty("_q_networksession", property("_q_networksession"));
-#endif
     if (!d->socketEngine) {
         d->socketError = UnsupportedSocketOperationError;
         setErrorString(tr("Operation on socket is not supported"));
         return false;
     }
+#ifndef QT_NO_BEARERMANAGEMENT
+    //copy network session down to the socket engine (if it has been set)
+    d->socketEngine->setProperty("_q_networksession", property("_q_networksession"));
+#endif
     bool result = d->socketEngine->initialize(socketDescriptor, socketState);
     if (!result) {
         d->socketError = d->socketEngine->error();
@@ -1877,7 +1884,7 @@ bool QAbstractSocket::waitForReadyRead(int msecs)
     }
 
     Q_ASSERT(d->socketEngine);
-    forever {
+    do {
         bool readyToRead = false;
         bool readyToWrite = false;
         if (!d->socketEngine->waitForReadOrWrite(&readyToRead, &readyToWrite, true, !d->writeBuffer.isEmpty(),
@@ -1904,7 +1911,7 @@ bool QAbstractSocket::waitForReadyRead(int msecs)
 
         if (state() != ConnectedState)
             return false;
-    }
+    } while (msecs == -1 || qt_timeout_value(msecs, stopWatch.elapsed()) > 0);
     return false;
 }
 

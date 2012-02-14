@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the tools applications of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -56,6 +56,7 @@
 #include <qlist.h>
 #include <qiterator.h>
 #include <qtextcodec.h>
+#include <qlibraryinfo.h>
 #include <QUuid>
 
 QT_BEGIN_NAMESPACE
@@ -66,25 +67,6 @@ bool HtmlGenerator::debugging_on = false;
 
 QString HtmlGenerator::divNavTop = "";
 
-QString HtmlGenerator::sinceTitles[] =
-    {
-        "    New Namespaces",
-        "    New Classes",
-        "    New Member Functions",
-        "    New Functions in Namespaces",
-        "    New Global Functions",
-        "    New Macros",
-        "    New Enum Types",
-        "    New Typedefs",
-        "    New Properties",
-        "    New Variables",
-        "    New QML Elements",
-        "    New QML Properties",
-        "    New QML Signals",
-        "    New QML Methods",
-        ""
-    };
-
 static bool showBrokenLinks = false;
 
 static QRegExp linkTag("(<@link node=\"([^\"]+)\">).*(</@link>)");
@@ -92,104 +74,6 @@ static QRegExp funcTag("(<@func target=\"([^\"]*)\">)(.*)(</@func>)");
 static QRegExp typeTag("(<@(type|headerfile|func)(?: +[^>]*)?>)(.*)(</@\\2>)");
 static QRegExp spanTag("</@(?:comment|preprocessor|string|char|number|op|type|name|keyword)>");
 static QRegExp unknownTag("</?@[^>]*>");
-
-bool parseArg(const QString &src,
-              const QString &tag,
-              int *pos,
-              int n,
-              QStringRef *contents,
-              QStringRef *par1 = 0,
-              bool debug = false)
-{
-#define SKIP_CHAR(c) \
-    if (debug) \
-        qDebug() << "looking for " << c << " at " << QString(src.data() + i, n - i); \
-    if (i >= n || src[i] != c) { \
-        if (debug) \
-            qDebug() << " char '" << c << "' not found"; \
-        return false; \
-    } \
-    ++i;
-
-
-#define SKIP_SPACE \
-    while (i < n && src[i] == ' ') \
-        ++i;
-
-    int i = *pos;
-    int j = i;
-
-    // assume "<@" has been parsed outside
-    //SKIP_CHAR('<');
-    //SKIP_CHAR('@');
-
-    if (tag != QStringRef(&src, i, tag.length())) {
-        if (0 && debug)
-            qDebug() << "tag " << tag << " not found at " << i;
-        return false;
-    }
-
-    if (debug)
-        qDebug() << "haystack:" << src << "needle:" << tag << "i:" <<i;
-
-    // skip tag
-    i += tag.length();
-
-    // parse stuff like:  linkTag("(<@link node=\"([^\"]+)\">).*(</@link>)");
-    if (par1) {
-        SKIP_SPACE;
-        // read parameter name
-        j = i;
-        while (i < n && src[i].isLetter())
-            ++i;
-        if (src[i] == '=') {
-            if (debug)
-                qDebug() << "read parameter" << QString(src.data() + j, i - j);
-            SKIP_CHAR('=');
-            SKIP_CHAR('"');
-            // skip parameter name
-            j = i;
-            while (i < n && src[i] != '"')
-                ++i;
-            *par1 = QStringRef(&src, j, i - j);
-            SKIP_CHAR('"');
-            SKIP_SPACE;
-        } else {
-            if (debug)
-                qDebug() << "no optional parameter found";
-        }
-    }
-    SKIP_SPACE;
-    SKIP_CHAR('>');
-
-    // find contents up to closing "</@tag>
-    j = i;
-    for (; true; ++i) {
-        if (i + 4 + tag.length() > n)
-            return false;
-        if (src[i] != '<')
-            continue;
-        if (src[i + 1] != '/')
-            continue;
-        if (src[i + 2] != '@')
-            continue;
-        if (tag != QStringRef(&src, i + 3, tag.length()))
-            continue;
-        if (src[i + 3 + tag.length()] != '>')
-            continue;
-        break;
-    }
-
-    *contents = QStringRef(&src, j, i - j);
-
-    i += tag.length() + 4;
-
-    *pos = i;
-    if (debug)
-        qDebug() << " tag " << tag << " found: pos now: " << i;
-    return true;
-#undef SKIP_CHAR
-}
 
 static void addLink(const QString &linkTarget,
                     const QStringRef &nestedStuff,
@@ -278,6 +162,9 @@ void HtmlGenerator::initializeGenerator(const Config &config)
     pleaseGenerateMacRef = config.getBool(HtmlGenerator::format() +
                                           Config::dot +
                                           HTMLGENERATOR_GENERATEMACREFS);
+    noBreadCrumbs = config.getBool(HtmlGenerator::format() +
+                                   Config::dot +
+                                   HTMLGENERATOR_NOBREADCRUMBS);
 
     project = config.getString(CONFIG_PROJECT);
 
@@ -331,6 +218,10 @@ void HtmlGenerator::initializeGenerator(const Config &config)
     headerStyles = config.getString(HtmlGenerator::format() +
                                        Config::dot +
                                        CONFIG_HEADERSTYLES);
+    
+    QString prefix = CONFIG_QHP + Config::dot + "Qt" + Config::dot;
+    manifestDir = "qthelp://" + config.getString(prefix + "namespace");
+    manifestDir += "/" + config.getString(prefix + "virtualFolder") + "/";
 }
 
 void HtmlGenerator::terminateGenerator()
@@ -374,6 +265,7 @@ void HtmlGenerator::generateTree(const Tree *tree)
     generatePageIndex(outputDir() + "/" + fileBase + ".pageindex");
 
     helpProjectWriter->generate(myTree);
+    generateManifestFiles();
 }
 
 void HtmlGenerator::startText(const Node * /* relative */,
@@ -429,8 +321,10 @@ int HtmlGenerator::generateAtom(const Atom *atom,
         break;
     case Atom::BriefLeft:
         if (relative->type() == Node::Fake) {
-            skipAhead = skipAtoms(atom, Atom::BriefRight);
-            break;
+            if (relative->subType() != Node::Example) {
+                skipAhead = skipAtoms(atom, Atom::BriefRight);
+                break;
+            }
         }
 
         out() << "<p>";
@@ -704,14 +598,18 @@ int HtmlGenerator::generateAtom(const Atom *atom,
             ncmap = newClassMaps.find(atom->string());
             NewClassMaps::const_iterator nqcmap;
             nqcmap = newQmlClassMaps.find(atom->string());
+
             if ((nsmap != newSinceMaps.constEnd()) && !nsmap.value().isEmpty()) {
                 QList<Section> sections;
                 QList<Section>::ConstIterator s;
+
                 for (int i=0; i<LastSinceType; ++i)
                     sections.append(Section(sinceTitle(i),QString(),QString(),QString()));
 
                 NodeMultiMap::const_iterator n = nsmap.value().constBegin();
+
                 while (n != nsmap.value().constEnd()) {
+
                     const Node* node = n.value();
                     switch (node->type()) {
                       case Node::Fake:
@@ -861,8 +759,19 @@ int HtmlGenerator::generateAtom(const Atom *atom,
                 out() << "<img src=\"" << protectEnc(fileName) << "\"";
                 if (!text.isEmpty())
                     out() << " alt=\"" << protectEnc(text) << "\"";
+                else
+                    out() << " alt=\"\"";
                 out() << " />";
                 helpProjectWriter->addExtraFile(fileName);
+                if ((relative->type() == Node::Fake) &&
+                    (relative->subType() == Node::Example)) {
+                    const ExampleNode* cen = static_cast<const ExampleNode*>(relative);
+                    if (cen->imageFileName().isEmpty()) {
+                        ExampleNode* en = const_cast<ExampleNode*>(cen);
+                        en->setImageFileName(fileName);
+                        ExampleNode::exampleNodeMap.insert(en->title(),en);
+                    }
+                }
             }
             if (atom->type() == Atom::Image)
                 out() << "</p>";
@@ -1444,6 +1353,7 @@ void HtmlGenerator::generateFakeNode(const FakeNode *fake, CodeMarker *marker)
         // Generate brief text and status for modules.
         generateBrief(fake, marker);
         generateStatus(fake, marker);
+        generateSince(fake, marker);
 
         if (moduleNamespaceMap.contains(fake->name())) {
             out() << "<a name=\"" << registerRef("namespaces") << "\"></a>" << divNavTop << "\n";
@@ -1460,6 +1370,7 @@ void HtmlGenerator::generateFakeNode(const FakeNode *fake, CodeMarker *marker)
         // Generate brief text and status for modules.
         generateBrief(fake, marker);
         generateStatus(fake, marker);
+        generateSince(fake, marker);
 
         out() << "<ul>\n";
 
@@ -1491,11 +1402,14 @@ void HtmlGenerator::generateFakeNode(const FakeNode *fake, CodeMarker *marker)
         generateQmlInherits(qml_cn, marker);
         generateQmlInheritedBy(qml_cn, marker);
         generateQmlInstantiates(qml_cn, marker);
+        generateSince(qml_cn, marker);
 
         QString allQmlMembersLink = generateAllQmlMembersFile(qml_cn, marker);
         if (!allQmlMembersLink.isEmpty()) {
+            out() << "<ul>\n";
             out() << "<li><a href=\"" << allQmlMembersLink << "\">"
                   << "List of all members, including inherited members</a></li>\n";
+            out() << "</ul>\n";
         }
 
         s = sections.begin();
@@ -1600,8 +1514,10 @@ void HtmlGenerator::generateBreadCrumbs(const QString &title,
                                         const Node *node,
                                         CodeMarker *marker)
 {
+    if (noBreadCrumbs)
+        return;
+    
     Text breadcrumbs;
-
     if (node->type() == Node::Class) {
         const ClassNode *cn = static_cast<const ClassNode *>(node);
         QString name =  node->moduleName();
@@ -1888,7 +1804,7 @@ void HtmlGenerator::generateTableOfContents(const Node *node,
         toc = node->doc().tableOfContents();
     if (toc.isEmpty() && !sections && (node->subType() != Node::Module))
         return;
-
+    
     QStringList sectionNumber;
     int detailsBase = 0;
 
@@ -2337,9 +2253,6 @@ void HtmlGenerator::generateCompactList(const Node *relative,
     for (int i=0; i<NumParagraphs; i++)         // i = 0..36
         paragraphOffset[i+1] = paragraphOffset[i] + paragraph[i].count();
 
-    int curParNr = 0;
-    int curParOffset = 0;
-
     /*
       Output the alphabet as a row of links.
      */
@@ -2357,8 +2270,12 @@ void HtmlGenerator::generateCompactList(const Node *relative,
       Output a <div> element to contain all the <dl> elements.
      */
     out() << "<div class=\"flowListDiv\">\n";
+    numTableRows = 0;
 
-    for (int i=0; i<classMap.count()-1; i++) {
+    int curParNr = 0;
+    int curParOffset = 0;
+
+    for (int i=0; i<classMap.count(); i++) {
         while ((curParNr < NumParagraphs) &&
                (curParOffset == paragraph[curParNr].count())) {
             ++curParNr;
@@ -2419,7 +2336,9 @@ void HtmlGenerator::generateCompactList(const Node *relative,
         out() << "</dd>\n";
         curParOffset++;
     }
-    out() << "</dl>\n";
+    if (classMap.count() > 0)
+        out() << "</dl>\n";
+
     out() << "</div>\n";
 }
 
@@ -2847,7 +2766,7 @@ QString HtmlGenerator::highlightedCode(const QString& markedCode,
     static const QString headerTag("headerfile");
     static const QString funcTag("func");
     static const QString linkTag("link");
-    
+
     // replace all <@link> tags: "(<@link node=\"([^\"]+)\">).*(</@link>)"
     bool done = false;
     for (int i = 0, srcSize = src.size(); i < srcSize;) {
@@ -2882,6 +2801,7 @@ QString HtmlGenerator::highlightedCode(const QString& markedCode,
         if (src.at(i) == charLangle && src.at(i + 1) == charAt) {
             i += 2;
             if (parseArg(src, funcTag, &i, srcSize, &arg, &par1)) {
+
                 const Node* n = marker->resolveTarget(par1.toString(),
                                                       myTree,
                                                       relative);
@@ -3451,70 +3371,6 @@ void HtmlGenerator::findAllClasses(const InnerNode *node)
     }
 }
 
-/*!
-  For generating the "New Classes... in 4.6" section on the
-  What's New in 4.6" page.
- */
-void HtmlGenerator::findAllSince(const InnerNode *node)
-{
-    NodeList::const_iterator child = node->childNodes().constBegin();
-    while (child != node->childNodes().constEnd()) {
-        QString sinceVersion = (*child)->since();
-        if (((*child)->access() != Node::Private) && !sinceVersion.isEmpty()) {
-            NewSinceMaps::iterator nsmap = newSinceMaps.find(sinceVersion);
-            if (nsmap == newSinceMaps.end())
-                nsmap = newSinceMaps.insert(sinceVersion,NodeMultiMap());
-            NewClassMaps::iterator ncmap = newClassMaps.find(sinceVersion);
-            if (ncmap == newClassMaps.end())
-                ncmap = newClassMaps.insert(sinceVersion,NodeMap());
-            NewClassMaps::iterator nqcmap = newQmlClassMaps.find(sinceVersion);
-            if (nqcmap == newQmlClassMaps.end())
-                nqcmap = newQmlClassMaps.insert(sinceVersion,NodeMap());
- 
-            if ((*child)->type() == Node::Function) {
-                FunctionNode *func = static_cast<FunctionNode *>(*child);
-                if ((func->status() > Node::Obsolete) &&
-                    (func->metaness() != FunctionNode::Ctor) &&
-                    (func->metaness() != FunctionNode::Dtor)) {
-                    nsmap.value().insert(func->name(),(*child));
-                }
-            }
-            else if ((*child)->url().isEmpty()) {
-                if ((*child)->type() == Node::Class && !(*child)->doc().isEmpty()) {
-                    QString className = (*child)->name();
-                    if ((*child)->parent() &&
-                        (*child)->parent()->type() == Node::Namespace &&
-                        !(*child)->parent()->name().isEmpty())
-                        className = (*child)->parent()->name()+"::"+className;
-                    nsmap.value().insert(className,(*child));
-                    ncmap.value().insert(className,(*child));
-                }
-                else if ((*child)->subType() == Node::QmlClass) {
-                    QString className = (*child)->name();
-                    if ((*child)->parent() &&
-                        (*child)->parent()->type() == Node::Namespace &&
-                        !(*child)->parent()->name().isEmpty())
-                        className = (*child)->parent()->name()+"::"+className;
-                    nsmap.value().insert(className,(*child));
-                    nqcmap.value().insert(className,(*child));
-                }
-            }
-            else {
-                QString name = (*child)->name();
-                if ((*child)->parent() &&
-                    (*child)->parent()->type() == Node::Namespace &&
-                    !(*child)->parent()->name().isEmpty())
-                    name = (*child)->parent()->name()+"::"+name;
-                nsmap.value().insert(name,(*child));
-            }
-            if ((*child)->isInnerNode()) {
-                findAllSince(static_cast<InnerNode *>(*child));
-            }
-        }
-        ++child;
-    }
-}
-
 void HtmlGenerator::findAllFunctions(const InnerNode *node)
 {
     NodeList::ConstIterator c = node->childNodes().begin();
@@ -3873,8 +3729,6 @@ void HtmlGenerator::endLink()
     inObsoleteLink = false;
 }
 
-#ifdef QDOC_QML
-
 /*!
   Generates the summary for the \a section. Only used for
   sections of QML element documentation.
@@ -3931,7 +3785,8 @@ void HtmlGenerator::generateDetailedQmlMember(const Node *node,
 
                 out() << "<a name=\"" + refForNode(qpn) + "\"></a>";
 
-                if (!qpn->isWritable(myTree)) {
+                const ClassNode* cn = qpn->declarativeCppNode();
+                if (cn && !qpn->isWritable(myTree)) {
                     out() << "<span class=\"qmlreadonly\">read-only</span>";
                 }
                 if (qpgn->isDefault())
@@ -4360,7 +4215,6 @@ QString HtmlGenerator::fullDocumentLocation(const Node *node)
             return "";
     }
     else if (node->type() == Node::Fake) {
-#ifdef QDOC_QML
         if ((node->subType() == Node::QmlClass) ||
             (node->subType() == Node::QmlBasicType)) {
             QString fb = node->fileBase();
@@ -4368,9 +4222,9 @@ QString HtmlGenerator::fullDocumentLocation(const Node *node)
                 return fb + ".html";
             else
                 return Generator::outputPrefix(QLatin1String("QML")) + node->fileBase() + QLatin1String(".html");
-        } else
-#endif
-        parentName = node->fileBase() + ".html";
+        }
+        else
+            parentName = node->fileBase() + ".html";
     }
     else if (node->fileBase().isEmpty())
         return "";
@@ -4481,6 +4335,194 @@ QString HtmlGenerator::fullDocumentLocation(const Node *node)
     return parentName.toLower() + anchorRef;
 }
 
-#endif
+/*!
+  This function outputs one or more manifest files in XML.
+  They are used by Creator.
+ */
+void HtmlGenerator::generateManifestFiles()
+{
+    generateManifestFile("examples", "example");
+    generateManifestFile("demos", "demo");
+    ExampleNode::exampleNodeMap.clear();
+}
+
+/*!
+  This function is called by generaqteManiferstFile(), once
+  for each manifest file to be generated. \a manifest is the
+  type of manifest file.
+ */
+void HtmlGenerator::generateManifestFile(QString manifest, QString element)
+{
+    if (ExampleNode::exampleNodeMap.isEmpty())
+        return;
+    QString fileName = manifest +"-manifest.xml";
+    QFile file(outputDir() + "/" + fileName);
+    if (!file.open(QFile::WriteOnly | QFile::Text))
+        return ;
+    bool demos = false;
+    if (manifest == "demos")
+        demos = true;
+
+    bool proceed = false;
+    ExampleNodeMap::Iterator i = ExampleNode::exampleNodeMap.begin();
+    while (i != ExampleNode::exampleNodeMap.end()) {
+        const ExampleNode* en = i.value();
+        if (demos) {
+            if (en->name().startsWith("demos")) {
+                proceed = true;
+                break;
+            }
+        }
+        else if (!en->name().startsWith("demos")) {
+            proceed = true;
+            break;
+        }
+        ++i;
+    }
+    if (!proceed)
+        return;
+
+    QXmlStreamWriter writer(&file);
+    writer.setAutoFormatting(true);
+    writer.writeStartDocument();
+    writer.writeStartElement("instructionals");
+    writer.writeAttribute("module", project);
+    writer.writeStartElement(manifest);
+
+    i = ExampleNode::exampleNodeMap.begin();
+    while (i != ExampleNode::exampleNodeMap.end()) {
+        const ExampleNode* en = i.value();
+        if (demos) {
+            if (!en->name().startsWith("demos")) {
+                ++i;
+                continue;
+            }
+        }
+        else if (en->name().startsWith("demos")) {
+            ++i;
+            continue;
+        }
+        writer.writeStartElement(element);
+        writer.writeAttribute("name", en->title());
+        //QString docUrl = projectUrl + "/" + en->fileBase() + ".html";
+        QString docUrl = manifestDir + en->fileBase() + ".html";
+        writer.writeAttribute("docUrl", docUrl);
+
+        QDir installDir(QLibraryInfo::location(QLibraryInfo::DataPath));
+        QDir buildDir(QString::fromLocal8Bit(qgetenv("QT_BUILD_TREE")));
+        QDir sourceDir(QString::fromLocal8Bit(qgetenv("QT_SOURCE_TREE")));
+
+        QString relativePath;
+        if (buildDir.exists() && sourceDir.exists()
+            // shadow build, but no prefix build
+            && installDir == buildDir && buildDir != sourceDir) {
+            relativePath = QString("../%1/%2/").arg(buildDir.relativeFilePath(sourceDir.path()));
+            if (demos)
+                relativePath = relativePath.arg("demos");
+            else
+                relativePath = relativePath.arg("examples");
+        }
+
+
+        foreach (const Node* child, en->childNodes()) {
+            if (child->subType() == Node::File) {
+                QString file = child->name();
+                if (file.endsWith(".pro") || file.endsWith(".qmlproject")) {
+                    if (file.startsWith("demos/"))
+                        file = file.mid(6);
+                    if (!relativePath.isEmpty())
+                        file.prepend(relativePath);
+                    writer.writeAttribute("projectPath", file);
+                    break;
+                }
+            }
+        }
+        //writer.writeAttribute("imageUrl", projectUrl + "/" + en->imageFileName());
+        writer.writeAttribute("imageUrl", manifestDir + en->imageFileName());
+        writer.writeStartElement("description");
+        Text brief = en->doc().briefText();
+        if (!brief.isEmpty())
+            writer.writeCDATA(brief.toString());
+        else
+            writer.writeCDATA(QString("No description available"));
+        writer.writeEndElement(); // description
+        QStringList tags = en->title().toLower().split(" ");
+        if (!tags.isEmpty()) {
+            writer.writeStartElement("tags");
+            bool wrote_one = false;
+            for (int n=0; n<tags.size(); ++n) {
+                QString tag = tags.at(n);
+                if (tag.at(0).isDigit())
+                    continue;
+                if (tag.at(0) == '-')
+                    continue;
+                if (tag.startsWith("example"))
+                    continue;
+                if (tag.startsWith("chapter"))
+                    continue;
+                if (tag.endsWith(":"))
+                    tag.chop(1);
+                if (n>0 && wrote_one)
+                    writer.writeCharacters(",");
+                writer.writeCharacters(tag);
+                wrote_one = true;
+            }
+            writer.writeEndElement(); // tags
+        }
+
+        QString ename = en->name().mid(en->name().lastIndexOf('/')+1);
+        QSet<QString> usedNames;
+        foreach (const Node* child, en->childNodes()) {
+            if (child->subType() == Node::File) {
+                QString file = child->name();
+                QString fileName = file.mid(file.lastIndexOf('/')+1);
+                QString baseName = fileName;
+                if ((fileName.count(QChar('.')) > 0) &&
+                    (fileName.endsWith(".cpp") ||
+                     fileName.endsWith(".h") ||
+                     fileName.endsWith(".qml")))
+                    baseName.truncate(baseName.lastIndexOf(QChar('.')));
+                if (baseName.toLower() == ename) {
+                    if (!usedNames.contains(fileName)) {
+                        writer.writeStartElement("fileToOpen");
+                        if (file.startsWith("demos/"))
+                            file = file.mid(6);
+                        writer.writeCharacters(file);
+                        writer.writeEndElement(); // fileToOpen
+                        usedNames.insert(fileName);
+                    }
+                }
+                else if (fileName.toLower().endsWith("main.cpp") ||
+                         fileName.toLower().endsWith("main.qml")) {
+                    if (!usedNames.contains(fileName)) {
+                        writer.writeStartElement("fileToOpen");
+                        if (file.startsWith("demos/"))
+                            file = file.mid(6);
+                        writer.writeCharacters(file);
+                        writer.writeEndElement(); // fileToOpen
+                        usedNames.insert(fileName);
+                    }
+                }
+            }
+        }
+        if (!en->dependencies().isEmpty()) {
+            for (int idx=0; idx<en->dependencies().size(); ++idx) {
+                writer.writeStartElement("dependency");
+                QString file(en->dependencies()[idx]);
+                if (!relativePath.isEmpty())
+                    file.prepend(relativePath);
+                writer.writeCharacters(file);
+                writer.writeEndElement(); // dependency
+            }
+        }
+        writer.writeEndElement(); // example
+        ++i;
+    }
+
+    writer.writeEndElement(); // examples
+    writer.writeEndElement(); // instructionals
+    writer.writeEndDocument();
+    file.close();
+}
 
 QT_END_NAMESPACE

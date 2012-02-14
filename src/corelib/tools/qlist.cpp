@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -237,7 +237,7 @@ void **QListData::append(int n)
         if (b - n >= 2 * d->alloc / 3) {
             // we have enough space. Just not at the end -> move it.
             e -= b;
-            ::memcpy(d->array, d->array + b, e * sizeof(void *));
+            ::memmove(d->array, d->array + b, e * sizeof(void *));
             d->begin = 0;
         } else {
             realloc(grow(d->alloc + n));
@@ -460,8 +460,8 @@ void **QListData::erase(void **xi)
 
     Note that the internal array only ever gets bigger over the life
     of the list. It never shrinks. The internal array is deallocated
-    by the destructor and by the assignment operator, when one list
-    is assigned to another.
+    by the destructor, by clear(), and by the assignment operator,
+    when one list is assigned to another.
 
     Here's an example of a QList that stores integers and
     a QList that stores QDate values:
@@ -469,8 +469,8 @@ void **QListData::erase(void **xi)
     \snippet doc/src/snippets/code/src_corelib_tools_qlistdata.cpp 0
 
     Qt includes a QStringList class that inherits QList\<QString\>
-    and adds a few convenience functions, such as QStringList::join()
-    and QStringList::find(). (QString::split() creates QStringLists
+    and adds a convenience function QStringList::join().
+    (QString::split() creates QStringLists
     from strings.)
 
     QList stores a list of items. The default constructor creates an
@@ -590,10 +590,10 @@ void **QListData::erase(void **xi)
     \sa operator=()
 */
 
-/*! \fn QList::QList(std::initializer_list<T> args)
+/*! \fn inline QList::QList(std::initializer_list<T> args)
     \since 4.8
 
-    Construct a list from a std::initilizer_list.
+    Construct a list from the std::initializer_list specified by \a args.
 
     This constructor is only enabled if the compiler supports C++0x
 */

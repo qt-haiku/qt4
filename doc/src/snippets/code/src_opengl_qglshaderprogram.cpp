@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -52,7 +52,7 @@ program.bind();
 //! [1]
 program.addShaderFromSourceCode(QGLShader::Vertex,
     "attribute highp vec4 vertex;\n"
-    "attribute mediump mat4 matrix;\n"
+    "uniform highp mat4 matrix;\n"
     "void main(void)\n"
     "{\n"
     "   gl_Position = matrix * vertex;\n"
@@ -67,7 +67,7 @@ program.link();
 program.bind();
 
 int vertexLocation = program.attributeLocation("vertex");
-int matrixLocation = program.attributeLocation("matrix");
+int matrixLocation = program.uniformLocation("matrix");
 int colorLocation = program.uniformLocation("color");
 //! [1]
 

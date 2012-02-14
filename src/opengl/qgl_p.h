@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtOpenGL module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -63,6 +63,12 @@
 #include "private/qwidget_p.h"
 #include "qcache.h"
 #include "qglpaintdevice_p.h"
+
+#ifdef Q_OS_SYMBIAN
+#include "qgltexturepool_p.h"
+
+class QGLPixmapData;
+#endif
 
 #ifndef QT_NO_EGL
 #include <QtGui/private/qegl_p.h>
@@ -98,6 +104,10 @@ class QMacWindowChangeEvent;
 
 #ifdef Q_WS_QWS
 class QWSGLWindowSurface;
+#endif
+
+#ifdef Q_OS_SYMBIAN
+extern bool qt_initializing_gl_share_widget();
 #endif
 
 #ifndef QT_NO_EGL
@@ -173,9 +183,14 @@ public:
 #endif
 #if defined(Q_OS_SYMBIAN)
                        , eglSurfaceWindowId(0)
+                       , surfaceSizeInitialized(false)
 #endif
     {
         isGLWidget = 1;
+#if defined(Q_OS_SYMBIAN)
+        if (qt_initializing_gl_share_widget())
+            isGLGlobalShareWidget = 1;
+#endif
     }
 
     ~QGLWidgetPrivate() {}
@@ -218,6 +233,7 @@ public:
 #ifdef Q_OS_SYMBIAN
     void recreateEglSurface();
     WId eglSurfaceWindowId;
+    bool surfaceSizeInitialized : 1;
 #endif
 };
 
@@ -288,7 +304,8 @@ public:
         PVRTCTextureCompression = 0x00020000,
         FragmentShader          = 0x00040000,
         ElementIndexUint        = 0x00080000,
-        Depth24                 = 0x00100000
+        Depth24                 = 0x00100000,
+        SRGBFrameBuffer         = 0x00200000
     };
     Q_DECLARE_FLAGS(Extensions, Extension)
 
@@ -419,6 +436,7 @@ public:
     uint workaround_brokenTextureFromPixmap : 1;
     uint workaround_brokenTextureFromPixmap_init : 1;
 
+    uint workaround_brokenScissor : 1;
     uint workaround_brokenAlphaTexSubImage : 1;
     uint workaround_brokenAlphaTexSubImage_init : 1;
 
@@ -561,10 +579,21 @@ public:
           options(opt)
 #if defined(Q_WS_X11)
         , boundPixmap(0)
+#elif defined(Q_OS_SYMBIAN)
+        , boundPixmap(0)
+        , boundKey(0)
+        , nextLRU(0)
+        , prevLRU(0)
+        , inLRU(false)
+        , failedToAlloc(false)
+        , inTexturePool(false)
 #endif
     {}
 
     ~QGLTexture() {
+#ifdef Q_OS_SYMBIAN
+        freeTexture();
+#else
         if (options & QGLContext::MemoryManagedBindOption) {
             Q_ASSERT(context);
 #if !defined(Q_WS_X11)
@@ -572,7 +601,8 @@ public:
 #endif
             context->d_ptr->texture_destroyer->emitFreeTexture(context, boundPixmap, id);
         }
-     }
+#endif
+    }
 
     QGLContext *context;
     GLuint id;
@@ -592,6 +622,19 @@ public:
         (const char *buf, int len, const char *format = 0);
     QSize bindCompressedTextureDDS(const char *buf, int len);
     QSize bindCompressedTexturePVR(const char *buf, int len);
+
+#ifdef Q_OS_SYMBIAN
+    void freeTexture();
+
+    QGLPixmapData* boundPixmap;
+    qint64 boundKey;
+
+    QGLTexture *nextLRU;
+    QGLTexture *prevLRU;
+    mutable bool inLRU;
+    mutable bool failedToAlloc;
+    mutable bool inTexturePool;
+#endif
 };
 
 struct QGLTextureCacheKey {
@@ -693,6 +736,7 @@ public:
     void cleanup(const QGLContext *context);
     void cleanup(const QGLContext *context, void *value);
     virtual void freeResource(void *value) = 0;
+    virtual void contextDeleted(const QGLContext *ctx);
 
 protected:
     QList<QGLContextGroup *> m_groups;

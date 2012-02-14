@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -44,9 +44,10 @@
 #include "sender.h"
 
 Sender::Sender(QWidget *parent)
-    : QDialog(parent)
+    : QWidget(parent)
 {
     statusLabel = new QLabel(tr("Ready to broadcast datagrams on port 45454"));
+    statusLabel->setWordWrap(true);
 
     startButton = new QPushButton(tr("&Start"));
     quitButton = new QPushButton(tr("&Quit"));

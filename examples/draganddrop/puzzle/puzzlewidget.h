@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -57,8 +57,11 @@ class PuzzleWidget : public QWidget
     Q_OBJECT
 
 public:
-    PuzzleWidget(QWidget *parent = 0);
+    PuzzleWidget(int imageSize, QWidget *parent = 0);
     void clear();
+
+    int pieceSize() const;
+    int imageSize() const;
 
 signals:
     void puzzleCompleted();
@@ -80,6 +83,7 @@ private:
     QList<QPoint> pieceLocations;
     QRect highlightedRect;
     int inPlace;
+    int m_ImageSize;
 };
 
 #endif

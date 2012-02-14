@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -241,11 +241,21 @@ void tst_QSemaphore::tryAcquireWithTimeout()
 {
     QFETCH(int, timeout);
 
+    // timers are not guaranteed to be accurate down to the last millisecond,
+    // so we permit the elapsed times to be up to this far from the expected value.
+    int fuzz = 10;
+
     QSemaphore semaphore;
     QTime time;
 
-#define QVERIFYGE(a,b) {int e = a; if (a<b) qDebug() << #a << "=" << e << " !>= " << #b << "=" << b; QVERIFY(e>=b);}
-#define QVERIFYLE(a,b) {int e = a; if (b<a) qDebug() << #a << "=" << e << " !<= " << #b << "=" << b; QVERIFY(e<=b);}
+#define FUZZYCOMPARE(a,e) \
+    do { \
+        int a1 = a; \
+        int e1 = e; \
+        QVERIFY2(qAbs(a1-e1) < fuzz, \
+            qPrintable(QString("(%1=%2) is more than %3 milliseconds different from (%4=%5)") \
+                        .arg(#a).arg(a1).arg(fuzz).arg(#e).arg(e1))); \
+    } while (0)
 
     QCOMPARE(semaphore.available(), 0);
 
@@ -253,70 +263,72 @@ void tst_QSemaphore::tryAcquireWithTimeout()
     QCOMPARE(semaphore.available(), 1);
     time.start();
     QVERIFY(!semaphore.tryAcquire(2, timeout));
-    QVERIFYGE(time.elapsed(), timeout);
+    FUZZYCOMPARE(time.elapsed(), timeout);
     QCOMPARE(semaphore.available(), 1);
 
     semaphore.release();
     QCOMPARE(semaphore.available(), 2);
     time.start();
     QVERIFY(!semaphore.tryAcquire(3, timeout));
-    QVERIFYGE(time.elapsed(), timeout);
+    FUZZYCOMPARE(time.elapsed(), timeout);
     QCOMPARE(semaphore.available(), 2);
 
     semaphore.release(10);
     QCOMPARE(semaphore.available(), 12);
     time.start();
     QVERIFY(!semaphore.tryAcquire(100, timeout));
-    QVERIFYGE(time.elapsed(), timeout);
+    FUZZYCOMPARE(time.elapsed(), timeout);
     QCOMPARE(semaphore.available(), 12);
 
     semaphore.release(10);
     QCOMPARE(semaphore.available(), 22);
     time.start();
     QVERIFY(!semaphore.tryAcquire(100, timeout));
-    QVERIFYGE(time.elapsed(), timeout);
+    FUZZYCOMPARE(time.elapsed(), timeout);
     QCOMPARE(semaphore.available(), 22);
 
     time.start();
     QVERIFY(semaphore.tryAcquire(1, timeout));
-    QVERIFYLE(time.elapsed(), timeout);
+    FUZZYCOMPARE(time.elapsed(), 0);
     QCOMPARE(semaphore.available(), 21);
 
     time.start();
     QVERIFY(semaphore.tryAcquire(1, timeout));
-    QVERIFYLE(time.elapsed(), timeout);
+    FUZZYCOMPARE(time.elapsed(), 0);
     QCOMPARE(semaphore.available(), 20);
 
     time.start();
     QVERIFY(semaphore.tryAcquire(10, timeout));
-    QVERIFYLE(time.elapsed(), timeout);
+    FUZZYCOMPARE(time.elapsed(), 0);
     QCOMPARE(semaphore.available(), 10);
 
     time.start();
     QVERIFY(semaphore.tryAcquire(10, timeout));
-    QVERIFYLE(time.elapsed(), timeout);
+    FUZZYCOMPARE(time.elapsed(), 0);
     QCOMPARE(semaphore.available(), 0);
 
     // should not be able to acquire more
     time.start();
     QVERIFY(!semaphore.tryAcquire(1, timeout));
-    QVERIFYGE(time.elapsed(), timeout);
+    FUZZYCOMPARE(time.elapsed(), timeout);
     QCOMPARE(semaphore.available(), 0);
 
     time.start();
     QVERIFY(!semaphore.tryAcquire(1, timeout));
-    QVERIFYGE(time.elapsed(), timeout);
+    FUZZYCOMPARE(time.elapsed(), timeout);
     QCOMPARE(semaphore.available(), 0);
 
     time.start();
     QVERIFY(!semaphore.tryAcquire(10, timeout));
-    QVERIFYGE(time.elapsed(), timeout);
+    FUZZYCOMPARE(time.elapsed(), timeout);
     QCOMPARE(semaphore.available(), 0);
 
     time.start();
     QVERIFY(!semaphore.tryAcquire(10, timeout));
-    QVERIFYGE(time.elapsed(), timeout);
+    FUZZYCOMPARE(time.elapsed(), timeout);
     QCOMPARE(semaphore.available(), 0);
+
+#undef FUZZYCOMPARE
 }
 
 void tst_QSemaphore::tryAcquireWithTimeoutStarvation()

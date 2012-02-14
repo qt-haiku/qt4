@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -75,6 +75,7 @@
 
 #if defined(Q_OS_SYMBIAN)
 #include <e32std.h>
+#include <tz.h>
 #endif
 
 QT_BEGIN_NAMESPACE
@@ -387,7 +388,7 @@ int QDate::day() const
 }
 
 /*!
-    Returns the weekday (1 to 7) for this date.
+    Returns the weekday (1 = Monday to 7 = Sunday) for this date.
 
     \sa day(), dayOfYear(), Qt::DayOfWeek
 */
@@ -1537,7 +1538,7 @@ int QTime::msec() const
 
     If \a format is Qt::ISODate, the string format corresponds to the
     ISO 8601 extended specification for representations of dates,
-    which is also HH:MM:SS. (However, contrary to ISO 8601, dates
+    which is also HH:mm:ss. (However, contrary to ISO 8601, dates
     before 15 October 1582 are handled as Julian dates, not Gregorian
     dates. See \l{QDate G and J} {Use of Gregorian and Julian
     Calendars}. This might change in a future version of Qt.)
@@ -2460,7 +2461,11 @@ void QDateTime::setTime_t(uint secsSince1Jan1970UTC)
 
     If the \a format is Qt::ISODate, the string format corresponds
     to the ISO 8601 extended specification for representations of
-    dates and times, taking the form YYYY-MM-DDTHH:MM:SS.
+    dates and times, taking the form YYYY-MM-DDTHH:mm:ss[Z|[+|-]HH:mm],
+    depending on the timeSpec() of the QDateTime. If the timeSpec()
+    is Qt::UTC, Z will be appended to the string; if the timeSpec() is
+    Qt::OffsetFromUTC the offset in hours and minutes from UTC will
+    be appended to the string.
 
     If the \a format is Qt::SystemLocaleShortDate or
     Qt::SystemLocaleLongDate, the string format depends on the locale
@@ -2497,6 +2502,21 @@ QString QDateTime::toString(Qt::DateFormat f) const
             return QString();   // failed to convert
         buf += QLatin1Char('T');
         buf += d->time.toString(Qt::ISODate);
+        switch (d->spec) {
+        case QDateTimePrivate::UTC:
+            buf += QLatin1Char('Z');
+            break;
+        case QDateTimePrivate::OffsetFromUTC: {
+            int sign = d->utcOffset >= 0 ? 1: -1;
+            buf += QString::fromLatin1("%1%2:%3").
+                arg(sign == 1 ? QLatin1Char('+') : QLatin1Char('-')).
+                arg(d->utcOffset * sign / SECS_PER_HOUR, 2, 10, QLatin1Char('0')).
+                arg((d->utcOffset / 60) % 60, 2, 10, QLatin1Char('0'));
+            break;
+        }
+        default:
+            break;
+        }
     }
 #ifndef QT_NO_TEXTDATE
     else if (f == Qt::TextDate) {
@@ -2768,6 +2788,8 @@ int QDateTime::secsTo(const QDateTime &other) const
 }
 
 /*!
+    \since 4.7
+
     Returns the number of milliseconds from this datetime to the \a other
     datetime. If the \a other datetime is earlier than this datetime,
     the value returned is negative.
@@ -4010,23 +4032,37 @@ static QDateTimePrivate::Spec utcToLocal(QDate &date, QTime &time)
 #elif defined(Q_OS_SYMBIAN)
     // months and days are zero index based
     _LIT(KUnixEpoch, "19700000:000000.000000");
-    TTimeIntervalSeconds utcOffset = User::UTCOffset();
     TTimeIntervalSeconds tTimeIntervalSecsSince1Jan1970UTC(secsSince1Jan1970UTC);
     TTime epochTTime;
     TInt err = epochTTime.Set(KUnixEpoch);
     tm res;
     if(err == KErrNone) {
         TTime utcTTime = epochTTime + tTimeIntervalSecsSince1Jan1970UTC;
-        utcTTime = utcTTime + utcOffset;
-        TDateTime utcDateTime = utcTTime.DateTime();
-        res.tm_sec = utcDateTime.Second();
-        res.tm_min = utcDateTime.Minute();
-        res.tm_hour = utcDateTime.Hour();
-        res.tm_mday = utcDateTime.Day() + 1; // non-zero based index for tm struct
-        res.tm_mon = utcDateTime.Month();
-        res.tm_year = utcDateTime.Year() - 1900;
-        res.tm_isdst = 0;
-        brokenDown = &res;
+        CTrapCleanup *cleanup = CTrapCleanup::New();    // needed to avoid crashes in apps that previously were able to use this function in static data initialization
+        TRAP(err,
+            RTz tz;
+            User::LeaveIfError(tz.Connect());
+            CleanupClosePushL(tz);
+            CTzId *tzId = tz.GetTimeZoneIdL();
+            CleanupStack::PushL(tzId);
+            res.tm_isdst = tz.IsDaylightSavingOnL(*tzId,utcTTime);
+            User::LeaveIfError(tz.ConvertToLocalTime(utcTTime));
+            CleanupStack::PopAndDestroy(tzId);
+            CleanupStack::PopAndDestroy(&tz));
+        delete cleanup;
+        if (KErrNone == err) {
+            TDateTime localDateTime = utcTTime.DateTime();
+            res.tm_sec = localDateTime.Second();
+            res.tm_min = localDateTime.Minute();
+            res.tm_hour = localDateTime.Hour();
+            res.tm_mday = localDateTime.Day() + 1; // non-zero based index for tm struct
+            res.tm_mon = localDateTime.Month();
+            res.tm_year = localDateTime.Year() - 1900;
+            // Symbian's timezone server doesn't know how to handle DST before year 1997
+            if (res.tm_year < 97)
+                res.tm_isdst = -1;
+            brokenDown = &res;
+        }
     }
 #elif !defined(QT_NO_THREAD) && defined(_POSIX_THREAD_SAFE_FUNCTIONS)
     // use the reentrant version of localtime() where available
@@ -4101,23 +4137,27 @@ static void localToUtc(QDate &date, QTime &time, int isdst)
 #elif defined(Q_OS_SYMBIAN)
     // months and days are zero index based
     _LIT(KUnixEpoch, "19700000:000000.000000");
-    TTimeIntervalSeconds utcOffset = TTimeIntervalSeconds(0 - User::UTCOffset().Int());
     TTimeIntervalSeconds tTimeIntervalSecsSince1Jan1970UTC(secsSince1Jan1970UTC);
     TTime epochTTime;
     TInt err = epochTTime.Set(KUnixEpoch);
     tm res;
     if(err == KErrNone) {
-        TTime utcTTime = epochTTime + tTimeIntervalSecsSince1Jan1970UTC;
-        utcTTime = utcTTime + utcOffset;
-        TDateTime utcDateTime = utcTTime.DateTime();
-        res.tm_sec = utcDateTime.Second();
-        res.tm_min = utcDateTime.Minute();
-        res.tm_hour = utcDateTime.Hour();
-        res.tm_mday = utcDateTime.Day() + 1; // non-zero based index for tm struct
-        res.tm_mon = utcDateTime.Month();
-        res.tm_year = utcDateTime.Year() - 1900;
-        res.tm_isdst = (int)isdst;
-        brokenDown = &res;
+        TTime localTTime = epochTTime + tTimeIntervalSecsSince1Jan1970UTC;
+        RTz tz;
+        if (KErrNone == tz.Connect()) {
+            if (KErrNone == tz.ConvertToUniversalTime(localTTime)) {
+                TDateTime utcDateTime = localTTime.DateTime();
+                res.tm_sec = utcDateTime.Second();
+                res.tm_min = utcDateTime.Minute();
+                res.tm_hour = utcDateTime.Hour();
+                res.tm_mday = utcDateTime.Day() + 1; // non-zero based index for tm struct
+                res.tm_mon = utcDateTime.Month();
+                res.tm_year = utcDateTime.Year() - 1900;
+                res.tm_isdst = (int)isdst;
+                brokenDown = &res;
+            }
+        tz.Close();
+        }
     }
 #elif !defined(QT_NO_THREAD) && defined(_POSIX_THREAD_SAFE_FUNCTIONS)
     // use the reentrant version of gmtime() where available

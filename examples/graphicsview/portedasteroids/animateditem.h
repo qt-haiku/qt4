@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -49,18 +49,12 @@ public:
     AnimatedPixmapItem(const QList<QPixmap> &animation, QGraphicsScene *scene = 0);
 
     void setFrame(int frame);
-    inline int frame() const
-    { return currentFrame; }
-    inline int frameCount() const
-    { return frames.size(); }
-    inline QPixmap image(int frame) const
-    { return frames.isEmpty() ? QPixmap() : frames.at(frame % frames.size()).pixmap; }
-    inline void setVelocity(qreal xvel, qreal yvel)
-    { vx = xvel; vy = yvel; }
-    inline qreal xVelocity() const
-    { return vx; }
-    inline qreal yVelocity() const
-    { return vy; }
+    inline int frame() const                        { return currentFrame; }
+    inline int frameCount() const                   { return frames.size(); }
+    inline QPixmap image(int frame) const           { return frames.isEmpty() ? QPixmap() : frames.at(frame % frames.size()).pixmap; }
+    inline void setVelocity(qreal xvel, qreal yvel) { vx = xvel; vy = yvel; }
+    inline qreal xVelocity() const                  { return vx; }
+    inline qreal yVelocity() const                  { return vy; }
 
     QRectF boundingRect() const;
     QPainterPath shape() const;

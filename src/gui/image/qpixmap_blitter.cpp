@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -57,7 +57,8 @@ QT_BEGIN_NAMESPACE
 static int global_ser_no = 0;
 
 QBlittablePixmapData::QBlittablePixmapData()
-    : QPixmapData(QPixmapData::PixmapType,BlitterClass), m_engine(0), m_blittable(0)
+    : QPixmapData(QPixmapData::PixmapType,BlitterClass)
+    , m_alpha(false)
 #ifdef QT_BLITTER_RASTEROVERLAY
     ,m_rasterOverlay(0), m_unmergedCopy(0)
 #endif //QT_BLITTER_RASTEROVERLAY
@@ -67,8 +68,6 @@ QBlittablePixmapData::QBlittablePixmapData()
 
 QBlittablePixmapData::~QBlittablePixmapData()
 {
-    delete m_blittable;
-    delete m_engine;
 #ifdef QT_BLITTER_RASTEROVERLAY
     delete m_rasterOverlay;
     delete m_unmergedCopy;
@@ -79,31 +78,30 @@ QBlittable *QBlittablePixmapData::blittable() const
 {
     if (!m_blittable) {
         QBlittablePixmapData *that = const_cast<QBlittablePixmapData *>(this);
-        that->m_blittable = this->createBlittable(QSize(w,h));
+        that->m_blittable.reset(this->createBlittable(QSize(w,h), m_alpha));
     }
 
-    return m_blittable;
+    return m_blittable.data();
 }
 
 void QBlittablePixmapData::setBlittable(QBlittable *blittable)
 {
     resize(blittable->size().width(),blittable->size().height());
-    m_blittable = blittable;
+    m_blittable.reset(blittable);
 }
 
 void QBlittablePixmapData::resize(int width, int height)
 {
 
-    delete m_blittable;
-    m_blittable = 0;
-    delete m_engine;
-    m_engine = 0;
+    m_blittable.reset(0);
+    m_engine.reset(0);
 #ifdef Q_WS_QPA
     d = QApplicationPrivate::platformIntegration()->screens().at(0)->depth();
 #endif
     w = width;
     h = height;
     is_null = (w <= 0 || h <= 0);
+    setSerialNumber(++global_ser_no);
 }
 
 int QBlittablePixmapData::metric(QPaintDevice::PaintDeviceMetric metric) const
@@ -139,7 +137,16 @@ void QBlittablePixmapData::fill(const QColor &color)
     if (color.alpha() == 255 && blittable()->capabilities() & QBlittable::SolidRectCapability) {
         blittable()->unlock();
         blittable()->fillRect(QRectF(0,0,w,h),color);
-    }else {
+    } else {
+        // Need to be backed with an alpha channel now. It would be nice
+        // if we could just change the format, e.g. when going from
+        // RGB32 -> ARGB8888.
+        if (color.alpha() != 255 && !hasAlphaChannel()) {
+            m_blittable.reset(0);
+            m_engine.reset(0);
+            m_alpha = true;
+        }
+
         uint pixel;
         switch (blittable()->lock()->format()) {
         case QImage::Format_ARGB32_Premultiplied:
@@ -185,6 +192,7 @@ bool QBlittablePixmapData::hasAlphaChannel() const
 void QBlittablePixmapData::fromImage(const QImage &image,
                                      Qt::ImageConversionFlags flags)
 {
+    m_alpha = image.hasAlphaChannel();
     resize(image.width(),image.height());
     markRasterOverlay(QRect(0,0,w,h));
     QImage *thisImg = buffer();
@@ -208,9 +216,9 @@ QPaintEngine *QBlittablePixmapData::paintEngine() const
 {
     if (!m_engine) {
         QBlittablePixmapData *that = const_cast<QBlittablePixmapData *>(this);
-        that->m_engine = new QBlitterPaintEngine(that);
+        that->m_engine.reset(new QBlitterPaintEngine(that));
     }
-    return m_engine;
+    return m_engine.data();
 }
 
 #ifdef QT_BLITTER_RASTEROVERLAY

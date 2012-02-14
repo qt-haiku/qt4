@@ -4,8 +4,8 @@ QT = core network
 
 requires(contains(QT_CONFIG,private_tests))
 
-include(../qnativesocketengine/qsocketengine.pri)
+include(../platformsocketengine/platformsocketengine.pri)
 
 symbian: TARGET.CAPABILITY = NetworkServices
 
-
+CONFIG+=insignificant_test # QTQAINFRA-428

@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -181,6 +181,22 @@ void tst_QNetworkCookie::parseSingleCookie_data()
     QTest::newRow("with-value-with-special4") << "a = \"\\\"\" " << cookie;
     cookie.setValue("\"\\\"a, b; c\\\"\"");
     QTest::newRow("with-value-with-special5") << "a = \"\\\"a, b; c\\\"\"" << cookie;
+    // RFC6265 states that cookie values shouldn't contain commas, but we still allow them
+    // since they are only reserved for future compatibility and other browsers do the same.
+    cookie.setValue(",");
+    QTest::newRow("with-value-with-special6") << "a = ," << cookie;
+    cookie.setValue(",b");
+    QTest::newRow("with-value-with-special7") << "a = ,b" << cookie;
+    cookie.setValue("b,");
+    QTest::newRow("with-value-with-special8") << "a = b," << cookie;
+
+    cookie.setValue("b c");
+    QTest::newRow("with-value-with-whitespace") << "a = b c" << cookie;
+
+    cookie.setValue("\"b\"");
+    QTest::newRow("quoted-value") << "a = \"b\"" << cookie;
+    cookie.setValue("\"b c\"");
+    QTest::newRow("quoted-value-with-whitespace") << "a = \"b c\"" << cookie;
 
     cookie.setValue("b");
     cookie.setSecure(true);
@@ -591,7 +607,6 @@ void tst_QNetworkCookie::parseSingleCookie()
 
     //QEXPECT_FAIL("network2", "QDateTime parsing problem: the date is beyond year 8000", Abort);
     QCOMPARE(result.count(), 1);
-    QEXPECT_FAIL("network3", "Cookie value contains commas, violating the HTTP spec", Abort);
     QCOMPARE(result.at(0), expectedCookie);
 
     result = QNetworkCookie::parseCookies(result.at(0).toRawForm());
@@ -626,48 +641,17 @@ void tst_QNetworkCookie::parseMultipleCookies_data()
     // reason: malformed NAME=VALUE pair
     QTest::newRow("invalid-05") << "foo" << list;
     QTest::newRow("invalid-06") << "=b" << list;
-    QTest::newRow("invalid-09") << "foo,a=b" << list;
-    QTest::newRow("invalid-11") << ";path=/" << list;
+    QTest::newRow("invalid-07") << ";path=/" << list;
 
     // reason: malformed expiration date string
-    QTest::newRow("invalid-12") << "a=b;expires=" << list;
-    QTest::newRow("invalid-13") << "a=b;expires=foobar" << list;
-    QTest::newRow("invalid-14") << "a=b;expires=foobar, abc" << list;
-    QTest::newRow("invalid-15") << "a=b;expires=foobar, dd-mmm-yyyy hh:mm:ss GMT; path=/" << list;
-    QTest::newRow("invalid-16") << "a=b;expires=foobar, 32-Caz-1999 24:01:60 GMT; path=/" << list;
-
-    QNetworkCookie cookie;
-    cookie.setName("a");
-    list += cookie;
-    cookie.setName("c");
-    cookie.setValue("d");
-    list += cookie;
-    QTest::newRow("two-1") << "a=,c=d" << list;
-    QTest::newRow("two-2") << "a=, c=d" << list;
-    QTest::newRow("two-3") << "a= ,c=d" << list;
-    QTest::newRow("two-4") << "a= , c=d" << list;
-
-    list.clear();
-    list += cookie;
-    cookie.setName("a");
-    cookie.setValue(QByteArray());
-    list += cookie;
-    QTest::newRow("two-5") << "c=d,a=" << list;
-    QTest::newRow("two-6") << "c=d, a=" << list;
-    QTest::newRow("two-7") << "c=d , a=" << list;
-
-    cookie.setName("foo");
-    cookie.setValue("bar");
-    cookie.setPath("/");
-    list += cookie;
-    QTest::newRow("complex-1") << "c=d, a=, foo=bar; path=/" << list;
-
-    cookie.setName("baz");
-    cookie.setDomain(".qt.nokia.com");
-    list.prepend(cookie);
-    QTest::newRow("complex-2") << "baz=bar; path=/; domain=.qt.nokia.com, c=d,a=,foo=bar; path=/" << list;
+    QTest::newRow("invalid-08") << "a=b;expires=" << list;
+    QTest::newRow("invalid-09") << "a=b;expires=foobar" << list;
+    QTest::newRow("invalid-10") << "a=b;expires=foobar, abc" << list;
+    QTest::newRow("invalid-11") << "a=b;expires=foobar, dd-mmm-yyyy hh:mm:ss GMT; path=/" << list;
+    QTest::newRow("invalid-12") << "a=b;expires=foobar, 32-Caz-1999 24:01:60 GMT; path=/" << list;
 
     // cookies obtained from the network:
+    QNetworkCookie cookie;
     cookie = QNetworkCookie("id", "51706646077999719");
     cookie.setDomain(".bluestreak.com");
     cookie.setPath("/");

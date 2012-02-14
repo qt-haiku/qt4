@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtSql module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -119,6 +119,8 @@ QT_BEGIN_NAMESPACE
     returns false.
 */
 
+class QRelatedTableModel;
+
 struct QRelation
 {
     public:
@@ -135,7 +137,7 @@ struct QRelation
         bool isValid();
 
         QSqlRelation rel;
-        QSqlTableModel *model;
+        QRelatedTableModel *model;
         QHash<QString, QVariant> dictionary;//maps keys to display values
 
     private:
@@ -143,6 +145,15 @@ struct QRelation
         bool m_dictInitialized;
 };
 
+class QRelatedTableModel : public QSqlTableModel
+{
+public:
+    QRelatedTableModel(QRelation *rel, QObject *parent = 0, QSqlDatabase db = QSqlDatabase());
+    bool select();
+private:
+    bool firstSelect;
+    QRelation *relation;
+};
 /*
     A QRelation must be initialized before it is considered valid.
     Note: population of the model and dictionary are kept separate
@@ -162,7 +173,7 @@ void QRelation::populateModel()
     Q_ASSERT(m_parent != NULL);
 
     if (!model) {
-        model = new QSqlTableModel(m_parent, m_parent->database());
+        model = new QRelatedTableModel(this, m_parent, m_parent->database());
         model->setTable(rel.tableName());
         model->select();
     }
@@ -219,12 +230,34 @@ bool QRelation::isValid()
     return (rel.isValid() && m_parent != NULL);
 }
 
+
+
+QRelatedTableModel::QRelatedTableModel(QRelation *rel, QObject *parent, QSqlDatabase db) : 
+    QSqlTableModel(parent, db), firstSelect(true), relation(rel)
+{
+}
+
+bool QRelatedTableModel::select()
+{
+    if (firstSelect) {
+        firstSelect = false;
+        return QSqlTableModel::select();
+    }
+    relation->clearDictionary();
+    bool res = QSqlTableModel::select();
+    if (res)
+        relation->populateDictionary();
+    return res;
+}
+
+
 class QSqlRelationalTableModelPrivate: public QSqlTableModelPrivate
 {
     Q_DECLARE_PUBLIC(QSqlRelationalTableModel)
 public:
     QSqlRelationalTableModelPrivate()
-        : QSqlTableModelPrivate()
+        : QSqlTableModelPrivate(),
+        joinMode( QSqlRelationalTableModel::InnerJoin )
     {}
     QString relationField(const QString &tableName, const QString &fieldName) const;
 
@@ -237,6 +270,7 @@ public:
     void revertCachedRow(int row);
 
     void translateFieldNames(int row, QSqlRecord &values) const;
+    QSqlRelationalTableModel::JoinMode joinMode;
 };
 
 static void qAppendWhereClause(QString &query, const QString &clause1, const QString &clause2)
@@ -396,7 +430,7 @@ QVariant QSqlRelationalTableModel::data(const QModelIndex &index, int role) cons
 {
     Q_D(const QSqlRelationalTableModel);
 
-    if (role == Qt::DisplayRole && index.column() > 0 && index.column() < d->relations.count() &&
+    if (role == Qt::DisplayRole && index.column() >= 0 && index.column() < d->relations.count() &&
             d->relations.value(index.column()).isValid()) {
         QRelation &relation = d->relations[index.column()];
         if (!relation.isDictionaryInitialized())
@@ -575,29 +609,55 @@ QString QSqlRelationalTableModel::selectStatement() const
                 fieldNames.insert(fieldList[i], fieldNames.value(fieldList[i])-1);
             }
 
-            // this needs fixing!! the below if is borken.
-            tables.append(relation.tableName().append(QLatin1Char(' ')).append(relTableAlias));
-            if(!where.isEmpty())
-                where.append(QLatin1String(" AND "));
-            where.append(d->relationField(tableName(), d->db.driver()->escapeIdentifier(rec.fieldName(i), QSqlDriver::FieldName)));
-            where.append(QLatin1String(" = "));
-            where.append(d->relationField(relTableAlias, relation.indexColumn()));
+            if (d->joinMode == QSqlRelationalTableModel::InnerJoin) {
+                // this needs fixing!! the below if is borken.
+                // Use LeftJoin mode if you want correct behavior
+                tables.append(relation.tableName().append(QLatin1Char(' ')).append(relTableAlias));
+                if(!where.isEmpty())
+                    where.append(QLatin1String(" AND "));
+                where.append(d->relationField(tableName(), d->db.driver()->escapeIdentifier(rec.fieldName(i), QSqlDriver::FieldName)));
+                where.append(QLatin1String(" = "));
+                where.append(d->relationField(relTableAlias, relation.indexColumn()));
+            } else {
+                tables.append(QLatin1String(" LEFT JOIN"));
+                tables.append(relation.tableName().append(QLatin1Char(' ')).append(relTableAlias));
+                tables.append(QLatin1String("ON"));
+
+                QString clause;
+                clause.append(d->relationField(tableName(), d->db.driver()->escapeIdentifier(rec.fieldName(i), QSqlDriver::FieldName)));
+                clause.append(QLatin1String(" = "));
+                clause.append(d->relationField(relTableAlias, relation.indexColumn()));
+
+                tables.append(clause);
+            }
         } else {
             if (!fList.isEmpty())
                 fList.append(QLatin1String(", "));
             fList.append(d->relationField(tableName(), d->db.driver()->escapeIdentifier(rec.fieldName(i), QSqlDriver::FieldName)));
         }
     }
-    if (!tables.isEmpty())
+
+    if (d->joinMode == QSqlRelationalTableModel::InnerJoin && !tables.isEmpty()) {
         tList.append(tables.join(QLatin1String(", ")));
+        if(!tList.isEmpty())
+            tList.prepend(QLatin1String(", "));
+    } else
+        tList.append(tables.join(QLatin1String(" ")));
+
     if (fList.isEmpty())
         return query;
-    if(!tList.isEmpty())
-        tList.prepend(QLatin1String(", "));
+
     tList.prepend(tableName());
     query.append(QLatin1String("SELECT "));
     query.append(fList).append(QLatin1String(" FROM ")).append(tList);
-    qAppendWhereClause(query, where, filter());
+
+    if (d->joinMode == QSqlRelationalTableModel::InnerJoin) {
+        qAppendWhereClause(query, where, filter());
+    } else if (!filter().isEmpty()) {
+        query.append(QLatin1String(" WHERE ("));
+        query.append(filter());
+        query.append(QLatin1String(")"));
+    }
 
     QString orderBy = orderByClause();
     if (!orderBy.isEmpty())
@@ -649,6 +709,37 @@ void QSqlRelationalTableModel::clear()
     QSqlTableModel::clear();
 }
 
+
+/*!
+    \enum QSqlRelationalTableModel::JoinMode
+    \since 4.8
+
+    This enum specifies the type of mode to use when joining two tables.
+
+    \value InnerJoin Inner join mode, return rows when there is at least one
+                     match in both tables.
+    \value LeftJoin  Left join mode, returns all rows from the left table
+                     (table_name1), even if there are no matches in the right
+                     table (table_name2).
+
+    \sa QSqlRelationalTableModel::setJoinMode()
+*/
+
+/*!
+    \since 4.8
+    Sets the SQL join mode to the value given by \a joinMode to show or hide
+    rows with NULL foreign keys.
+
+    In InnerJoin mode (the default) these rows will not be shown; use the
+    LeftJoin mode if you want to show them.
+
+    \sa QSqlRelationalTableModel::JoinMode
+*/
+void QSqlRelationalTableModel::setJoinMode(QSqlRelationalTableModel::JoinMode joinMode)
+{
+    Q_D(QSqlRelationalTableModel);
+    d->joinMode = joinMode;
+}
 /*!
     \reimp
 */

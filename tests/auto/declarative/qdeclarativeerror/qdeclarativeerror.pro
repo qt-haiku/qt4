@@ -3,9 +3,10 @@ contains(QT_CONFIG,declarative): QT += declarative
 SOURCES += tst_qdeclarativeerror.cpp
 macx:CONFIG -= app_bundle
 
-!symbian: {
+wince*: {
+    DEFINES += SRCDIR=\\\".\\\"
+} else:!symbian: {
     DEFINES += SRCDIR=\\\"$$PWD\\\"
 }
 
 CONFIG += parallel_test
-

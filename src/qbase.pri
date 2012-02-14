@@ -110,6 +110,9 @@ symbian {
     # workaround for the fact that some of our required includes in Symbian^3
     # now depend upon files in epoc32/include/platform
     INCLUDEPATH += $$OS_LAYER_SYSTEMINCLUDE
+
+    # All relevant files are marked as SMP safe for the Symbian port
+    MMP_RULES*=SMPSAFE
 }
 win32-borland:INCLUDEPATH += kernel
 
@@ -163,7 +166,7 @@ contains(QT_PRODUCT, OpenSource.*):DEFINES *= QT_OPENSOURCE
 DEFINES *= QT_NO_CAST_TO_ASCII QT_ASCII_CAST_WARNINGS
 contains(QT_CONFIG, qt3support):DEFINES *= QT3_SUPPORT
 DEFINES *= QT_MOC_COMPAT #we don't need warnings from calling moc code in our generated code
-DEFINES *= QT_USE_FAST_OPERATOR_PLUS QT_USE_FAST_CONCATENATION
+DEFINES *= QT_USE_QSTRINGBUILDER
 
 TARGET = $$qtLibraryTarget($$TARGET$$QT_LIBINFIX) #do this towards the end
 
@@ -206,7 +209,7 @@ symbian {
         else: PARTIAL_UPGRADE_UID = 0xE001E61C
 
         pu_header = "; Partial upgrade package for testing $${TARGET} changes without reinstalling everything" \
-                    "$${LITERAL_HASH}{\"$${TARGET}\"}, ($$PARTIAL_UPGRADE_UID), $${QT_MAJOR_VERSION},$${QT_MINOR_VERSION},$${QT_PATCH_VERSION}, TYPE=PU"
+                    "$${LITERAL_HASH}{\"$${TARGET}\"}, ($$PARTIAL_UPGRADE_UID), $${QT_MAJOR_VERSION},$${QT_MINOR_VERSION},$${QT_PATCH_VERSION}, TYPE=PU,RU"
         partial_upgrade.pkg_prerules = pu_header vendorinfo
         partial_upgrade.files = $$QMAKE_LIBDIR_QT/$${TARGET}.dll
         partial_upgrade.path = c:/sys/bin

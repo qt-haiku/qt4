@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -48,9 +48,19 @@
 #define SRCDIR ""
 #endif
 
+#if !defined(QWS) && defined(Q_OS_MAC)
+#include "private/qcore_mac_p.h"
+#endif
+
 #ifdef Q_OS_UNIX
+#include <sys/ipc.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#endif
+
+// MAP_ANON is deprecated on Linux, and MAP_ANONYMOUS is not present on Mac
+#ifndef MAP_ANONYMOUS
+# define MAP_ANONYMOUS MAP_ANON
 #endif
 
 #include <private/qsimd_p.h>
@@ -76,6 +86,18 @@ private slots:
     void fromLatin1Alternatives() const;
     void fromUtf8Alternatives_data() const;
     void fromUtf8Alternatives() const;
+
+#if !defined(QWS) && defined(Q_OS_MAC)
+    void QCFString_data() const;
+    void QCFString_toCFStringRef_data() const;
+    void QCFString_toCFStringRef() const;
+    void QCFString_operatorCFStringRef_data() const;
+    void QCFString_operatorCFStringRef() const;
+    void QCFString_toQString_data() const;
+    void QCFString_toQString() const;
+    void QCFString_operatorQString_data() const;
+    void QCFString_operatorQString() const;
+#endif // !defined(QWS) && defined(Q_OS_MAC)
 };
 
 void tst_QString::equals() const
@@ -767,12 +789,12 @@ void tst_QString::equals2_data() const
 
 static void __attribute__((noinline)) equals2_selftest()
 {
-#ifdef Q_OS_UNIX
+#if defined(Q_OS_UNIX) && !defined(Q_OS_SYMBIAN)
     const long pagesize = sysconf(_SC_PAGESIZE);
     void *page1, *page3;
     ushort *page2;
     page1 = mmap(0, pagesize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    page2 = (ushort *)mmap(0, pagesize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE, -1, 0);
+    page2 = (ushort *)mmap(0, pagesize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     page3 = mmap(0, pagesize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
     Q_ASSERT(quintptr(page2) == quintptr(page1) + pagesize || quintptr(page2) == quintptr(page1) - pagesize);
@@ -921,7 +943,7 @@ static inline int ucstrncmp_short_tail(const ushort *p1, const ushort *p2, int l
     return 0;
 }
 
-static inline int bsf_nonzero(register long val)
+static inline int bsf_nonzero(register int val)
 {
     int result;
 # ifdef Q_CC_GNU
@@ -1324,12 +1346,12 @@ void tst_QString::ucstrncmp() const
         };
         static const int functionCount = sizeof func / sizeof func[0];
 
-#ifdef Q_OS_UNIX
+#if defined(Q_OS_UNIX) && !defined(Q_OS_SYMBIAN)
         const long pagesize = sysconf(_SC_PAGESIZE);
         void *page1, *page3;
         ushort *page2;
         page1 = mmap(0, pagesize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        page2 = (ushort *)mmap(0, pagesize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE, -1, 0);
+        page2 = (ushort *)mmap(0, pagesize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         page3 = mmap(0, pagesize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
         Q_ASSERT(quintptr(page2) == quintptr(page1) + pagesize || quintptr(page2) == quintptr(page1) - pagesize);
@@ -2595,6 +2617,89 @@ void tst_QString::fromUtf8Alternatives() const
         fromUtf8Alternatives_internal(function, dst, false);
     }
 }
+
+#if !defined(QWS) && defined(Q_OS_MAC)
+void tst_QString::QCFString_data() const
+{
+    QTest::addColumn<QString>("string");
+
+    QString base(QLatin1String("I'm some cool string"));
+    QTest::newRow("base") << base;
+
+    base = base.repeated(25);
+    QTest::newRow("25 bases") << base;
+
+    QTest::newRow("raw 25 bases") << QString::fromRawData(base.constData(), base.size());
+}
+
+void tst_QString::QCFString_toCFStringRef_data() const
+{
+    QCFString_data();
+}
+
+void tst_QString::QCFString_toCFStringRef() const
+{
+    QFETCH(QString, string);
+
+    QBENCHMARK {
+        CFStringRef cfstr = QCFString::toCFStringRef(string);
+        CFRelease(cfstr);
+    }
+}
+
+void tst_QString::QCFString_operatorCFStringRef_data() const
+{
+    QCFString_data();
+}
+
+void tst_QString::QCFString_operatorCFStringRef() const
+{
+    QFETCH(QString, string);
+
+    CFStringRef cfstr;
+    QBENCHMARK {
+        QCFString qcfstr(string);
+        cfstr = qcfstr;
+    }
+}
+
+void tst_QString::QCFString_toQString_data() const
+{
+    QCFString_data();
+}
+
+void tst_QString::QCFString_toQString() const
+{
+    QFETCH(QString, string);
+
+    QCFString qcfstr(string);
+
+    QString qstr;
+    QBENCHMARK {
+        qstr = QCFString::toQString(qcfstr);
+    }
+    QVERIFY(qstr == string);
+}
+
+void tst_QString::QCFString_operatorQString_data() const
+{
+    QCFString_data();
+}
+
+void tst_QString::QCFString_operatorQString() const
+{
+    QFETCH(QString, string);
+
+    QCFString qcfstr_base(string);
+
+    QString qstr;
+    QBENCHMARK {
+        QCFString qcfstr(qcfstr_base);
+        qstr = qcfstr;
+    }
+    QVERIFY(qstr == string);
+}
+#endif // !defined(QWS) && defined(Q_OS_MAC)
 
 QTEST_MAIN(tst_QString)
 

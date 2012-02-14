@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -43,6 +43,7 @@
 #include <QtGui/QListWidget>
 #include <QtScript/QScriptValue>
 #include <QtScript/QScriptEngine>
+#include <QDebug>
 
 Q_DECLARE_METATYPE(QListWidgetItem*)
 Q_DECLARE_METATYPE(QListWidget*)
@@ -100,10 +101,16 @@ void ListWidgetPrototype::setBackgroundColor(const QString &colorName)
 {
     QListWidget *widget = qscriptvalue_cast<QListWidget*>(thisObject());
     if (widget) {
+#ifdef Q_WS_MAEMO_5
+        QString style = QString("QListWidget::item {background-color: %1;}").arg(colorName);
+        style += "QListWidget::item {selection-color: black;}";
+        widget->setStyleSheet(style);
+#else
         QPalette palette = widget->palette();
         QColor color(colorName);
         palette.setBrush(QPalette::Base, color);
         widget->setPalette(palette);
+#endif
     }
 }
 //! [1]

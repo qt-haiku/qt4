@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -78,6 +78,8 @@ private slots:
     void dropShadowClipping();
     void childrenVisibilityShouldInvalidateCache();
     void prepareGeometryChangeInvalidateCache();
+    void graphicsEffectUpdateShouldNotInvalidateGraphicsItemCache();
+    void graphicsEffectUpdateShouldInvalidateParentGraphicsEffect();
     void itemHasNoContents();
 };
 
@@ -730,6 +732,99 @@ void tst_QGraphicsEffect::prepareGeometryChangeInvalidateCache()
     item->setPos(item->pos() + QPointF(10, 10));
     QTest::qWait(50);
     QCOMPARE(item->nbPaint, 0);
+}
+
+class MyGraphicsEffect : public QGraphicsEffect
+{
+    public:
+        MyGraphicsEffect(QObject *parent = 0) :
+            QGraphicsEffect(parent), nbSourceInvalidations(0)
+            {}
+        int nbSourceInvalidations;
+    protected:
+        void draw(QPainter *painter)
+        {
+            drawSource(painter);
+        }
+
+        void sourceChanged(ChangeFlags flags)
+        {
+            if (flags == SourceInvalidated)
+                nbSourceInvalidations++;
+        }
+};
+
+void tst_QGraphicsEffect::graphicsEffectUpdateShouldNotInvalidateGraphicsItemCache()
+{
+    QGraphicsScene scene;
+    MyGraphicsItem parent;
+    parent.resize(200, 200);
+    parent.setCacheMode(QGraphicsItem::ItemCoordinateCache);
+    scene.addItem(&parent);
+
+    QGraphicsView view(&scene);
+    view.show();
+    QApplication::setActiveWindow(&view);
+    QTest::qWaitForWindowShown(&view);
+    QTRY_COMPARE(parent.nbPaint, 1);
+
+    //we set an effect on the parent
+    MyGraphicsEffect* opacityEffect = new MyGraphicsEffect(&parent);
+    opacityEffect->update();
+    parent.setGraphicsEffect(opacityEffect);
+    //flush the events
+    QApplication::processEvents();
+    //new effect applied->repaint
+    QCOMPARE(parent.nbPaint, 1);
+
+    opacityEffect->update();
+    //flush the events
+    QApplication::processEvents();
+    //A change to the effect shouldn't invalidate the graphicsitem's cache
+    // => it shouldn't trigger a paint
+    QCOMPARE(parent.nbPaint, 1);
+}
+
+void tst_QGraphicsEffect::graphicsEffectUpdateShouldInvalidateParentGraphicsEffect()
+{
+    QGraphicsScene scene;
+    // Add the parent
+    MyGraphicsItem parent;
+    parent.resize(200, 200);
+    scene.addItem(&parent);
+    // Add a child to the parent
+    MyGraphicsItem child(&parent);
+    child.resize(100, 100);
+
+    QGraphicsView view(&scene);
+    view.show();
+    QApplication::setActiveWindow(&view);
+    QTest::qWaitForWindowShown(&view);
+    //flush the events
+    QApplication::processEvents();
+    QTRY_COMPARE(parent.nbPaint, 1);
+    QTRY_COMPARE(child.nbPaint, 1);
+
+    //we set an effect on the parent and the child
+    MyGraphicsEffect* effectForParent = new MyGraphicsEffect(&parent);
+    parent.setGraphicsEffect(effectForParent);
+
+    MyGraphicsEffect* effectForChild = new MyGraphicsEffect(&child);
+    child.setGraphicsEffect(effectForChild);
+    //flush the events
+    QApplication::processEvents();
+    // Both effects should start with no source invalidations
+    QCOMPARE(effectForParent->nbSourceInvalidations, 0);
+    QCOMPARE(effectForChild->nbSourceInvalidations, 0);
+
+    // Trigger an update of the child graphics effect
+    effectForChild->update();
+    //flush the events
+    QApplication::processEvents();
+    // An update of the effect on the child shouldn't tell that effect that its source has been invalidated
+    QCOMPARE(effectForChild->nbSourceInvalidations, 0);
+    // The effect on the parent should however be notified of an invalidated source
+    QCOMPARE(effectForParent->nbSourceInvalidations, 1);
 }
 
 void tst_QGraphicsEffect::itemHasNoContents()

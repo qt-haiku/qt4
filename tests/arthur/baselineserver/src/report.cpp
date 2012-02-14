@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -66,12 +66,13 @@ void Report::init(const BaselineHandler *h, const QString &r, const PlatformInfo
     runId = r;
     plat = p;
     rootDir = BaselineServer::storagePath() + QLC('/');
-    reportDir = plat.value(PI_TestCase) + QLC('/') + (plat.value(PI_PulseGitBranch).isEmpty() ? QLS("reports/adhoc/") : QLS("reports/pulse/"));
+    reportDir = plat.value(PI_TestCase) + QLC('/') + (plat.isAdHocRun() ? QLS("reports/adhoc/") : QLS("reports/pulse/"));
     QString dir = rootDir + reportDir;
     QDir cwd;
     if (!cwd.exists(dir))
         cwd.mkpath(dir);
     path = reportDir + QLS("Report_") + runId + QLS(".html");
+    hasOverride = !plat.overrides().isEmpty();
 }
 
 void Report::addItems(const ImageItemList &items)
@@ -141,11 +142,19 @@ void Report::writeHeader()
         << "<p>Note: This is a <i>static</i> page, generated at " << QDateTime::currentDateTime().toString()
         << " for the test run with id " << runId << "</p>\n"
         << "<p>Summary: <b><span style=\"color:red\">" << numMismatches << " of " << numItems << "</b></span> items reported mismatching</p>\n\n";
-    out << "<h3>Platform Info:</h3>\n"
+    out << "<h3>Testing Client Platform Info:</h3>\n"
         << "<table>\n";
     foreach (QString key, plat.keys())
-        out << "<tr><td>" << key << "</td><td>" << plat.value(key) << "</td></tr>\n";
+        out << "<tr><td>" << key << ":</td><td>" << plat.value(key) << "</td></tr>\n";
     out << "</table>\n\n";
+    if (hasOverride) {
+        out << "<span style=\"color:red\"><h4>Note! Platform Override Info:</h4></span>\n"
+            << "<p>The client's output has been compared to baselines created on a different platform. Differences:</p>\n"
+            << "<table>\n";
+        for (int i = 0; i < plat.overrides().size()-1; i+=2)
+            out << "<tr><td>" << plat.overrides().at(i) << ":</td><td>" << plat.overrides().at(i+1) << "</td></tr>\n";
+        out << "</table>\n\n";
+    }
 }
 
 
@@ -158,10 +167,12 @@ void Report::writeFunctionResults(const ImageItemList &list)
 
 
     out << "\n<p>&nbsp;</p><h3>Test function: " << testFunction << "</h3>\n";
-    out << "<p><a href=\"/cgi-bin/server.cgi?cmd=clearAllBaselines&context=" << ctx << "&url=" << pageUrl
-        << "\"><b>Clear all baselines</b></a> for this testfunction (They will be recreated by the next run)</p>\n";
-    out << "<p><a href=\"/cgi-bin/server.cgi?cmd=updateAllBaselines&context=" << ctx << "&mismatchContext=" << misCtx << "&url=" << pageUrl
-        << "\"><b>Let these mismatching images be the new baselines</b></a> for this testfunction</p>\n\n";
+    if (!hasOverride) {
+        out << "<p><a href=\"/cgi-bin/server.cgi?cmd=clearAllBaselines&context=" << ctx << "&url=" << pageUrl
+            << "\"><b>Clear all baselines</b></a> for this testfunction (They will be recreated by the next run)</p>\n";
+        out << "<p><a href=\"/cgi-bin/server.cgi?cmd=updateAllBaselines&context=" << ctx << "&mismatchContext=" << misCtx << "&url=" << pageUrl
+            << "\"><b>Let these mismatching images be the new baselines</b></a> for this testfunction</p>\n\n";
+    }
 
     out << "<table border=\"2\">\n"
            "<tr>\n"
@@ -192,10 +203,12 @@ void Report::writeFunctionResults(const ImageItemList &list)
                 out << "Baseline not found/regenerated";
                 break;
             case ImageItem::IgnoreItem:
-                out << "<span style=\"background-color:yellow\">Blacklisted</span> "
-                    << "<a href=\"/cgi-bin/server.cgi?cmd=whitelist&context=" << ctx
-                    << "&itemId=" << item.itemName << "&url=" << pageUrl
-                    << "\">Whitelist this item</a>";
+                out << "<span style=\"background-color:yellow\">Blacklisted</span> ";
+                if (!hasOverride) {
+                    out << "<a href=\"/cgi-bin/server.cgi?cmd=whitelist&context=" << ctx
+                        << "&itemId=" << item.itemName << "&url=" << pageUrl
+                        << "\">Whitelist this item</a>";
+                }
                 break;
             case ImageItem::Ok:
                 out << "<span style=\"color:green\"><small>No mismatch reported</small></span>";
@@ -224,12 +237,14 @@ void Report::writeItem(const QString &baseline, const QString &rendered, const I
 
     out << "<td align=center>\n"
         << "<p><span style=\"color:red\">Mismatch reported</span></p>\n"
-        << "<p><a href=\"/" << metadata << "\">Baseline Info</a>\n"
-        << "<p><a href=\"/cgi-bin/server.cgi?cmd=updateSingleBaseline&context=" << ctx << "&mismatchContext=" << misCtx
-        << "&itemFile=" << itemFile << "&url=" << pageUrl << "\">Let this be the new baseline</a></p>\n"
-        << "<p><a href=\"/cgi-bin/server.cgi?cmd=blacklist&context=" << ctx
-        << "&itemId=" << item.itemName << "&url=" << pageUrl << "\">Blacklist this item</a></p>\n"
-        << "<p><a href=\"/cgi-bin/server.cgi?cmd=view&baseline=" << baseline << "&rendered=" << rendered
+        << "<p><a href=\"/" << metadata << "\">Baseline Info</a>\n";
+    if (!hasOverride) {
+        out << "<p><a href=\"/cgi-bin/server.cgi?cmd=updateSingleBaseline&context=" << ctx << "&mismatchContext=" << misCtx
+            << "&itemFile=" << itemFile << "&url=" << pageUrl << "\">Let this be the new baseline</a></p>\n"
+            << "<p><a href=\"/cgi-bin/server.cgi?cmd=blacklist&context=" << ctx
+            << "&itemId=" << item.itemName << "&url=" << pageUrl << "\">Blacklist this item</a></p>\n";
+    }
+    out << "<p><a href=\"/cgi-bin/server.cgi?cmd=view&baseline=" << baseline << "&rendered=" << rendered
         << "&compared=" << compared << "&url=" << pageUrl << "\">Inspect</a></p>\n"
         << "</td>\n";
 }

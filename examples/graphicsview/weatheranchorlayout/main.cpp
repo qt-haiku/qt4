@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -50,6 +50,21 @@
 #include <QGraphicsAnchorLayout>
 #include <QGraphicsSceneResizeEvent>
 
+
+class GraphicsView : public QGraphicsView
+{
+public:
+    GraphicsView(QGraphicsScene *scene, QGraphicsWidget *widget) : QGraphicsView(scene), w(widget)
+    {
+    }
+
+    virtual void resizeEvent(QResizeEvent *event)
+    {
+        w->setGeometry(0, 0, event->size().width(), event->size().height());
+    }
+
+    QGraphicsWidget *w;
+};
 
 class PixmapWidget : public QGraphicsLayoutItem
 {
@@ -175,7 +190,10 @@ int main(int argc, char **argv)
     QApplication app(argc, argv);
 
     QGraphicsScene scene;
+#if defined(Q_OS_SYMBIAN)
+#else
     scene.setSceneRect(0, 0, 800, 480);
+#endif
 
     // pixmaps widgets
     PixmapWidget *title = new PixmapWidget(QPixmap(":/images/title.jpg"));
@@ -250,8 +268,13 @@ int main(int argc, char **argv)
     // QGV setup
     scene.addItem(w);
     scene.setBackgroundBrush(Qt::white);
+#if defined(Q_OS_SYMBIAN)
+    GraphicsView *view = new GraphicsView(&scene, w);
+    view->showMaximized();
+#else
     QGraphicsView *view = new QGraphicsView(&scene);
     view->show();
+#endif
 
     return app.exec();
 }

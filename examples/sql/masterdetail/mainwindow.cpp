@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -77,8 +77,10 @@ MainWindow::MainWindow(const QString &artistTable, const QString &albumTable,
     layout->addWidget(artists, 0, 0);
     layout->addWidget(albums, 1, 0);
     layout->addWidget(details, 0, 1, 2, 1);
+#if !defined(Q_OS_SYMBIAN) && !defined(Q_WS_MAEMO_5)
     layout->setColumnStretch(1, 1);
     layout->setColumnMinimumWidth(0, 500);
+#endif
 
     QWidget *widget = new QWidget;
     widget->setLayout(layout);
@@ -86,7 +88,9 @@ MainWindow::MainWindow(const QString &artistTable, const QString &albumTable,
     createMenuBar();
 
     showImageLabel();
+#if !defined(Q_OS_SYMBIAN) && !defined(Q_WS_MAEMO_5)
     resize(850, 400);
+#endif
     setWindowTitle(tr("Music Archive"));
 }
 

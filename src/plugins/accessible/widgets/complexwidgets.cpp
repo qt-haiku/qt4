@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the plugins of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -971,7 +971,11 @@ QString QAccessibleItemView::text(Text t, int child) const
             return QAccessibleAbstractScrollArea::text(t, child);
 
         QAccessibleItemRow item(itemView(), childIndex(child));
-        return item.text(t, 1);
+        if (item.isValid()) {
+            return item.text(t, 1);
+        } else {
+            return QString();
+        }
     } else {
         return QAccessibleAbstractScrollArea::text(t, child);
     }
@@ -1541,6 +1545,28 @@ QAccessible::Role QAccessibleTabBar::role(int child) const
 }
 
 /*! \reimp */
+int QAccessibleTabBar::navigate(RelationFlag relation, int entry, QAccessibleInterface** target) const
+{
+    //QAccessibleWidgetEx::navigate might think that this is not a complex widget
+    //if close buttons are enabled, so this functions handles those cases in which
+    //the value to return is different if it's a complex widget and if it's not.
+    if (!target)
+        return -1;
+
+    *target = 0;
+
+    switch (relation) {
+    case Child:
+        if ((entry >= 0) && (entry <= childCount()))
+            return entry;
+        return -1;
+    default:
+        return QAccessibleWidgetEx::navigate(relation, entry, target);
+    }
+}
+
+
+/*! \reimp */
 QAccessible::State QAccessibleTabBar::state(int child) const
 {
     State st = QAccessibleWidgetEx::state(0);
@@ -1570,10 +1596,47 @@ QAccessible::State QAccessibleTabBar::state(int child) const
     else
         st |= Selectable;
 
-    if (!tb->currentIndex() == child - 1)
+    if (tb->currentIndex() == child - 1)
         st |= Selected;
 
     return st;
+}
+
+/*! \reimp */
+QString QAccessibleTabBar::actionText(int action, Text t, int child) const
+{
+    if (!child)
+        return QString();
+
+    switch (t) {
+    case QAccessible::Name:
+        if ((action == 1) && (child <= tabBar()->count())) {
+            return tabBar()->tabsClosable() ? QTabBar::tr("Close") : QString();
+        } else if (action == 0) {
+            if (child <= tabBar()->count())
+                return QTabBar::tr("Activate");
+            else //it's an scroll button
+                return QTabBar::tr("Press");
+        }
+        break;
+    case QAccessible::Description:
+        if ((action == 1) && (child <= tabBar()->count())) {
+            return tabBar()->tabsClosable() ? QTabBar::tr("Close the tab") : QString();
+        } else if (action == 0) {
+            if (child <= tabBar()->count())
+                return QTabBar::tr("Activate the tab");
+        }
+        break;
+    }
+    return QString();
+}
+
+/*! \reimp */
+int QAccessibleTabBar::userActionCount(int child) const
+{
+    if (!child || (child > tabBar()->count()))
+        return 0;
+    return tabBar()->tabsClosable() ? 1 : 0;
 }
 
 /*! \reimp */
@@ -1581,6 +1644,10 @@ bool QAccessibleTabBar::doAction(int action, int child, const QVariantList &)
 {
     if (!child)
         return false;
+
+    if ((action == 1) && (child <= tabBar()->count()) && tabBar()->tabsClosable()) {
+        emit tabBar()->tabCloseRequested(child - 1);
+    }
 
     if (action != QAccessible::DefaultAction && action != QAccessible::Press)
         return false;
@@ -1772,16 +1839,12 @@ QString QAccessibleComboBox::text(Text t, int child) const
 
     switch (t) {
     case Name:
+#ifndef Q_WS_X11 // on Linux we use relations for this, name is text (fall through to Value)
         if (child == OpenList)
             str = QComboBox::tr("Open");
         else
             str = QAccessibleWidgetEx::text(t, 0);
         break;
-#ifndef QT_NO_SHORTCUT
-    case Accelerator:
-        if (child == OpenList)
-            str = (QString)QKeySequence(Qt::Key_Down);
-        // missing break?
 #endif
     case Value:
         if (comboBox()->isEditable())
@@ -1789,6 +1852,12 @@ QString QAccessibleComboBox::text(Text t, int child) const
         else
             str = comboBox()->currentText();
         break;
+#ifndef QT_NO_SHORTCUT
+    case Accelerator:
+        if (child == OpenList)
+            str = (QString)QKeySequence(Qt::Key_Down);
+        break;
+#endif
     default:
         break;
     }

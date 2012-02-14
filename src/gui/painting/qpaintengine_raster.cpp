@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -69,6 +69,7 @@
 //   #include <private/qrasterizer_p.h>
 #include <private/qimage_p.h>
 #include <private/qstatictext_p.h>
+#include <private/qcosmeticstroker_p.h>
 #include "qmemrotate_p.h"
 
 #include "qpaintengine_raster_p.h"
@@ -128,6 +129,9 @@ void dumpClip(int width, int height, const QClipData *clip);
 // 4 pixels.
 #define int_dim(pos, dim) (int(pos+dim) - int(pos))
 
+// use the same rounding as in qrasterizer.cpp (6 bit fixed point)
+static const qreal aliasedCoordinateDelta = 0.5 - 0.015625;
+
 #ifdef Q_WS_WIN
 extern bool qt_cleartype_enabled;
 #endif
@@ -157,16 +161,6 @@ enum LineDrawMode {
     LineDrawNormal,
     LineDrawIncludeLastPixel
 };
-
-static void drawLine_midpoint_i(int x1, int y1, int x2, int y2, ProcessSpans span_func, QSpanData *data,
-                                LineDrawMode style, const QIntRect &rect);
-static void drawLine_midpoint_dashed_i(int x1, int y1, int x2, int y2,
-                                       QPen *pen, ProcessSpans span_func, QSpanData *data,
-                                       LineDrawMode style, const QIntRect &devRect,
-                                       int *patternOffset);
-// static void drawLine_midpoint_f(qreal x1, qreal y1, qreal x2, qreal y2,
-//                                 ProcessSpans span_func, QSpanData *data,
-//                                 LineDrawMode style, const QRect &devRect);
 
 static void drawEllipse_midpoint_i(const QRect &rect, const QRect &clip,
                                    ProcessSpans pen_func, ProcessSpans brush_func,
@@ -791,14 +785,12 @@ void QRasterPaintEngine::updatePen(const QPen &pen)
         s->stroker = 0;
     }
 
-    s->flags.fast_pen = pen_style > Qt::NoPen
-                  && s->penData.blend
-                  && !s->flags.antialiased
-                  && (penWidth == 0 || (penWidth <= 1
-                                        && (s->matrix.type() <= QTransform::TxTranslate
-                                            || pen.isCosmetic())));
-
     ensureState(); // needed because of tx_noshear...
+    s->flags.fast_pen = pen_style > Qt::NoPen
+            && s->penData.blend
+            && ((pen.isCosmetic() && penWidth <= 1)
+                || (s->flags.tx_noshear && penWidth * s->txscale <= 1));
+
     s->flags.non_complex_pen = qpen_capStyle(s->lastPen) <= Qt::SquareCap && s->flags.tx_noshear;
 
     s->strokeFlags = 0;
@@ -1515,6 +1507,7 @@ void QRasterPaintEngine::drawRects(const QRect *rects, int rectCount)
     qDebug(" - QRasterPaintEngine::drawRect(), rectCount=%d", rectCount);
 #endif
     Q_D(QRasterPaintEngine);
+    ensureState();
     QRasterPaintEngineState *s = state();
 
     // Fill
@@ -1543,32 +1536,14 @@ void QRasterPaintEngine::drawRects(const QRect *rects, int rectCount)
 
     ensurePen();
     if (s->penData.blend) {
-        if (s->flags.fast_pen && s->lastPen.brush().isOpaque()) {
-            const QRect *r = rects;
-            const QRect *lastRect = rects + rectCount;
-            while (r < lastRect) {
-                int left = r->x();
-                int right = r->x() + r->width();
-                int top = r->y();
-                int bottom = r->y() + r->height();
-
-#ifdef Q_WS_MAC
-                int pts[] = { top, left,
-                              top, right,
-                              bottom, right,
-                              bottom, left };
-#else
-                int pts[] = { left, top,
-                              right, top,
-                              right, bottom,
-                              left, bottom };
-#endif
-
-                strokePolygonCosmetic((QPoint *) pts, 4, WindingMode);
-                ++r;
+        QRectVectorPath path;
+        if (s->flags.fast_pen) {
+            QCosmeticStroker stroker(s, d->deviceRect);
+            for (int i = 0; i < rectCount; ++i) {
+                path.set(rects[i]);
+                stroker.drawPath(path);
             }
         } else {
-            QRectVectorPath path;
             for (int i = 0; i < rectCount; ++i) {
                 path.set(rects[i]);
                 stroke(path, s->pen);
@@ -1583,13 +1558,13 @@ void QRasterPaintEngine::drawRects(const QRect *rects, int rectCount)
 void QRasterPaintEngine::drawRects(const QRectF *rects, int rectCount)
 {
 #ifdef QT_DEBUG_DRAW
-    qDebug(" - QRasterPaintEngine::drawRect(), rectCount=%d", rectCount);
+    qDebug(" - QRasterPaintEngine::drawRect(QRectF*), rectCount=%d", rectCount);
 #endif
 #ifdef QT_FAST_SPANS
     Q_D(QRasterPaintEngine);
+    ensureState();
     QRasterPaintEngineState *s = state();
 
-    ensureState();
 
     if (s->flags.tx_noshear) {
         ensureBrush();
@@ -1607,59 +1582,17 @@ void QRasterPaintEngine::drawRects(const QRectF *rects, int rectCount)
 
         ensurePen();
         if (s->penData.blend) {
-            qreal width = s->pen.isCosmetic()
-                          ? (s->lastPen.widthF() == 0 ? 1 : s->lastPen.widthF())
-                          : s->lastPen.widthF() * s->txscale;
-
-            if (s->flags.fast_pen && s->lastPen.brush().isOpaque()) {
+            QRectVectorPath path;
+            if (s->flags.fast_pen) {
+                QCosmeticStroker stroker(s, d->deviceRect);
                 for (int i = 0; i < rectCount; ++i) {
-                    const QRectF &r = rects[i];
-                    qreal left = r.x();
-                    qreal right = r.x() + r.width();
-                    qreal top = r.y();
-                    qreal bottom = r.y() + r.height();
-                    qreal pts[] = { left, top,
-                                    right, top,
-                                    right, bottom,
-                                    left, bottom };
-                    strokePolygonCosmetic((QPointF *) pts, 4, WindingMode);
-                }
-            } else if (width <= 1 && qpen_style(s->lastPen) == Qt::SolidLine) {
-                d->initializeRasterizer(&s->penData);
-
-                for (int i = 0; i < rectCount; ++i) {
-                    const QRectF &rect = rects[i].normalized();
-                    if (rect.isEmpty()) {
-                        qreal pts[] = { rect.left(), rect.top(), rect.right(), rect.bottom() };
-                        QVectorPath vp(pts, 2, 0, QVectorPath::LinesHint);
-                        QPaintEngineEx::stroke(vp, s->lastPen);
-                    } else {
-                        const QPointF tl = s->matrix.map(rect.topLeft());
-                        const QPointF tr = s->matrix.map(rect.topRight());
-                        const QPointF bl = s->matrix.map(rect.bottomLeft());
-                        const QPointF br = s->matrix.map(rect.bottomRight());
-                        const qreal w = width / (rect.width() * s->txscale);
-                        const qreal h = width / (rect.height() * s->txscale);
-                        d->rasterizer->rasterizeLine(tl, tr, w); // top
-                        d->rasterizer->rasterizeLine(bl, br, w); // bottom
-                        d->rasterizer->rasterizeLine(bl, tl, h); // left
-                        d->rasterizer->rasterizeLine(br, tr, h); // right
-                    }
+                    path.set(rects[i]);
+                    stroker.drawPath(path);
                 }
             } else {
                 for (int i = 0; i < rectCount; ++i) {
-                    const QRectF &r = rects[i];
-                    qreal left = r.x();
-                    qreal right = r.x() + r.width();
-                    qreal top = r.y();
-                    qreal bottom = r.y() + r.height();
-                    qreal pts[] = { left, top,
-                                    right, top,
-                                    right, bottom,
-                                    left, bottom,
-                                    left, top };
-                    QVectorPath vp(pts, 5, 0, QVectorPath::RectangleHint);
-                    QPaintEngineEx::stroke(vp, s->lastPen);
+                    path.set(rects[i]);
+                    QPaintEngineEx::stroke(path, s->lastPen);
                 }
             }
         }
@@ -1676,36 +1609,16 @@ void QRasterPaintEngine::drawRects(const QRectF *rects, int rectCount)
 */
 void QRasterPaintEngine::stroke(const QVectorPath &path, const QPen &pen)
 {
+    Q_D(QRasterPaintEngine);
     QRasterPaintEngineState *s = state();
+
     ensurePen(pen);
     if (!s->penData.blend)
         return;
 
-    if (s->flags.fast_pen && !path.isCurved()
-        && s->lastPen.brush().isOpaque()) {
-        int count = path.elementCount();
-        QPointF *points = (QPointF *) path.points();
-        const QPainterPath::ElementType *types = path.elements();
-        if (types) {
-            int first = 0;
-            int last;
-            while (first < count) {
-                while (first < count && types[first] != QPainterPath::MoveToElement) ++first;
-                last = first + 1;
-                while (last < count && types[last] == QPainterPath::LineToElement) ++last;
-                strokePolygonCosmetic(points + first, last - first,
-                                      path.hasImplicitClose() && last == count // only close last one..
-                                      ? WindingMode
-                                      : PolylineMode);
-                first = last;
-            }
-        } else {
-            strokePolygonCosmetic(points, count,
-                                  path.hasImplicitClose()
-                                  ? WindingMode
-                                  : PolylineMode);
-        }
-
+    if (s->flags.fast_pen) {
+        QCosmeticStroker stroker(s, d->deviceRect);
+        stroker.drawPath(path);
     } else if (s->flags.non_complex_pen && path.shape() == QVectorPath::LinesHint) {
         qreal width = s->lastPen.isCosmetic()
                       ? (qpen_widthf(s->lastPen) == 0 ? 1 : qpen_widthf(s->lastPen))
@@ -1738,8 +1651,8 @@ void QRasterPaintEngine::stroke(const QVectorPath &path, const QPen &pen)
             if (lines[i].p1() == lines[i].p2()) {
                 if (s->lastPen.capStyle() != Qt::FlatCap) {
                     QPointF p = lines[i].p1();
-                    QLineF line = s->matrix.map(QLineF(QPointF(p.x() - width*0.5, p.y()),
-                                                       QPointF(p.x() + width*0.5, p.y())));
+                    QLineF line = s->matrix.map(QLineF(QPointF(p.x() - width*qreal(0.5), p.y()),
+                                                       QPointF(p.x() + width*qreal(0.5), p.y())));
                     d->rasterizer->rasterizeLine(line.p1(), line.p2(), 1);
                 }
                 continue;
@@ -1762,10 +1675,10 @@ void QRasterPaintEngine::stroke(const QVectorPath &path, const QPen &pen)
 
 static inline QRect toNormalizedFillRect(const QRectF &rect)
 {
-    int x1 = qRound(rect.x());
-    int y1 = qRound(rect.y());
-    int x2 = qRound(rect.right());
-    int y2 = qRound(rect.bottom());
+    int x1 = qRound(rect.x() + aliasedCoordinateDelta);
+    int y1 = qRound(rect.y() + aliasedCoordinateDelta);
+    int x2 = qRound(rect.right() + aliasedCoordinateDelta);
+    int y2 = qRound(rect.bottom() + aliasedCoordinateDelta);
 
     if (x2 < x1)
         qSwap(x1, x2);
@@ -1817,26 +1730,6 @@ void QRasterPaintEngine::fill(const QVectorPath &path, const QBrush &brush)
                 d->rasterizer->rasterizeLine(a, b, r.height() / r.width());
             }
             return;
-        }
-    }
-
-    if (path.shape() == QVectorPath::EllipseHint) {
-        if (!s->flags.antialiased && s->matrix.type() <= QTransform::TxScale) {
-            const qreal *p = path.points();
-            QPointF tl = QPointF(p[0], p[1]) * s->matrix;
-            QPointF br = QPointF(p[4], p[5]) * s->matrix;
-            QRectF r = s->matrix.mapRect(QRectF(tl, br));
-
-            ProcessSpans penBlend = d->getPenFunc(r, &s->penData);
-            ProcessSpans brushBlend = d->getBrushFunc(r, &s->brushData);
-            const QRect brect = QRect(int(r.x()), int(r.y()),
-                                      int_dim(r.x(), r.width()),
-                                      int_dim(r.y(), r.height()));
-            if (brect == r) {
-                drawEllipse_midpoint_i(brect, d->deviceRect, penBlend, brushBlend,
-                                       &s->penData, &s->brushData);
-                return;
-            }
         }
     }
 
@@ -2034,6 +1927,7 @@ void QRasterPaintEngine::fillPolygon(const QPointF *points, int pointCount, Poly
 */
 void QRasterPaintEngine::drawPolygon(const QPointF *points, int pointCount, PolygonDrawMode mode)
 {
+    Q_D(QRasterPaintEngine);
     QRasterPaintEngineState *s = state();
 
 #ifdef QT_DEBUG_DRAW
@@ -2050,20 +1944,23 @@ void QRasterPaintEngine::drawPolygon(const QPointF *points, int pointCount, Poly
     }
 
     ensurePen();
-    ensureBrush();
     if (mode != PolylineMode) {
         // Do the fill...
+        ensureBrush();
         if (s->brushData.blend) {
+            d->outlineMapper->setCoordinateRounding(s->penData.blend && s->flags.fast_pen && s->lastPen.brush().isOpaque());
             fillPolygon(points, pointCount, mode);
+            d->outlineMapper->setCoordinateRounding(false);
         }
     }
 
     // Do the outline...
     if (s->penData.blend) {
-        if (s->flags.fast_pen && s->lastPen.brush().isOpaque())
-            strokePolygonCosmetic(points, pointCount, mode);
-        else {
-            QVectorPath vp((qreal *) points, pointCount, 0, QVectorPath::polygonFlags(mode));
+        QVectorPath vp((qreal *) points, pointCount, 0, QVectorPath::polygonFlags(mode));
+        if (s->flags.fast_pen) {
+            QCosmeticStroker stroker(s, d->deviceRect);
+            stroker.drawPath(vp);
+        } else {
             QPaintEngineEx::stroke(vp, s->lastPen);
         }
     }
@@ -2092,13 +1989,7 @@ void QRasterPaintEngine::drawPolygon(const QPoint *points, int pointCount, Polyg
         return;
     }
 
-    ensureState();
     ensurePen();
-    if (!(s->flags.int_xform && s->flags.fast_pen && (!s->penData.blend || s->pen.brush().isOpaque()))) {
-        // this calls the float version
-        QPaintEngineEx::drawPolygon(points, pointCount, mode);
-        return;
-    }
 
     // Do the fill
     if (mode != PolylineMode) {
@@ -2106,6 +1997,7 @@ void QRasterPaintEngine::drawPolygon(const QPoint *points, int pointCount, Polyg
         if (s->brushData.blend) {
             // Compose polygon fill..,
             ensureOutlineMapper();
+            d->outlineMapper->setCoordinateRounding(s->penData.blend != 0);
             d->outlineMapper->beginOutline(mode == WindingMode ? Qt::WindingFill : Qt::OddEvenFill);
             d->outlineMapper->moveTo(*points);
             const QPoint *p = points;
@@ -2119,235 +2011,30 @@ void QRasterPaintEngine::drawPolygon(const QPoint *points, int pointCount, Polyg
             ProcessSpans brushBlend = d->getBrushFunc(d->outlineMapper->controlPointRect,
                                                       &s->brushData);
             d->rasterize(d->outlineMapper->outline(), brushBlend, &s->brushData, d->rasterBuffer.data());
+            d->outlineMapper->setCoordinateRounding(false);
         }
     }
 
     // Do the outline...
     if (s->penData.blend) {
-        if (s->flags.fast_pen && s->lastPen.brush().isOpaque())
-            strokePolygonCosmetic(points, pointCount, mode);
-        else {
-            int count = pointCount * 2;
-            QVarLengthArray<qreal> fpoints(count);
-#ifdef Q_WS_MAC
-            for (int i=0; i<count; i+=2) {
-                fpoints[i] = ((int *) points)[i+1];
-                fpoints[i+1] = ((int *) points)[i];
-            }
-#else
-            for (int i=0; i<count; ++i)
-                fpoints[i] = ((int *) points)[i];
-#endif
-            QVectorPath vp((qreal *) fpoints.data(), pointCount, 0, QVectorPath::polygonFlags(mode));
+        int count = pointCount * 2;
+        QVarLengthArray<qreal> fpoints(count);
+    #ifdef Q_WS_MAC
+        for (int i=0; i<count; i+=2) {
+            fpoints[i] = ((int *) points)[i+1];
+            fpoints[i+1] = ((int *) points)[i];
+        }
+    #else
+        for (int i=0; i<count; ++i)
+            fpoints[i] = ((int *) points)[i];
+    #endif
+        QVectorPath vp((qreal *) fpoints.data(), pointCount, 0, QVectorPath::polygonFlags(mode));
+
+        if (s->flags.fast_pen) {
+            QCosmeticStroker stroker(s, d->deviceRect);
+            stroker.drawPath(vp);
+        } else {
             QPaintEngineEx::stroke(vp, s->lastPen);
-        }
-    }
-}
-
-/*!
-    \internal
-*/
-void QRasterPaintEngine::strokePolygonCosmetic(const QPointF *points, int pointCount, PolygonDrawMode mode)
-{
-    Q_D(QRasterPaintEngine);
-    QRasterPaintEngineState *s = state();
-
-    Q_ASSERT(s->penData.blend);
-    Q_ASSERT(s->flags.fast_pen);
-
-    bool needs_closing = mode != PolylineMode && points[0] != points[pointCount-1];
-
-    // Use fast path for 0 width /  trivial pens.
-    QIntRect devRect;
-    devRect.set(d->deviceRect);
-
-    LineDrawMode mode_for_last = (s->lastPen.capStyle() != Qt::FlatCap
-                                  ? LineDrawIncludeLastPixel
-                                  : LineDrawNormal);
-    int dashOffset = int(s->lastPen.dashOffset());
-
-    // Draw all the line segments.
-    for (int i=1; i<pointCount; ++i) {
-
-        QPointF lp1 = points[i-1] * s->matrix;
-        QPointF lp2 = points[i] * s->matrix;
-
-        const QRectF brect(lp1, lp2);
-        ProcessSpans penBlend = d->getPenFunc(brect, &s->penData);
-        if (qpen_style(s->lastPen) == Qt::SolidLine) {
-            drawLine_midpoint_i(qFloor(lp1.x()), qFloor(lp1.y()),
-                                qFloor(lp2.x()), qFloor(lp2.y()),
-                                penBlend, &s->penData,
-                                i == pointCount - 1 ? mode_for_last : LineDrawIncludeLastPixel,
-                                devRect);
-        } else {
-            drawLine_midpoint_dashed_i(qFloor(lp1.x()), qFloor(lp1.y()),
-                                       qFloor(lp2.x()), qFloor(lp2.y()),
-                                       &s->lastPen,
-                                       penBlend, &s->penData,
-                                       i == pointCount - 1 ? mode_for_last : LineDrawIncludeLastPixel,
-                                       devRect, &dashOffset);
-        }
-    }
-
-    // Polygons are implicitly closed.
-    if (needs_closing) {
-        QPointF lp1 = points[pointCount-1] * s->matrix;
-        QPointF lp2 = points[0] * s->matrix;
-
-        const QRectF brect(lp1, lp2);
-        ProcessSpans penBlend = d->getPenFunc(brect, &s->penData);
-        if (qpen_style(s->lastPen) == Qt::SolidLine) {
-            drawLine_midpoint_i(qFloor(lp1.x()), qFloor(lp1.y()),
-                                qFloor(lp2.x()), qFloor(lp2.y()),
-                                penBlend, &s->penData,
-                                LineDrawIncludeLastPixel,
-                                devRect);
-        } else {
-            drawLine_midpoint_dashed_i(qFloor(lp1.x()), qFloor(lp1.y()),
-                                       qFloor(lp2.x()), qFloor(lp2.y()),
-                                       &s->lastPen,
-                                       penBlend, &s->penData,
-                                       LineDrawIncludeLastPixel,
-                                       devRect, &dashOffset);
-        }
-    }
-
-}
-
-/*!
-    \internal
-*/
-void QRasterPaintEngine::strokePolygonCosmetic(const QPoint *points, int pointCount, PolygonDrawMode mode)
-{
-    Q_D(QRasterPaintEngine);
-    QRasterPaintEngineState *s = state();
-
-    // We assert here because this function is called from drawRects
-    // and drawPolygon and they already do ensurePen(), so we skip that
-    // here to avoid duplicate checks..
-    Q_ASSERT(s->penData.blend);
-
-    bool needs_closing = mode != PolylineMode && points[0] != points[pointCount-1];
-
-    QIntRect devRect;
-    devRect.set(d->deviceRect);
-
-    LineDrawMode mode_for_last = (s->lastPen.capStyle() != Qt::FlatCap
-                                  ? LineDrawIncludeLastPixel
-                                  : LineDrawNormal);
-
-    int m11 = int(s->matrix.m11());
-    int m22 = int(s->matrix.m22());
-    int dx = int(s->matrix.dx());
-    int dy = int(s->matrix.dy());
-    int m13 = int(s->matrix.m13());
-    int m23 = int(s->matrix.m23());
-    bool affine = !m13 && !m23;
-
-    int dashOffset = int(s->lastPen.dashOffset());
-
-    if (affine) {
-        // Draw all the line segments.
-        for (int i=1; i<pointCount; ++i) {
-            const QPoint lp1 = points[i-1] * s->matrix;
-            const QPoint lp2 = points[i] * s->matrix;
-            const QRect brect(lp1, lp2);
-            ProcessSpans penBlend = d->getPenFunc(brect, &s->penData);
-
-            if (qpen_style(s->lastPen) == Qt::SolidLine)
-                drawLine_midpoint_i(lp1.x(), lp1.y(),
-                                    lp2.x(), lp2.y(),
-                                    penBlend, &s->penData,
-                                    i == pointCount - 1 ? mode_for_last : LineDrawIncludeLastPixel,
-                                    devRect);
-            else
-                drawLine_midpoint_dashed_i(lp1.x(), lp1.y(),
-                                           lp2.x(), lp2.y(),
-                                           &s->lastPen,
-                                           penBlend, &s->penData,
-                                           i == pointCount - 1 ? mode_for_last : LineDrawIncludeLastPixel,
-                                           devRect, &dashOffset);
-
-        }
-
-        // Polygons are implicitly closed.
-        if (needs_closing) {
-            const QPoint lp1 = points[pointCount - 1] * s->matrix;
-            const QPoint lp2 = points[0] * s->matrix;
-            const QRect brect(lp1, lp2);
-            ProcessSpans penBlend = d->getPenFunc(brect, &s->penData);
-
-            if (qpen_style(s->lastPen) == Qt::SolidLine)
-                drawLine_midpoint_i(lp1.x(), lp1.y(),
-                                    lp2.x(), lp2.y(),
-                                    penBlend, &s->penData, LineDrawIncludeLastPixel,
-                                    devRect);
-            else
-                drawLine_midpoint_dashed_i(lp1.x(), lp1.y(),
-                                           lp2.x(), lp2.y(),
-                                           &s->lastPen,
-                                           penBlend, &s->penData, LineDrawIncludeLastPixel,
-                                           devRect, &dashOffset);
-        }
-    } else {
-        // Draw all the line segments.
-        for (int i=1; i<pointCount; ++i) {
-            int x1 = points[i-1].x() * m11 + dx;
-            int y1 = points[i-1].y() * m22 + dy;
-            qreal w = m13*points[i-1].x() + m23*points[i-1].y() + 1.;
-            w = 1/w;
-            x1 = int(x1*w);
-            y1 = int(y1*w);
-            int x2 = points[i].x() * m11 + dx;
-            int y2 = points[i].y() * m22 + dy;
-            w = m13*points[i].x() + m23*points[i].y() + 1.;
-            w = 1/w;
-            x2 = int(x2*w);
-            y2 = int(y2*w);
-
-            const QRect brect(x1, y1, x2 - x1 + 1, y2 - y1 + 1);
-            ProcessSpans penBlend = d->getPenFunc(brect, &s->penData);
-            if (qpen_style(s->lastPen) == Qt::SolidLine)
-                drawLine_midpoint_i(x1, y1, x2, y2,
-                                    penBlend, &s->penData,
-                                    i == pointCount - 1 ? mode_for_last : LineDrawIncludeLastPixel,
-                                    devRect);
-            else
-                drawLine_midpoint_dashed_i(x1, y1, x2, y2,
-                                           &s->lastPen,
-                                           penBlend, &s->penData,
-                                           i == pointCount - 1 ? mode_for_last : LineDrawIncludeLastPixel,
-                                           devRect, &dashOffset);
-
-        }
-
-        int x1 = points[pointCount-1].x() * m11 + dx;
-        int y1 = points[pointCount-1].y() * m22 + dy;
-        qreal w = m13*points[pointCount-1].x() + m23*points[pointCount-1].y() + 1.;
-        w = 1/w;
-        x1 = int(x1*w);
-        y1 = int(y1*w);
-        int x2 = points[0].x() * m11 + dx;
-        int y2 = points[0].y() * m22 + dy;
-        w = m13*points[0].x() + m23*points[0].y() + 1.;
-        w = 1/w;
-        x2 = int(x2 * w);
-        y2 = int(y2 * w);
-        // Polygons are implicitly closed.
-
-        if (needs_closing) {
-            const QRect brect(x1, y1, x2 - x1 + 1, y2 - y1 + 1);
-            ProcessSpans penBlend = d->getPenFunc(brect, &s->penData);
-            if (qpen_style(s->lastPen) == Qt::SolidLine)
-                drawLine_midpoint_i(x1, y1, x2, y2,
-                                    penBlend, &s->penData, LineDrawIncludeLastPixel,
-                                    devRect);
-            else
-                drawLine_midpoint_dashed_i(x1, y1, x2, y2,
-                                           &s->lastPen,
-                                           penBlend, &s->penData, LineDrawIncludeLastPixel,
-                                           devRect, &dashOffset);
         }
     }
 }
@@ -2581,7 +2268,10 @@ void QRasterPaintEngine::drawImage(const QRectF &r, const QImage &img, const QRe
     int sr_b = qCeil(sr.bottom()) - 1;
 
     if (s->matrix.type() <= QTransform::TxScale && !s->flags.antialiased && sr_l == sr_r && sr_t == sr_b) {
+        // as fillRect will apply the aliased coordinate delta we need to
+        // subtract it here as we don't use it for image drawing
         QTransform old = s->matrix;
+        s->matrix = s->matrix * QTransform::fromTranslate(-aliasedCoordinateDelta, -aliasedCoordinateDelta);
 
         // Do whatever fillRect() does, but without premultiplying the color if it's already premultiplied.
         QRgb color = img.pixel(sr_l, sr_t);
@@ -2708,12 +2398,18 @@ void QRasterPaintEngine::drawImage(const QRectF &r, const QImage &img, const QRe
         d->image_filler_xform.setupMatrix(copy, s->flags.bilinear);
 
         if (!s->flags.antialiased && s->matrix.type() == QTransform::TxScale) {
-            QRectF rr = s->matrix.mapRect(r);
+            QPointF rr_tl = s->matrix.map(r.topLeft());
+            QPointF rr_br = s->matrix.map(r.bottomRight());
 
-            const int x1 = qRound(rr.x());
-            const int y1 = qRound(rr.y());
-            const int x2 = qRound(rr.right());
-            const int y2 = qRound(rr.bottom());
+            int x1 = qRound(rr_tl.x());
+            int y1 = qRound(rr_tl.y());
+            int x2 = qRound(rr_br.x());
+            int y2 = qRound(rr_br.y());
+
+            if (x1 > x2)
+                qSwap(x1, x2);
+            if (y1 > y2)
+                qSwap(y1, y2);
 
             fillRect_normalized(QRect(x1, y1, x2-x1, y2-y1), &d->image_filler_xform, d);
             return;
@@ -2725,9 +2421,11 @@ void QRasterPaintEngine::drawImage(const QRectF &r, const QImage &img, const QRe
             d->initializeRasterizer(&d->image_filler_xform);
             d->rasterizer->setAntialiased(s->flags.antialiased);
 
+            const QPointF offs = s->flags.antialiased ? QPointF() : QPointF(aliasedCoordinateDelta, aliasedCoordinateDelta);
+
             const QRectF &rect = r.normalized();
-            const QPointF a = s->matrix.map((rect.topLeft() + rect.bottomLeft()) * 0.5f);
-            const QPointF b = s->matrix.map((rect.topRight() + rect.bottomRight()) * 0.5f);
+            const QPointF a = s->matrix.map((rect.topLeft() + rect.bottomLeft()) * 0.5f) - offs;
+            const QPointF b = s->matrix.map((rect.topRight() + rect.bottomRight()) * 0.5f) - offs;
 
             if (s->flags.tx_noshear)
                 d->rasterizer->rasterizeLine(a, b, rect.height() / rect.width());
@@ -2736,12 +2434,13 @@ void QRasterPaintEngine::drawImage(const QRectF &r, const QImage &img, const QRe
             return;
         }
 #endif
+        const qreal offs = s->flags.antialiased ? qreal(0) : aliasedCoordinateDelta;
         QPainterPath path;
         path.addRect(r);
         QTransform m = s->matrix;
         s->matrix = QTransform(m.m11(), m.m12(), m.m13(),
                                m.m21(), m.m22(), m.m23(),
-                               m.m31(), m.m32(), m.m33());
+                               m.m31() - offs, m.m32() - offs, m.m33());
         fillPath(path, &d->image_filler_xform);
         s->matrix = m;
     } else {
@@ -3083,10 +2782,12 @@ bool QRasterPaintEngine::drawCachedGlyphs(int numGlyphs, const glyph_t *glyphs,
 {
     Q_D(QRasterPaintEngine);
     QRasterPaintEngineState *s = state();
+    const QFixed offs = QFixed::fromReal(aliasedCoordinateDelta);
 
 #if !defined(QT_NO_FREETYPE)
     if (fontEngine->type() == QFontEngine::Freetype) {
         QFontEngineFT *fe = static_cast<QFontEngineFT *>(fontEngine);
+        const QFixed xOffs = fe->supportsSubPixelPositions() ? 0 : offs;
         QFontEngineFT::GlyphFormat neededFormat =
             painter()->device()->devType() == QInternal::Widget
             ? fe->defaultGlyphFormat()
@@ -3160,8 +2861,8 @@ bool QRasterPaintEngine::drawCachedGlyphs(int numGlyphs, const glyph_t *glyphs,
             };
 
             alphaPenBlt(glyph->data, pitch, depth,
-                        qFloor(positions[i].x) + glyph->x,
-                        qFloor(positions[i].y) - glyph->y,
+                        qFloor(positions[i].x + xOffs) + glyph->x,
+                        qFloor(positions[i].y + offs) - glyph->y,
                         glyph->width, glyph->height);
         }
         if (lockedFace)
@@ -3169,7 +2870,9 @@ bool QRasterPaintEngine::drawCachedGlyphs(int numGlyphs, const glyph_t *glyphs,
     } else
 #endif
     {
-        QFontEngineGlyphCache::Type glyphType = fontEngine->glyphFormat >= 0 ? QFontEngineGlyphCache::Type(fontEngine->glyphFormat) : d->glyphCacheType;
+        QFontEngineGlyphCache::Type glyphType = fontEngine->glyphFormat >= 0
+                ? QFontEngineGlyphCache::Type(fontEngine->glyphFormat)
+                : d->glyphCacheType;
 
         QImageTextureGlyphCache *cache =
             static_cast<QImageTextureGlyphCache *>(fontEngine->glyphCache(0, glyphType, s->matrix));
@@ -3203,7 +2906,7 @@ bool QRasterPaintEngine::drawCachedGlyphs(int numGlyphs, const glyph_t *glyphs,
                 continue;
 
             int x = qFloor(positions[i].x) + c.baseLineX - margin;
-            int y = qFloor(positions[i].y) - c.baseLineY - margin;
+            int y = qFloor(positions[i].y + offs) - c.baseLineY - margin;
 
             // printf("drawing [%d %d %d %d] baseline [%d %d], glyph: %d, to: %d %d, pos: %d %d\n",
             //        c.x, c.y,
@@ -3241,13 +2944,15 @@ void QRasterPaintEngine::drawGlyphsS60(const QPointF &p, const QTextItemInt &ti)
         fe->setFontScale(matrix.m11());
     ti.fontEngine->getGlyphPositions(ti.glyphs, matrix, ti.flags, glyphs, positions);
 
+    const QFixed aliasDelta = QFixed::fromReal(aliasedCoordinateDelta);
+
     for (int i=0; i<glyphs.size(); ++i) {
         TOpenFontCharMetrics tmetrics;
         const TUint8 *glyphBitmapBytes;
         TSize glyphBitmapSize;
         fe->getCharacterData(glyphs[i], tmetrics, glyphBitmapBytes, glyphBitmapSize);
-        const int x = qFloor(positions[i].x + tmetrics.HorizBearingX());
-        const int y = qFloor(positions[i].y - tmetrics.HorizBearingY());
+        const int x = qFloor(positions[i].x + tmetrics.HorizBearingX() + aliasDelta);
+        const int y = qFloor(positions[i].y - tmetrics.HorizBearingY() + aliasDelta);
         alphaPenBlt(glyphBitmapBytes, glyphBitmapSize.iWidth, 8, x, y, glyphBitmapSize.iWidth, glyphBitmapSize.iHeight);
     }
 
@@ -3348,19 +3053,6 @@ QRasterPaintEnginePrivate::getBrushFunc(const QRectF &rect,
 }
 
 inline ProcessSpans
-QRasterPaintEnginePrivate::getPenFunc(const QRect &rect,
-                                      const QSpanData *data) const
-{
-    Q_Q(const QRasterPaintEngine);
-    const QRasterPaintEngineState *s = q->state();
-
-    if (!s->flags.fast_pen && s->matrix.type() > QTransform::TxTranslate)
-        return data->blend;
-    const int penWidth = s->flags.fast_pen ? 1 : qCeil(s->pen.widthF());
-    return isUnclipped(rect, penWidth) ? data->unclipped_blend : data->blend;
-}
-
-inline ProcessSpans
 QRasterPaintEnginePrivate::getPenFunc(const QRectF &rect,
                                       const QSpanData *data) const
 {
@@ -3381,8 +3073,13 @@ void QRasterPaintEngine::drawStaticTextItem(QStaticTextItem *textItem)
     ensurePen();
     ensureState();
 
-    drawCachedGlyphs(textItem->numGlyphs, textItem->glyphs, textItem->glyphPositions,
-                     textItem->fontEngine());
+    QFontEngine *fontEngine = textItem->fontEngine();
+    if (!supportsTransformations(fontEngine)) {
+        drawCachedGlyphs(textItem->numGlyphs, textItem->glyphs, textItem->glyphPositions,
+                         fontEngine);
+    } else {
+        QPaintEngineEx::drawStaticTextItem(textItem);
+    }
 }
 
 /*!
@@ -3403,38 +3100,9 @@ void QRasterPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textIte
     ensurePen();
     ensureState();
 
-#if defined (Q_WS_WIN) || defined(Q_WS_MAC)
+#if defined (Q_WS_WIN) || defined(Q_WS_MAC) || (defined(Q_OS_MAC) && defined(Q_WS_QPA))
 
-    bool drawCached = true;
-
-    if (s->matrix.type() >= QTransform::TxProject)
-        drawCached = false;
-
-    // don't try to cache huge fonts
-    const qreal pixelSize = ti.fontEngine->fontDef.pixelSize;
-    if (pixelSize * pixelSize * qAbs(s->matrix.determinant()) >= 64 * 64)
-        drawCached = false;
-
-    // ### Remove the TestFontEngine and Box engine crap, in these
-    // ### cases we should delegate painting to the font engine
-    // ### directly...
-
-#if defined(Q_WS_WIN) && !defined(Q_WS_WINCE)
-    QFontEngine::Type fontEngineType = ti.fontEngine->type();
-    // qDebug() << "type" << fontEngineType << s->matrix.type();
-    if ((fontEngineType == QFontEngine::Win && !((QFontEngineWin *) ti.fontEngine)->ttf && s->matrix.type() > QTransform::TxTranslate)
-        || (s->matrix.type() <= QTransform::TxTranslate
-            && (fontEngineType == QFontEngine::TestFontEngine
-                || fontEngineType == QFontEngine::Box))) {
-            drawCached = false;
-    }
-#else
-    if (s->matrix.type() > QTransform::TxTranslate)
-        drawCached = false;
-#endif
-    if (drawCached) {
-        QRasterPaintEngineState *s = state();
-
+    if (!supportsTransformations(ti.fontEngine)) {
         QVarLengthArray<QFixedPoint> positions;
         QVarLengthArray<glyph_t> glyphs;
 
@@ -3469,7 +3137,7 @@ void QRasterPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textIte
             || (fontEngine->type() == QFontEngine::Proxy
                 && !(static_cast<QProxyFontEngine *>(fontEngine)->drawAsOutline()))
             )) {
-        fontEngine->draw(this, qFloor(p.x()), qFloor(p.y()), ti);
+        fontEngine->draw(this, qFloor(p.x() + aliasedCoordinateDelta), qFloor(p.y() + aliasedCoordinateDelta), ti);
         return;
     }
 #endif // Q_WS_QWS
@@ -3492,6 +3160,7 @@ void QRasterPaintEngine::drawTextItem(const QPointF &p, const QTextItem &textIte
         for(int i = 0; i < glyphs.size(); i++) {
             QImage img = fontEngine->alphaMapForGlyph(glyphs[i]);
             glyph_metrics_t metrics = fontEngine->boundingBox(glyphs[i]);
+            // ### hm, perhaps an QFixed offs = QFixed::fromReal(aliasedCoordinateDelta) is needed here?
             alphaPenBlt(img.bits(), img.bytesPerLine(), img.depth(),
                                          qRound(positions[i].x + metrics.x),
                                          qRound(positions[i].y + metrics.y),
@@ -3546,48 +3215,16 @@ void QRasterPaintEngine::drawPoints(const QPointF *points, int pointCount)
     QRasterPaintEngineState *s = state();
 
     ensurePen();
-    qreal pw = s->lastPen.widthF();
-    if (!s->flags.fast_pen && (s->matrix.type() > QTransform::TxTranslate || pw > 1)) {
+    if (!s->penData.blend)
+        return;
+
+    if (!s->flags.fast_pen) {
         QPaintEngineEx::drawPoints(points, pointCount);
-
-    } else {
-        if (!s->penData.blend)
-            return;
-
-        QVarLengthArray<QT_FT_Span, 4096> array(pointCount);
-        QT_FT_Span span = { 0, 1, 0, 255 };
-        const QPointF *end = points + pointCount;
-        qreal trans_x, trans_y;
-        int x, y;
-        int left = d->deviceRect.x();
-        int right = left + d->deviceRect.width();
-        int top = d->deviceRect.y();
-        int bottom = top + d->deviceRect.height();
-        int count = 0;
-        while (points < end) {
-            s->matrix.map(points->x(), points->y(), &trans_x, &trans_y);
-            x = qFloor(trans_x);
-            y = qFloor(trans_y);
-            if (x >= left && x < right && y >= top && y < bottom) {
-                if (count > 0) {
-                    const QT_FT_Span &last = array[count - 1];
-                    // spans must be sorted on y (primary) and x (secondary)
-                    if (y < last.y || (y == last.y && x < last.x)) {
-                        s->penData.blend(count, array.constData(), &s->penData);
-                        count = 0;
-                    }
-                }
-
-                span.x = x;
-                span.y = y;
-                array[count++] = span;
-            }
-            ++points;
-        }
-
-        if (count > 0)
-            s->penData.blend(count, array.constData(), &s->penData);
+        return;
     }
+
+    QCosmeticStroker stroker(s, d->deviceRect);
+    stroker.drawPoints(points, pointCount);
 }
 
 
@@ -3597,48 +3234,16 @@ void QRasterPaintEngine::drawPoints(const QPoint *points, int pointCount)
     QRasterPaintEngineState *s = state();
 
     ensurePen();
-    double pw = s->lastPen.widthF();
-    if (!s->flags.fast_pen && (s->matrix.type() > QTransform::TxTranslate || pw > 1)) {
+    if (!s->penData.blend)
+        return;
+
+    if (!s->flags.fast_pen) {
         QPaintEngineEx::drawPoints(points, pointCount);
-
-    } else {
-        if (!s->penData.blend)
-            return;
-
-        QVarLengthArray<QT_FT_Span, 4096> array(pointCount);
-        QT_FT_Span span = { 0, 1, 0, 255 };
-        const QPoint *end = points + pointCount;
-        qreal trans_x, trans_y;
-        int x, y;
-        int left = d->deviceRect.x();
-        int right = left + d->deviceRect.width();
-        int top = d->deviceRect.y();
-        int bottom = top + d->deviceRect.height();
-        int count = 0;
-        while (points < end) {
-            s->matrix.map(points->x(), points->y(), &trans_x, &trans_y);
-            x = qFloor(trans_x);
-            y = qFloor(trans_y);
-            if (x >= left && x < right && y >= top && y < bottom) {
-                if (count > 0) {
-                    const QT_FT_Span &last = array[count - 1];
-                    // spans must be sorted on y (primary) and x (secondary)
-                    if (y < last.y || (y == last.y && x < last.x)) {
-                        s->penData.blend(count, array.constData(), &s->penData);
-                        count = 0;
-                    }
-                }
-
-                span.x = x;
-                span.y = y;
-                array[count++] = span;
-            }
-            ++points;
-        }
-
-        if (count > 0)
-            s->penData.blend(count, array.constData(), &s->penData);
+        return;
     }
+
+    QCosmeticStroker stroker(s, d->deviceRect);
+    stroker.drawPoints(points, pointCount);
 }
 
 /*!
@@ -3647,59 +3252,22 @@ void QRasterPaintEngine::drawPoints(const QPoint *points, int pointCount)
 void QRasterPaintEngine::drawLines(const QLine *lines, int lineCount)
 {
 #ifdef QT_DEBUG_DRAW
-    qDebug() << " - QRasterPaintEngine::drawLine()";
+    qDebug() << " - QRasterPaintEngine::drawLines(QLine*)" << lineCount;
 #endif
     Q_D(QRasterPaintEngine);
     QRasterPaintEngineState *s = state();
 
     ensurePen();
+    if (!s->penData.blend)
+        return;
+
     if (s->flags.fast_pen) {
-        QIntRect bounds; bounds.set(d->deviceRect);
-        LineDrawMode mode = s->lastPen.capStyle() == Qt::FlatCap
-                            ? LineDrawNormal
-                            : LineDrawIncludeLastPixel;
-
-        int m11 = int(s->matrix.m11());
-        int m22 = int(s->matrix.m22());
-        int dx = qFloor(s->matrix.dx());
-        int dy = qFloor(s->matrix.dy());
+        QCosmeticStroker stroker(s, d->deviceRect);
         for (int i=0; i<lineCount; ++i) {
-            int dashOffset = int(s->lastPen.dashOffset());
-            if (s->flags.int_xform) {
-                const QLine &l = lines[i];
-                int x1 = l.x1() * m11 + dx;
-                int y1 = l.y1() * m22 + dy;
-                int x2 = l.x2() * m11 + dx;
-                int y2 = l.y2() * m22 + dy;
-
-                const QRect brect(QPoint(x1, y1), QPoint(x2, y2));
-                ProcessSpans penBlend = d->getPenFunc(brect, &s->penData);
-                if (qpen_style(s->lastPen) == Qt::SolidLine)
-                    drawLine_midpoint_i(x1, y1, x2, y2,
-                                        penBlend, &s->penData, mode, bounds);
-                else
-                    drawLine_midpoint_dashed_i(x1, y1, x2, y2,
-                                               &s->lastPen, penBlend,
-                                               &s->penData, mode, bounds,
-                                               &dashOffset);
-            } else {
-                QLineF line = lines[i] * s->matrix;
-                const QRectF brect(QPointF(line.x1(), line.y1()),
-                                   QPointF(line.x2(), line.y2()));
-                ProcessSpans penBlend = d->getPenFunc(brect, &s->penData);
-                if (qpen_style(s->lastPen) == Qt::SolidLine)
-                    drawLine_midpoint_i(int(line.x1()), int(line.y1()),
-                                        int(line.x2()), int(line.y2()),
-                                        penBlend, &s->penData, mode, bounds);
-                else
-                    drawLine_midpoint_dashed_i(int(line.x1()), int(line.y1()),
-                                               int(line.x2()), int(line.y2()),
-                                               &s->lastPen, penBlend,
-                                               &s->penData, mode, bounds,
-                                               &dashOffset);
-            }
+            const QLine &l = lines[i];
+            stroker.drawLine(l.p1(), l.p2());
         }
-    } else if (s->penData.blend) {
+    } else {
         QPaintEngineEx::drawLines(lines, lineCount);
     }
 }
@@ -3756,7 +3324,7 @@ void QRasterPaintEnginePrivate::rasterizeLine_dashed(QLineF line,
 void QRasterPaintEngine::drawLines(const QLineF *lines, int lineCount)
 {
 #ifdef QT_DEBUG_DRAW
-    qDebug() << " - QRasterPaintEngine::drawLine()";
+    qDebug() << " - QRasterPaintEngine::drawLines(QLineF *)" << lineCount;
 #endif
     Q_D(QRasterPaintEngine);
     QRasterPaintEngineState *s = state();
@@ -3765,28 +3333,10 @@ void QRasterPaintEngine::drawLines(const QLineF *lines, int lineCount)
     if (!s->penData.blend)
         return;
     if (s->flags.fast_pen) {
-        QIntRect bounds;
-        bounds.set(d->deviceRect);
-        LineDrawMode mode = s->lastPen.capStyle() == Qt::FlatCap
-                            ? LineDrawNormal
-                            : LineDrawIncludeLastPixel;
-
+        QCosmeticStroker stroker(s, d->deviceRect);
         for (int i=0; i<lineCount; ++i) {
-            int dashOffset = int(s->lastPen.dashOffset());
-            QLineF line = lines[i] * s->matrix;
-            const QRectF brect(QPointF(line.x1(), line.y1()),
-                               QPointF(line.x2(), line.y2()));
-            ProcessSpans penBlend = d->getPenFunc(brect, &s->penData);
-            if (qpen_style(s->lastPen) == Qt::SolidLine)
-                drawLine_midpoint_i(int(line.x1()), int(line.y1()),
-                                    int(line.x2()), int(line.y2()),
-                                    penBlend, &s->penData, mode, bounds);
-            else
-                drawLine_midpoint_dashed_i(int(line.x1()), int(line.y1()),
-                                           int(line.x2()), int(line.y2()),
-                                           &s->lastPen,
-                                           penBlend, &s->penData, mode,
-                                           bounds, &dashOffset);
+            QLineF line = lines[i];
+            stroker.drawLine(line.p1(), line.p2());
         }
     } else {
         QPaintEngineEx::drawLines(lines, lineCount);
@@ -3804,7 +3354,8 @@ void QRasterPaintEngine::drawEllipse(const QRectF &rect)
 
     ensurePen();
     if (((qpen_style(s->lastPen) == Qt::SolidLine && s->flags.fast_pen)
-         || (qpen_style(s->lastPen) == Qt::NoPen && !s->flags.antialiased))
+           || (qpen_style(s->lastPen) == Qt::NoPen))
+        && !s->flags.antialiased
         && qMax(rect.width(), rect.height()) < QT_RASTER_COORD_LIMIT
         && !rect.isEmpty()
         && s->matrix.type() <= QTransform::TxScale) // no shear
@@ -3871,6 +3422,37 @@ void QRasterPaintEngine::releaseDC(HDC) const
 }
 
 #endif
+
+bool QRasterPaintEngine::supportsTransformations(const QFontEngine *fontEngine) const
+{
+    const QTransform &m = state()->matrix;
+#if defined(Q_WS_WIN) && !defined(Q_WS_WINCE)
+    QFontEngine::Type fontEngineType = fontEngine->type();
+    if ((fontEngineType == QFontEngine::Win && !((QFontEngineWin *) fontEngine)->ttf && m.type() > QTransform::TxTranslate)
+        || (m.type() <= QTransform::TxTranslate
+            && (fontEngineType == QFontEngine::TestFontEngine
+                || fontEngineType == QFontEngine::Box))) {
+            return true;
+    }
+#endif
+    return supportsTransformations(fontEngine->fontDef.pixelSize, m);
+}
+
+bool QRasterPaintEngine::supportsTransformations(qreal pixelSize, const QTransform &m) const
+{
+#if defined(Q_WS_MAC) || (defined(Q_OS_MAC) && defined(Q_WS_QPA))
+    // Mac font engines don't support scaling and rotation
+    if (m.type() > QTransform::TxTranslate)
+#else
+    if (m.type() >= QTransform::TxProject)
+#endif
+        return true;
+
+    if (pixelSize * pixelSize * qAbs(m.determinant()) >= 64 * 64)
+        return true;
+
+    return false;
+}
 
 /*!
     \internal
@@ -3972,7 +3554,7 @@ void QRasterPaintEngine::drawBitmap(const QPointF &pos, const QImage &image, QSp
                     spans[n].y = y;
                     spans[n].coverage = 255;
                     int len = 1;
-                    while (src_x < w-1 && src[(src_x+1) >> 3] & (0x1 << ((src_x+1) & 7))) {
+                    while (src_x+1 < w && src[(src_x+1) >> 3] & (0x1 << ((src_x+1) & 7))) {
                         ++src_x;
                         ++len;
                     }
@@ -3998,7 +3580,7 @@ void QRasterPaintEngine::drawBitmap(const QPointF &pos, const QImage &image, QSp
                     spans[n].y = y;
                     spans[n].coverage = 255;
                     int len = 1;
-                    while (src_x < w-1 && src[(src_x+1) >> 3] & (0x80 >> ((src_x+1) & 7))) {
+                    while (src_x+1 < w && src[(src_x+1) >> 3] & (0x80 >> ((src_x+1) & 7))) {
                         ++src_x;
                         ++len;
                     }
@@ -4184,6 +3766,11 @@ extern "C" {
     int q_gray_rendered_spans(QT_FT_Raster raster);
 }
 
+static inline uchar *alignAddress(uchar *address, quintptr alignmentMask)
+{
+    return (uchar *)(((quintptr)address + alignmentMask) & ~alignmentMask);
+}
+
 void QRasterPaintEnginePrivate::rasterize(QT_FT_Outline *outline,
                                           ProcessSpans callback,
                                           void *userData, QRasterBuffer *)
@@ -4211,19 +3798,10 @@ void QRasterPaintEnginePrivate::rasterize(QT_FT_Outline *outline,
     // minimize memory reallocations. However if initial size for
     // raster pool is changed for lower value, reallocations will
     // occur normally.
-    const int rasterPoolInitialSize = MINIMUM_POOL_SIZE;
-    int rasterPoolSize = rasterPoolInitialSize;
-    unsigned char *rasterPoolBase;
-#if defined(Q_WS_WIN64)
-    rasterPoolBase =
-        // We make use of setjmp and longjmp in qgrayraster.c which requires
-        // 16-byte alignment, hence we hardcode this requirement here..
-        (unsigned char *) _aligned_malloc(rasterPoolSize, sizeof(void*) * 2);
-#else
-    unsigned char rasterPoolOnStack[rasterPoolInitialSize];
-    rasterPoolBase = rasterPoolOnStack;
-#endif
-    Q_CHECK_PTR(rasterPoolBase);
+    int rasterPoolSize = MINIMUM_POOL_SIZE;
+    uchar rasterPoolOnStack[MINIMUM_POOL_SIZE + 0xf];
+    uchar *rasterPoolBase = alignAddress(rasterPoolOnStack, 0xf);
+    uchar *rasterPoolOnHeap = 0;
 
     qt_ft_grays_raster.raster_reset(*grayRaster.data(), rasterPoolBase, rasterPoolSize);
 
@@ -4259,31 +3837,20 @@ void QRasterPaintEnginePrivate::rasterize(QT_FT_Outline *outline,
 
         // Out of memory, reallocate some more and try again...
         if (error == -6) { // ErrRaster_OutOfMemory from qgrayraster.c
-            int new_size = rasterPoolSize * 2;
-            if (new_size > 1024 * 1024) {
+            rasterPoolSize *= 2;
+            if (rasterPoolSize > 1024 * 1024) {
                 qWarning("QPainter: Rasterization of primitive failed");
                 break;
             }
 
             rendered_spans += q_gray_rendered_spans(*grayRaster.data());
 
-#if defined(Q_WS_WIN64)
-            _aligned_free(rasterPoolBase);
-#else
-            if (rasterPoolBase != rasterPoolOnStack) // initially on the stack
-                free(rasterPoolBase);
-#endif
+            free(rasterPoolOnHeap);
+            rasterPoolOnHeap = (uchar *)malloc(rasterPoolSize + 0xf);
 
-            rasterPoolSize = new_size;
-            rasterPoolBase =
-#if defined(Q_WS_WIN64)
-                // We make use of setjmp and longjmp in qgrayraster.c which requires
-                // 16-byte alignment, hence we hardcode this requirement here..
-                (unsigned char *) _aligned_malloc(rasterPoolSize, sizeof(void*) * 2);
-#else
-                (unsigned char *) malloc(rasterPoolSize);
-#endif
-            Q_CHECK_PTR(rasterPoolBase); // note: we just freed the old rasterPoolBase. I hope it's not fatal.
+            Q_CHECK_PTR(rasterPoolOnHeap); // note: we just freed the old rasterPoolBase. I hope it's not fatal.
+
+            rasterPoolBase = alignAddress(rasterPoolOnHeap, 0xf);
 
             qt_ft_grays_raster.raster_done(*grayRaster.data());
             qt_ft_grays_raster.raster_new(grayRaster.data());
@@ -4293,12 +3860,7 @@ void QRasterPaintEnginePrivate::rasterize(QT_FT_Outline *outline,
         }
     }
 
-#if defined(Q_WS_WIN64)
-    _aligned_free(rasterPoolBase);
-#else
-    if (rasterPoolBase != rasterPoolOnStack) // initially on the stack
-        free(rasterPoolBase);
-#endif
+    free(rasterPoolOnHeap);
 }
 
 void QRasterPaintEnginePrivate::recalculateFastImages()
@@ -4823,7 +4385,7 @@ static void qt_span_fill_clipped(int spanCount, const QSpan *spans, void *userDa
     while (spans < end) {
         QSpan *clipped = cspans;
         spans = qt_intersect_spans(fillData->clip, &currentClip, spans, end, &clipped, NSPANS);
-//         qDebug() << "processed " << processed << "clipped" << clipped-cspans
+//         qDebug() << "processed " << spanCount - (end - spans) << "clipped" << clipped-cspans
 //                  << "span:" << cspans->x << cspans->y << cspans->len << spans->coverage;
 
         if (clipped - cspans)
@@ -5035,6 +4597,84 @@ void QGradientCache::generateGradientColorTable(const QGradient& gradient, uint 
 
     bool colorInterpolation = (gradient.interpolationMode() == QGradient::ColorInterpolation);
 
+    if (stopCount == 2) {
+        uint first_color = ARGB_COMBINE_ALPHA(stops[0].second.rgba(), opacity);
+        uint second_color = ARGB_COMBINE_ALPHA(stops[1].second.rgba(), opacity);
+
+        qreal first_stop = stops[0].first;
+        qreal second_stop = stops[1].first;
+
+        if (second_stop < first_stop) {
+            qSwap(first_color, second_color);
+            qSwap(first_stop, second_stop);
+        }
+
+        if (colorInterpolation) {
+            first_color = PREMUL(first_color);
+            second_color = PREMUL(second_color);
+        }
+
+        int first_index = qRound(first_stop * (GRADIENT_STOPTABLE_SIZE-1));
+        int second_index = qRound(second_stop * (GRADIENT_STOPTABLE_SIZE-1));
+
+        uint red_first = qRed(first_color) << 16;
+        uint green_first = qGreen(first_color) << 16;
+        uint blue_first = qBlue(first_color) << 16;
+        uint alpha_first = qAlpha(first_color) << 16;
+
+        uint red_second = qRed(second_color) << 16;
+        uint green_second = qGreen(second_color) << 16;
+        uint blue_second = qBlue(second_color) << 16;
+        uint alpha_second = qAlpha(second_color) << 16;
+
+        int i = 0;
+        for (; i <= qMin(GRADIENT_STOPTABLE_SIZE, first_index); ++i) {
+            if (colorInterpolation)
+                colorTable[i] = first_color;
+            else
+                colorTable[i] = PREMUL(first_color);
+        }
+
+        if (i < second_index) {
+            qreal reciprocal = qreal(1) / (second_index - first_index);
+
+            int red_delta = qRound(int(red_second - red_first) * reciprocal);
+            int green_delta = qRound(int(green_second - green_first) * reciprocal);
+            int blue_delta = qRound(int(blue_second - blue_first) * reciprocal);
+            int alpha_delta = qRound(int(alpha_second - alpha_first) * reciprocal);
+
+            // rounding
+            red_first += 1 << 15;
+            green_first += 1 << 15;
+            blue_first += 1 << 15;
+            alpha_first += 1 << 15;
+
+            for (; i < qMin(GRADIENT_STOPTABLE_SIZE, second_index); ++i) {
+                red_first += red_delta;
+                green_first += green_delta;
+                blue_first += blue_delta;
+                alpha_first += alpha_delta;
+
+                const uint color = ((alpha_first << 8) & 0xff000000) | (red_first & 0xff0000)
+                                 | ((green_first >> 8) & 0xff00) | (blue_first >> 16);
+
+                if (colorInterpolation)
+                    colorTable[i] = color;
+                else
+                    colorTable[i] = PREMUL(color);
+            }
+        }
+
+        for (; i < GRADIENT_STOPTABLE_SIZE; ++i) {
+            if (colorInterpolation)
+                colorTable[i] = second_color;
+            else
+                colorTable[i] = PREMUL(second_color);
+        }
+
+        return;
+    }
+
     uint current_color = ARGB_COMBINE_ALPHA(stops[0].second.rgba(), opacity);
     if (stopCount == 1) {
         current_color = PREMUL(current_color);
@@ -5206,10 +4846,11 @@ void QSpanData::setup(const QBrush &brush, int alpha, QPainter::CompositionMode 
             QPointF center = g->center();
             radialData.center.x = center.x();
             radialData.center.y = center.y();
+            radialData.center.radius = g->centerRadius();
             QPointF focal = g->focalPoint();
             radialData.focal.x = focal.x();
             radialData.focal.y = focal.y();
-            radialData.radius = g->radius();
+            radialData.focal.radius = g->focalRadius();
         }
         break;
 
@@ -5396,759 +5037,6 @@ void QSpanData::initTexture(const QImage *image, int alpha, QTextureData::Type _
     adjustSpanMethods();
 }
 
-#ifdef Q_WS_WIN
-
-
-#endif
-
-
-/*!
-    \internal
-
-    Draws a line using the floating point midpoint algorithm. The line
-    \a line is already in device coords at this point.
-*/
-
-static void drawLine_midpoint_i(int x1, int y1, int x2, int y2, ProcessSpans span_func, QSpanData *data,
-                                LineDrawMode style, const QIntRect &devRect)
-{
-#ifdef QT_DEBUG_DRAW
-    qDebug() << "   - drawLine_midpoint_i" << QLine(QPoint(x1, y1), QPoint(x2, y2));
-#endif
-
-    int x, y;
-    int dx, dy, d, incrE, incrNE;
-
-    dx = x2 - x1;
-    dy = y2 - y1;
-
-    const int NSPANS = 256;
-    QT_FT_Span spans[NSPANS];
-    int current = 0;
-    bool ordered = true;
-
-    if (dy == 0) {
-        // specialcase horizontal lines
-        if (y1 >= devRect.y1 && y1 < devRect.y2) {
-            int start = qMax(devRect.x1, qMin(x1, x2));
-            int stop = qMax(x1, x2) + 1;
-            int stop_clipped = qMin(devRect.x2, stop);
-            int len = stop_clipped - start;
-            if (style == LineDrawNormal && stop == stop_clipped)
-                len--;
-            if (len > 0) {
-                spans[0].x = ushort(start);
-                spans[0].len = ushort(len);
-                spans[0].y = y1;
-                spans[0].coverage = 255;
-                span_func(1, spans, data);
-            }
-        }
-        return;
-    } else if (dx == 0) {
-        // specialcase vertical lines
-        if (x1 >= devRect.x1 && x1 < devRect.x2) {
-            int start = qMax(devRect.y1, qMin(y1, y2));
-            int stop = qMax(y1, y2) + 1;
-            int stop_clipped = qMin(devRect.y2, stop);
-            int len = stop_clipped - start;
-            if (style == LineDrawNormal && stop == stop_clipped)
-                len--;
-            // hw: create spans directly instead to possibly avoid clipping
-            if (len > 0)
-                fillRect_normalized(QRect(x1, start, 1, len).normalized(), data, 0);
-        }
-        return;
-    }
-
-
-    if (qAbs(dx) >= qAbs(dy)) {       /* if x is the major axis: */
-
-        if (x2 < x1) {  /* if coordinates are out of order */
-            qt_swap_int(x1, x2);
-            dx = -dx;
-
-            qt_swap_int(y1, y2);
-            dy = -dy;
-        }
-
-        int x_lower_limit = - 128;
-        if (x1 < x_lower_limit) {
-            int cy = dy * (x_lower_limit - x1) / dx + y1;
-            drawLine_midpoint_i(x_lower_limit, cy, x2, y2, span_func, data, style, devRect);
-            return;
-        }
-
-        if (style == LineDrawNormal)
-            --x2;
-
-        // In the loops below we increment before call the span function so
-        // we need to stop one pixel before
-        x2 = qMin(x2, devRect.x2 - 1);
-
-        // completely clipped, so abort
-        if (x2 <= x1) {
-            return;
-        }
-
-        int x = x1;
-        int y = y1;
-
-        if (y2 <= y1)
-            ordered = false;
-
-        {
-            const int index = (ordered ? current : NSPANS - 1 - current);
-            spans[index].coverage = 255;
-            spans[index].x = x;
-            spans[index].y = y;
-
-            if (x >= devRect.x1 && y >= devRect.y1 && y < devRect.y2)
-                spans[index].len = 1;
-            else
-                spans[index].len = 0;
-        }
-
-        if (y2 > y1) { // 315 -> 360 and 135 -> 180 (unit circle degrees)
-            y2 = qMin(y2, devRect.y2 - 1);
-
-            incrE = dy * 2;
-            d = incrE - dx;
-            incrNE = (dy - dx) * 2;
-
-            if (y > y2)
-                goto flush_and_return;
-
-            while (x < x2) {
-                ++x;
-                if (d > 0) {
-                    if (spans[current].len > 0)
-                        ++current;
-                    if (current == NSPANS) {
-                        span_func(NSPANS, spans, data);
-                        current = 0;
-                    }
-
-                    ++y;
-                    d += incrNE;
-                    if (y > y2)
-                        goto flush_and_return;
-
-                    spans[current].len = 0;
-                    spans[current].coverage = 255;
-                    spans[current].x = x;
-                    spans[current].y = y;
-                } else {
-                    d += incrE;
-                    if (x == devRect.x1)
-                        spans[current].x = devRect.x1;
-                }
-
-                if (x < devRect.x1 || y < devRect.y1)
-                    continue;
-
-                Q_ASSERT(x<devRect.x2);
-                Q_ASSERT(y<devRect.y2);
-                Q_ASSERT(spans[current].y == y);
-                spans[current].len++;
-            }
-            if (spans[current].len > 0) {
-                ++current;
-            }
-        } else {  // 0-45 and 180->225 (unit circle degrees)
-
-            y1 = qMin(y1, devRect.y2 - 1);
-
-            incrE = dy * 2;
-            d = incrE + dx;
-            incrNE = (dy + dx) * 2;
-
-            if (y < devRect.y1)
-                goto flush_and_return;
-
-            while (x < x2) {
-                ++x;
-                if (d < 0) {
-                    if (spans[NSPANS - 1 - current].len > 0)
-                        ++current;
-                    if (current == NSPANS) {
-                        span_func(NSPANS, spans, data);
-                        current = 0;
-                    }
-
-                    --y;
-                    d += incrNE;
-                    if (y < devRect.y1)
-                        goto flush_and_return;
-
-                    const int index = NSPANS - 1 - current;
-                    spans[index].len = 0;
-                    spans[index].coverage = 255;
-                    spans[index].x = x;
-                    spans[index].y = y;
-                } else {
-                    d += incrE;
-                    if (x == devRect.x1)
-                        spans[NSPANS - 1 - current].x = devRect.x1;
-                }
-
-                if (x < devRect.x1 || y > y1)
-                    continue;
-
-                Q_ASSERT(x<devRect.x2 && y<devRect.y2);
-                Q_ASSERT(spans[NSPANS - 1 - current].y == y);
-                spans[NSPANS - 1 - current].len++;
-            }
-            if (spans[NSPANS - 1 - current].len > 0) {
-                ++current;
-            }
-        }
-
-    } else {
-
-        // if y is the major axis:
-
-        if (y2 < y1) {      /* if coordinates are out of order */
-            qt_swap_int(y1, y2);
-            dy = -dy;
-
-            qt_swap_int(x1, x2);
-            dx = -dx;
-        }
-
-        int y_lower_limit = - 128;
-        if (y1 < y_lower_limit) {
-            int cx = dx * (y_lower_limit - y1) / dy + x1;
-            drawLine_midpoint_i(cx, y_lower_limit, x2, y2, span_func, data, style, devRect);
-            return;
-        }
-
-        if (style == LineDrawNormal)
-            --y2;
-
-        // In the loops below we increment before call the span function so
-        // we need to stop one pixel before
-        y2 = qMin(y2, devRect.y2 - 1);
-
-        // completely clipped, so abort
-        if (y2 <= y1) {
-            return;
-        }
-
-        x = x1;
-        y = y1;
-
-        if (x>=devRect.x1 && y>=devRect.y1 && x < devRect.x2) {
-            Q_ASSERT(x >= devRect.x1 && y >= devRect.y1 && x < devRect.x2 && y < devRect.y2);
-            if (current == NSPANS) {
-                span_func(NSPANS, spans, data);
-                current = 0;
-            }
-            spans[current].len = 1;
-            spans[current].coverage = 255;
-            spans[current].x = x;
-            spans[current].y = y;
-            ++current;
-        }
-
-        if (x2 > x1) { // 90 -> 135 and 270 -> 315 (unit circle degrees)
-            x2 = qMin(x2, devRect.x2 - 1);
-            incrE = dx * 2;
-            d = incrE - dy;
-            incrNE = (dx - dy) * 2;
-
-            if (x > x2)
-                goto flush_and_return;
-
-            while (y < y2) {
-                if (d > 0) {
-                    ++x;
-                    d += incrNE;
-                    if (x > x2)
-                        goto flush_and_return;
-                } else {
-                    d += incrE;
-                }
-                ++y;
-                if (x < devRect.x1 || y < devRect.y1)
-                    continue;
-                Q_ASSERT(x<devRect.x2 && y<devRect.y2);
-                if (current == NSPANS) {
-                    span_func(NSPANS, spans, data);
-                    current = 0;
-                }
-                spans[current].len = 1;
-                spans[current].coverage = 255;
-                spans[current].x = x;
-                spans[current].y = y;
-                ++current;
-            }
-        } else { // 45 -> 90 and 225 -> 270 (unit circle degrees)
-            x1 = qMin(x1, devRect.x2 - 1);
-            incrE = dx * 2;
-            d = incrE + dy;
-            incrNE = (dx + dy) * 2;
-
-            if (x < devRect.x1)
-                goto flush_and_return;
-
-            while (y < y2) {
-                if (d < 0) {
-                    --x;
-                    d += incrNE;
-                    if (x < devRect.x1)
-                        goto flush_and_return;
-                } else {
-                    d += incrE;
-                }
-                ++y;
-                if (y < devRect.y1 || x > x1)
-                    continue;
-                Q_ASSERT(x>=devRect.x1 && x<devRect.x2 && y>=devRect.y1 && y<devRect.y2);
-                if (current == NSPANS) {
-                    span_func(NSPANS, spans, data);
-                    current = 0;
-                }
-                spans[current].len = 1;
-                spans[current].coverage = 255;
-                spans[current].x = x;
-                spans[current].y = y;
-                ++current;
-            }
-        }
-    }
-flush_and_return:
-    if (current > 0)
-        span_func(current, ordered ? spans : spans + (NSPANS - current), data);
-}
-
-static void offset_pattern(int offset, bool *inDash, int *dashIndex, int *currentOffset, const QVarLengthArray<qreal> &pattern)
-{
-    while (offset--) {
-        if (--*currentOffset == 0) {
-            *inDash = !*inDash;
-            *dashIndex = ((*dashIndex + 1) % pattern.size());
-            *currentOffset = int(pattern[*dashIndex]);
-        }
-    }
-}
-
-static void drawLine_midpoint_dashed_i(int x1, int y1, int x2, int y2,
-                                       QPen *pen,
-                                       ProcessSpans span_func, QSpanData *data,
-                                       LineDrawMode style, const QIntRect &devRect,
-                                       int *patternOffset)
-{
-#ifdef QT_DEBUG_DRAW
-    qDebug() << "   - drawLine_midpoint_dashed_i" << x1 << y1 << x2 << y2 << *patternOffset;
-#endif
-
-    int x, y;
-    int dx, dy, d, incrE, incrNE;
-
-    dx = x2 - x1;
-    dy = y2 - y1;
-
-    Q_ASSERT(*patternOffset >= 0);
-
-    const QVector<qreal> penPattern = pen->dashPattern();
-    QVarLengthArray<qreal> pattern(penPattern.size());
-
-    int patternLength = 0;
-    for (int i = 0; i < penPattern.size(); ++i)
-        patternLength += qMax<qreal>(1.0, (penPattern.at(i)));
-
-    // pattern must be reversed if coordinates are out of order
-    int reverseLength = -1;
-    if (dy == 0 && x1 > x2)
-        reverseLength = x1 - x2;
-    else if (dx == 0 && y1 > y2)
-        reverseLength = y1 - y2;
-    else if (qAbs(dx) >= qAbs(dy) && x2 < x1) // x major axis
-        reverseLength = qAbs(dx);
-    else if (qAbs(dy) >= qAbs(dx) && y2 < y1) // y major axis
-        reverseLength = qAbs(dy);
-
-    const bool reversed = (reverseLength > -1);
-    if (reversed) { // reverse pattern
-        for (int i = 0; i < penPattern.size(); ++i)
-            pattern[penPattern.size() - 1 - i] = qMax<qreal>(1.0, penPattern.at(i));
-
-        *patternOffset = (patternLength - 1 - *patternOffset);
-        *patternOffset += patternLength - (reverseLength % patternLength);
-        *patternOffset = *patternOffset % patternLength;
-    } else {
-        for (int i = 0; i < penPattern.size(); ++i)
-            pattern[i] = qMax<qreal>(1.0, penPattern.at(i));
-    }
-
-    int dashIndex = 0;
-    bool inDash = !reversed;
-    int currPattern = int(pattern[dashIndex]);
-
-    // adjust pattern for offset
-    offset_pattern(*patternOffset, &inDash, &dashIndex, &currPattern, pattern);
-
-    const int NSPANS = 256;
-    QT_FT_Span spans[NSPANS];
-    int current = 0;
-    bool ordered = true;
-
-    if (dy == 0) {
-        // specialcase horizontal lines
-        if (y1 >= devRect.y1 && y1 < devRect.y2) {
-            int start_unclipped = qMin(x1, x2);
-            int start = qMax(devRect.x1, start_unclipped);
-            int stop = qMax(x1, x2) + 1;
-            int stop_clipped = qMin(devRect.x2, stop);
-            int len = stop_clipped - start;
-            if (style == LineDrawNormal && stop == stop_clipped)
-                len--;
-
-            // adjust pattern for starting offset
-            offset_pattern(start - start_unclipped, &inDash, &dashIndex, &currPattern, pattern);
-
-            if (len > 0) {
-                int x = start;
-                while (x < stop_clipped) {
-                    if (current == NSPANS) {
-                        span_func(NSPANS, spans, data);
-                        current = 0;
-                    }
-                    const int dash = qMin(currPattern, stop_clipped - x);
-                    if (inDash) {
-                        spans[current].x = ushort(x);
-                        spans[current].len = ushort(dash);
-                        spans[current].y = y1;
-                        spans[current].coverage = 255;
-                        ++current;
-                    }
-                    if (dash < currPattern) {
-                        currPattern -= dash;
-                    } else {
-                        dashIndex = (dashIndex + 1) % pattern.size();
-                        currPattern = int(pattern[dashIndex]);
-                        inDash = !inDash;
-                    }
-                    x += dash;
-                }
-            }
-        }
-        goto flush_and_return;
-    } else if (dx == 0) {
-        if (x1 >= devRect.x1 && x1 < devRect.x2) {
-            int start_unclipped = qMin(y1, y2);
-            int start = qMax(devRect.y1, start_unclipped);
-            int stop = qMax(y1, y2) + 1;
-            int stop_clipped = qMin(devRect.y2, stop);
-            if (style == LineDrawNormal && stop == stop_clipped)
-                --stop;
-            else
-                stop = stop_clipped;
-
-            // adjust pattern for starting offset
-            offset_pattern(start - start_unclipped, &inDash, &dashIndex, &currPattern, pattern);
-
-            // loop over dashes
-            int y = start;
-            while (y < stop) {
-                const int dash = qMin(currPattern, stop - y);
-                if (inDash) {
-                    for (int i = 0; i < dash; ++i) {
-                        if (current == NSPANS) {
-                            span_func(NSPANS, spans, data);
-                            current = 0;
-                        }
-                        spans[current].x = x1;
-                        spans[current].len = 1;
-                        spans[current].coverage = 255;
-                        spans[current].y = ushort(y + i);
-                        ++current;
-                    }
-                }
-                if (dash < currPattern) {
-                    currPattern -= dash;
-                } else {
-                    dashIndex = (dashIndex + 1) % pattern.size();
-                    currPattern = int(pattern[dashIndex]);
-                    inDash = !inDash;
-                }
-                y += dash;
-            }
-        }
-        goto flush_and_return;
-    }
-
-    if (qAbs(dx) >= qAbs(dy)) {       /* if x is the major axis: */
-
-        if (x2 < x1) {  /* if coordinates are out of order */
-            qt_swap_int(x1, x2);
-            dx = -dx;
-
-            qt_swap_int(y1, y2);
-            dy = -dy;
-        }
-
-        if (style == LineDrawNormal)
-            --x2;
-
-        // In the loops below we increment before call the span function so
-        // we need to stop one pixel before
-        x2 = qMin(x2, devRect.x2 - 1);
-
-        // completely clipped, so abort
-        if (x2 <= x1)
-            goto flush_and_return;
-
-        int x = x1;
-        int y = y1;
-
-        if (x >= devRect.x1 && y >= devRect.y1 && y < devRect.y2) {
-            Q_ASSERT(x < devRect.x2);
-            if (inDash) {
-                if (current == NSPANS) {
-                    span_func(NSPANS, spans, data);
-                    current = 0;
-                }
-                spans[current].len = 1;
-                spans[current].coverage = 255;
-                spans[current].x = x;
-                spans[current].y = y;
-                ++current;
-            }
-            if (--currPattern <= 0) {
-                inDash = !inDash;
-                dashIndex = (dashIndex + 1) % pattern.size();
-                currPattern = int(pattern[dashIndex]);
-            }
-        }
-
-        if (y2 > y1) { // 315 -> 360 and 135 -> 180 (unit circle degrees)
-            y2 = qMin(y2, devRect.y2 - 1);
-
-            incrE = dy * 2;
-            d = incrE - dx;
-            incrNE = (dy - dx) * 2;
-
-            if (y > y2)
-                goto flush_and_return;
-
-            while (x < x2) {
-                if (d > 0) {
-                    ++y;
-                    d += incrNE;
-                    if (y > y2)
-                        goto flush_and_return;
-                } else {
-                    d += incrE;
-                }
-                ++x;
-
-                const bool skip = x < devRect.x1 || y < devRect.y1;
-                Q_ASSERT(skip || (x < devRect.x2 && y < devRect.y2));
-                if (inDash && !skip) {
-                    if (current == NSPANS) {
-                        span_func(NSPANS, spans, data);
-                        current = 0;
-                    }
-                    spans[current].len = 1;
-                    spans[current].coverage = 255;
-                    spans[current].x = x;
-                    spans[current].y = y;
-                    ++current;
-                }
-                if (--currPattern <= 0) {
-                    inDash = !inDash;
-                    dashIndex = (dashIndex + 1) % pattern.size();
-                    currPattern = int(pattern[dashIndex]);
-                }
-            }
-        } else {  // 0-45 and 180->225 (unit circle degrees)
-            y1 = qMin(y1, devRect.y2 - 1);
-
-            incrE = dy * 2;
-            d = incrE + dx;
-            incrNE = (dy + dx) * 2;
-
-            if (y < devRect.y1)
-                goto flush_and_return;
-
-            while (x < x2) {
-                if (d < 0) {
-                    if (current > 0) {
-                        span_func(current, spans, data);
-                        current = 0;
-                    }
-
-                    --y;
-                    d += incrNE;
-                    if (y < devRect.y1)
-                        goto flush_and_return;
-                } else {
-                    d += incrE;
-                }
-                ++x;
-
-                const bool skip = x < devRect.x1 || y > y1;
-                Q_ASSERT(skip || (x < devRect.x2 && y < devRect.y2));
-                if (inDash && !skip) {
-                    if (current == NSPANS) {
-                        span_func(NSPANS, spans, data);
-                        current = 0;
-                    }
-                    spans[current].len = 1;
-                    spans[current].coverage = 255;
-                    spans[current].x = x;
-                    spans[current].y = y;
-                    ++current;
-                }
-                if (--currPattern <= 0) {
-                    inDash = !inDash;
-                    dashIndex = (dashIndex + 1) % pattern.size();
-                    currPattern = int(pattern[dashIndex]);
-                }
-            }
-        }
-    } else {
-
-        // if y is the major axis:
-
-        if (y2 < y1) {      /* if coordinates are out of order */
-            qt_swap_int(y1, y2);
-            dy = -dy;
-
-            qt_swap_int(x1, x2);
-            dx = -dx;
-        }
-
-        if (style == LineDrawNormal)
-            --y2;
-
-        // In the loops below we increment before call the span function so
-        // we need to stop one pixel before
-        y2 = qMin(y2, devRect.y2 - 1);
-
-        // completely clipped, so abort
-        if (y2 <= y1)
-            goto flush_and_return;
-
-        x = x1;
-        y = y1;
-
-        if (x>=devRect.x1 && y>=devRect.y1 && x < devRect.x2) {
-            Q_ASSERT(x < devRect.x2);
-            if (inDash) {
-                if (current == NSPANS) {
-                    span_func(NSPANS, spans, data);
-                    current = 0;
-                }
-                spans[current].len = 1;
-                spans[current].coverage = 255;
-                spans[current].x = x;
-                spans[current].y = y;
-                ++current;
-            }
-            if (--currPattern <= 0) {
-                inDash = !inDash;
-                dashIndex = (dashIndex + 1) % pattern.size();
-                currPattern = int(pattern[dashIndex]);
-            }
-        }
-
-        if (x2 > x1) { // 90 -> 135 and 270 -> 315 (unit circle degrees)
-            x2 = qMin(x2, devRect.x2 - 1);
-            incrE = dx * 2;
-            d = incrE - dy;
-            incrNE = (dx - dy) * 2;
-
-            if (x > x2)
-                goto flush_and_return;
-
-            while (y < y2) {
-                if (d > 0) {
-                    ++x;
-                    d += incrNE;
-                    if (x > x2)
-                        goto flush_and_return;
-                } else {
-                    d += incrE;
-                }
-                ++y;
-                const bool skip = x < devRect.x1 || y < devRect.y1;
-                Q_ASSERT(skip || (x < devRect.x2 && y < devRect.y2));
-                if (inDash && !skip) {
-                    if (current == NSPANS) {
-                        span_func(NSPANS, spans, data);
-                        current = 0;
-                    }
-                    spans[current].len = 1;
-                    spans[current].coverage = 255;
-                    spans[current].x = x;
-                    spans[current].y = y;
-                    ++current;
-                }
-                if (--currPattern <= 0) {
-                    inDash = !inDash;
-                    dashIndex = (dashIndex + 1) % pattern.size();
-                    currPattern = int(pattern[dashIndex]);
-                }
-            }
-        } else { // 45 -> 90 and 225 -> 270 (unit circle degrees)
-            x1 = qMin(x1, devRect.x2 - 1);
-            incrE = dx * 2;
-            d = incrE + dy;
-            incrNE = (dx + dy) * 2;
-
-            if (x < devRect.x1)
-                goto flush_and_return;
-
-            while (y < y2) {
-                if (d < 0) {
-                    --x;
-                    d += incrNE;
-                    if (x < devRect.x1)
-                        goto flush_and_return;
-                } else {
-                    d += incrE;
-                }
-                ++y;
-                const bool skip = y < devRect.y1 || x > x1;
-                Q_ASSERT(skip || (x >= devRect.x1 && x < devRect.x2 && y < devRect.y2));
-                if (inDash && !skip) {
-                    if (current == NSPANS) {
-                        span_func(NSPANS, spans, data);
-                        current = 0;
-                    }
-                    spans[current].len = 1;
-                    spans[current].coverage = 255;
-                    spans[current].x = x;
-                    spans[current].y = y;
-                    ++current;
-                }
-                if (--currPattern <= 0) {
-                    inDash = !inDash;
-                    dashIndex = (dashIndex + 1) % pattern.size();
-                    currPattern = int(pattern[dashIndex]);
-                }
-            }
-        }
-    }
-flush_and_return:
-    if (current > 0)
-        span_func(current, ordered ? spans : spans + (NSPANS - current), data);
-
-    // adjust offset
-    if (reversed) {
-        *patternOffset = (patternLength - 1 - *patternOffset);
-    } else {
-        *patternOffset = 0;
-        for (int i = 0; i <= dashIndex; ++i)
-            *patternOffset += int(pattern[i]);
-        *patternOffset += patternLength - currPattern - 1;
-        *patternOffset = (*patternOffset % patternLength);
-    }
-}
-
 /*!
     \internal
     \a x and \a y is relative to the midpoint of \a rect.
@@ -6231,7 +5119,7 @@ static void drawEllipse_midpoint_i(const QRect &rect, const QRect &clip,
 {
     const qreal a = qreal(rect.width()) / 2;
     const qreal b = qreal(rect.height()) / 2;
-    qreal d = b*b - (a*a*b) + 0.25*a*a;
+    qreal d = b*b - (a*a*b) + qreal(0.25)*a*a;
 
     int x = 0;
     int y = (rect.height() + 1) / 2;
@@ -6254,7 +5142,7 @@ static void drawEllipse_midpoint_i(const QRect &rect, const QRect &clip,
                       pen_func, brush_func, pen_data, brush_data);
 
     // region 2
-    d = b*b*(x + 0.5)*(x + 0.5) + a*a*((y - 1)*(y - 1) - b*b);
+    d = b*b*(x + qreal(0.5))*(x + qreal(0.5)) + a*a*((y - 1)*(y - 1) - b*b);
     const int miny = rect.height() & 0x1;
     while (y > miny) {
         if (d < 0) { // select SE

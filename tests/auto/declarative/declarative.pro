@@ -39,6 +39,7 @@ contains(QT_CONFIG, private_tests) {
            qdeclarativedebug \
            qdeclarativedebugclient \
            qdeclarativedebugservice \
+           qdeclarativedebugjs \
            qdeclarativedom \
            qdeclarativeecmascript \
            qdeclarativeflickable \
@@ -77,6 +78,8 @@ contains(QT_CONFIG, private_tests) {
            qdeclarativexmllistmodel \
            qpacketprotocol
 }
+
+contains(QT_CONFIG, opengl): SUBDIRS += qmlshadersplugin
 
 # Tests which should run in Pulse
 PULSE_TESTS = $$SUBDIRS

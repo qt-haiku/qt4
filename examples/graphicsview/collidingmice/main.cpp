@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -79,8 +79,12 @@ int main(int argc, char **argv)
     view.setDragMode(QGraphicsView::ScrollHandDrag);
 //! [5] //! [6]
     view.setWindowTitle(QT_TRANSLATE_NOOP(QGraphicsView, "Colliding Mice"));
+#if defined(Q_WS_S60) || defined(Q_WS_MAEMO_5) || defined(Q_WS_SIMULATOR)
+    view.showMaximized();
+#else
     view.resize(400, 300);
     view.show();
+#endif
 
     QTimer timer;
     QObject::connect(&timer, SIGNAL(timeout()), &scene, SLOT(advance()));

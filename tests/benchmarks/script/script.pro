@@ -13,8 +13,6 @@ SUBDIRS = \
 TRUSTED_BENCHMARKS += \
     qscriptclass \
     qscriptvalue \
-    qscriptengine \
-    qscriptobject \
-    context2d
+    qscriptqobject
 
 include(../trusted-benchmarks.pri)

@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -98,8 +98,8 @@ void MyScrollArea::updateArea()
     QSize areaSize = viewport()->size();
     QSize  widgetSize = widget->size();
 
-    verticalScrollBar()->setPageStep(widgetSize.height());
-    horizontalScrollBar()->setPageStep(widgetSize.width());
+    verticalScrollBar()->setPageStep(areaSize.height());
+    horizontalScrollBar()->setPageStep(areaSize.width());
     verticalScrollBar()->setRange(0, widgetSize.height() - areaSize.height());
     horizontalScrollBar()->setRange(0, widgetSize.width() - areaSize.width());
     updateWidgetPosition();

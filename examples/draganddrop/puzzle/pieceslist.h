@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -48,7 +48,7 @@ class PiecesList : public QListWidget
     Q_OBJECT
 
 public:
-    PiecesList(QWidget *parent = 0);
+    PiecesList(int pieceSize, QWidget *parent = 0);
     void addPiece(QPixmap pixmap, QPoint location);
 
 protected:
@@ -56,6 +56,8 @@ protected:
     void dragMoveEvent(QDragMoveEvent *event);
     void dropEvent(QDropEvent *event);
     void startDrag(Qt::DropActions supportedActions);
+
+    int m_PieceSize;
 };
 
 #endif

@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -48,6 +48,9 @@
 #include "qegl_p.h"
 #include "qeglcontext_p.h"
 
+#ifdef Q_OS_SYMBIAN
+#include "private/qt_s60_p.h"
+#endif
 
 QT_BEGIN_NAMESPACE
 
@@ -94,6 +97,7 @@ QEglContext::QEglContext()
     , current(false)
     , ownsContext(true)
     , sharing(false)
+    , apiChanged(false)
 {
     QEglContextTracker::ref();
 }
@@ -397,6 +401,9 @@ bool QEglContext::createContext(QEglContext *shareContext, const QEglProperties 
         ctx = eglCreateContext(display(), cfg, EGL_NO_CONTEXT, contextProps.properties());
         if (ctx == EGL_NO_CONTEXT) {
             qWarning() << "QEglContext::createContext(): Unable to create EGL context:" << QEgl::errorString();
+#ifdef Q_OS_SYMBIAN
+            S60->eglSurfaceCreationError = true;
+#endif
             return false;
         }
     }
@@ -435,9 +442,20 @@ bool QEglContext::makeCurrent(EGLSurface surface)
         return false;
     }
 
+#ifdef Q_OS_SYMBIAN
+    apiChanged = false;
+    if (currentContext(apiType)
+            && currentContext(apiType)->ctx != eglGetCurrentContext()) {
+        // some other EGL based API active. Complete its rendering
+        eglWaitClient();
+        apiChanged = true;
+    }
+#endif
+
     // If lazyDoneCurrent() was called on the surface, then we may be able
     // to assume that it is still current within the thread.
-    if (surface == currentSurface && currentContext(apiType) == this) {
+    if (surface == currentSurface && currentContext(apiType) == this
+            && !apiChanged) {
         current = true;
         return true;
     }
@@ -512,6 +530,13 @@ bool QEglContext::swapBuffers(EGLSurface surface)
     bool ok = eglSwapBuffers(QEgl::display(), surface);
     if (!ok)
         qWarning() << "QEglContext::swapBuffers():" << QEgl::errorString();
+
+#ifdef Q_OS_SYMBIAN
+    if (apiChanged) {
+        eglWaitClient();
+        apiChanged = false;
+    }
+#endif
     return ok;
 }
 
@@ -664,7 +689,43 @@ EGLSurface QEgl::createSurface(QPaintDevice *device, EGLConfig cfg, const QEglPr
         props = properties->properties();
     else
         props = 0;
-    EGLSurface surf;
+    EGLSurface surf = EGL_NO_SURFACE;
+#ifdef Q_OS_SYMBIAN
+    // On Symbian there might be situations (especially on 32MB GPU devices)
+    // where Qt is trying to create EGL surface while some other application
+    // is still holding all available GPU memory but is about to release it
+    // soon. For an example when exiting native video recorder and going back to
+    // Qt application behind it. Video stack tear down takes some time and Qt
+    // app might be too quick in reserving its EGL surface and thus running out
+    // of GPU memory right away. So if EGL surface creation fails due to bad
+    // alloc, let's try recreating it four times within ~1 second if needed.
+    // This strategy gives some time for video recorder to tear down its stack
+    // and a chance to Qt for creating a valid surface.
+    // If the surface is still failing however, we don't keep the app blocked.
+    static int tries = 4;
+    if (tries <= 0)
+        tries = 1;
+    while (tries-- > 0) {
+        if (devType == QInternal::Widget)
+            surf = eglCreateWindowSurface(QEgl::display(), cfg, windowDrawable, props);
+        else
+            surf = eglCreatePixmapSurface(QEgl::display(), cfg, pixmapDrawable, props);
+        if (surf == EGL_NO_SURFACE) {
+            EGLint error = eglGetError();
+            if (error == EGL_BAD_ALLOC) {
+                if (tries > 0) {
+                    User::After(1000 * 250); // 250ms
+                    continue;
+                }
+            }
+            qWarning("QEglContext::createSurface(): Unable to create EGL surface, error = 0x%x", error);
+            S60->eglSurfaceCreationError = true;
+        } else {
+            tries = 4;
+            break;
+        }
+    }
+#else
     if (devType == QInternal::Widget)
         surf = eglCreateWindowSurface(QEgl::display(), cfg, windowDrawable, props);
     else
@@ -672,6 +733,7 @@ EGLSurface QEgl::createSurface(QPaintDevice *device, EGLConfig cfg, const QEglPr
     if (surf == EGL_NO_SURFACE) {
         qWarning("QEglContext::createSurface(): Unable to create EGL surface, error = 0x%x", eglGetError());
     }
+#endif
     return surf;
 }
 #endif

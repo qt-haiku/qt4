@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -362,20 +362,23 @@ bool QTextCursorPrivate::movePosition(QTextCursor::MoveOperation op, QTextCursor
     currentCharFormat = -1;
     bool adjustX = true;
     QTextBlock blockIt = block();
+    bool visualMovement = priv->defaultCursorMoveStyle == Qt::VisualMoveStyle;
 
     if (!blockIt.isValid())
         return false;
 
-    if (op >= QTextCursor::Left && op <= QTextCursor::WordRight
-        && blockIt.textDirection() == Qt::RightToLeft) {
-        if (op == QTextCursor::Left)
-            op = QTextCursor::NextCharacter;
-        else if (op == QTextCursor::Right)
-            op = QTextCursor::PreviousCharacter;
-        else if (op == QTextCursor::WordLeft)
+    if (blockIt.textDirection() == Qt::RightToLeft) {
+        if (op == QTextCursor::WordLeft)
             op = QTextCursor::NextWord;
         else if (op == QTextCursor::WordRight)
             op = QTextCursor::PreviousWord;
+
+        if (!visualMovement) {
+            if (op == QTextCursor::Left)
+                op = QTextCursor::NextCharacter;
+            else if (op == QTextCursor::Right)
+                op = QTextCursor::PreviousCharacter;
+        }
     }
 
     const QTextLayout *layout = blockLayout(blockIt);
@@ -418,8 +421,18 @@ bool QTextCursorPrivate::movePosition(QTextCursor::MoveOperation op, QTextCursor
         break;
     }
     case QTextCursor::PreviousCharacter:
+        if (mode == QTextCursor::MoveAnchor && position != adjusted_anchor)
+            newPosition = qMin(position, adjusted_anchor);
+        else
+            newPosition = priv->previousCursorPosition(position, QTextLayout::SkipCharacters);
+        break;
     case QTextCursor::Left:
-        newPosition = priv->previousCursorPosition(position, QTextLayout::SkipCharacters);
+        if (mode == QTextCursor::MoveAnchor && position != adjusted_anchor)
+            newPosition = visualMovement ? qMax(position, adjusted_anchor)
+                                         : qMin(position, adjusted_anchor);
+        else
+            newPosition = visualMovement ? priv->leftCursorPosition(position)
+                                         : priv->previousCursorPosition(position, QTextLayout::SkipCharacters);
         break;
     case QTextCursor::StartOfWord: {
         if (relativePos == 0)
@@ -529,8 +542,18 @@ bool QTextCursorPrivate::movePosition(QTextCursor::MoveOperation op, QTextCursor
         break;
     }
     case QTextCursor::NextCharacter:
+        if (mode == QTextCursor::MoveAnchor && position != adjusted_anchor)
+            newPosition = qMax(position, adjusted_anchor);
+        else
+            newPosition = priv->nextCursorPosition(position, QTextLayout::SkipCharacters);
+        break;
     case QTextCursor::Right:
-        newPosition = priv->nextCursorPosition(position, QTextLayout::SkipCharacters);
+        if (mode == QTextCursor::MoveAnchor && position != adjusted_anchor)
+            newPosition = visualMovement ? qMin(position, adjusted_anchor)
+                                         : qMax(position, adjusted_anchor);
+        else
+            newPosition = visualMovement ? priv->rightCursorPosition(position)
+                                         : priv->nextCursorPosition(position, QTextLayout::SkipCharacters);
         break;
     case QTextCursor::NextWord:
     case QTextCursor::WordRight:
@@ -1502,11 +1525,11 @@ void QTextCursor::deletePreviousChar()
     const QTextFragmentData * const frag = fragIt.value();
     int fpos = fragIt.position();
     QChar uc = d->priv->buffer().at(d->anchor - fpos + frag->stringPosition);
-    if (d->anchor > fpos && uc.unicode() >= 0xdc00 && uc.unicode() < 0xe000) {
+    if (d->anchor > fpos && uc.isLowSurrogate()) {
         // second half of a surrogate, check if we have the first half as well,
         // if yes delete both at once
         uc = d->priv->buffer().at(d->anchor - 1 - fpos + frag->stringPosition);
-        if (uc.unicode() >= 0xd800 && uc.unicode() < 0xdc00)
+        if (uc.isHighSurrogate())
             --d->anchor;
     }
 
@@ -2557,5 +2580,21 @@ QTextDocument *QTextCursor::document() const
         return d->priv->document();
     return 0; // document went away
 }
+
+/*!
+    \enum Qt::CursorMoveStyle
+    \since 4.8
+
+    This enum describes the movement style available to text cursors. The options
+    are:
+
+    \value LogicalMoveStyle Within a left-to-right text block, decrease cursor
+    position when pressing left arrow key, increase cursor position when pressing
+    the right arrow key. If the text block is right-to-left, the opposite behavior
+    applies.
+    \value VisualMoveStyle Pressing the left arrow key will always cause the cursor
+    to move left, regardless of the text's writing direction. Pressing the right
+    arrow key will always cause the cursor to move right.
+*/
 
 QT_END_NAMESPACE

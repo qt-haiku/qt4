@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -51,6 +51,8 @@
 #include <QStyle>
 #include <QInputContext>
 #include <private/qapplication_p.h>
+
+#include "qplatformdefs.h"
 
 #ifdef Q_OS_SYMBIAN
 // In Symbian OS test data is located in applications private dir
@@ -133,6 +135,9 @@ private slots:
     void focusOutClearSelection();
 
     void echoMode();
+#ifdef QT_GUI_PASSWORD_ECHO_DELAY
+    void passwordEchoDelay();
+#endif
     void geometrySignals();
     void testQtQuick11Attributes();
     void testQtQuick11Attributes_data();
@@ -142,6 +147,7 @@ private slots:
     void inputContextMouseHandler();
     void inputMethodComposing();
     void cursorRectangleSize();
+    void deselect();
 
 private:
     void simulateKey(QDeclarativeView *, int key);
@@ -1193,6 +1199,8 @@ void tst_qdeclarativetextinput::horizontalAlignment_RightToLeft()
     QVERIFY(textInput != 0);
     canvas->show();
 
+    const QString rtlText = textInput->text();
+
     QDeclarativeTextInputPrivate *textInputPrivate = QDeclarativeTextInputPrivate::get(textInput);
     QVERIFY(textInputPrivate != 0);
     QVERIFY(-textInputPrivate->hscroll > canvas->width()/2);
@@ -1256,6 +1264,17 @@ void tst_qdeclarativetextinput::horizontalAlignment_RightToLeft()
     textInput->setText("Hello world!");
     QCOMPARE(textInput->hAlign(), QDeclarativeTextInput::AlignLeft);
     QVERIFY(-textInputPrivate->hscroll < canvas->width()/2);
+
+    QApplication::setActiveWindow(canvas);
+    QTest::qWaitForWindowShown(canvas);
+    QTRY_COMPARE(QApplication::activeWindow(), static_cast<QWidget *>(canvas));
+
+    // If there is no committed text, the preedit text should determine the alignment.
+    textInput->setText(QString());
+    { QInputMethodEvent ev(rtlText, QList<QInputMethodEvent::Attribute>()); QApplication::sendEvent(canvas, &ev); }
+    QCOMPARE(textInput->hAlign(), QDeclarativeTextInput::AlignRight);
+    { QInputMethodEvent ev("Hello world!", QList<QInputMethodEvent::Attribute>()); QApplication::sendEvent(canvas, &ev); }
+    QCOMPARE(textInput->hAlign(), QDeclarativeTextInput::AlignLeft);
 
 #ifndef Q_OS_MAC    // QTBUG-18040
     // empty text with implicit alignment follows the system locale-based
@@ -2051,6 +2070,62 @@ void tst_qdeclarativetextinput::echoMode()
     delete canvas;
 }
 
+
+#ifdef QT_GUI_PASSWORD_ECHO_DELAY
+void tst_qdeclarativetextinput::passwordEchoDelay()
+{
+    QDeclarativeView *canvas = createView(SRCDIR "/data/echoMode.qml");
+    canvas->show();
+    canvas->setFocus();
+    QApplication::setActiveWindow(canvas);
+    QTest::qWaitForWindowShown(canvas);
+    QTRY_COMPARE(QApplication::activeWindow(), static_cast<QWidget *>(canvas));
+
+    QVERIFY(canvas->rootObject() != 0);
+
+    QDeclarativeTextInput *input = qobject_cast<QDeclarativeTextInput *>(qvariant_cast<QObject *>(canvas->rootObject()->property("myInput")));
+
+    QChar fillChar = QLatin1Char('*');
+
+    input->setEchoMode(QDeclarativeTextInput::Password);
+    QCOMPARE(input->displayText(), QString(8, fillChar));
+    input->setText(QString());
+    QCOMPARE(input->displayText(), QString());
+
+    QTest::keyPress(canvas, '0');
+    QTest::keyPress(canvas, '1');
+    QTest::keyPress(canvas, '2');
+    QCOMPARE(input->displayText(), QString(2, fillChar) + QLatin1Char('2'));
+    QTest::keyPress(canvas, '3');
+    QTest::keyPress(canvas, '4');
+    QCOMPARE(input->displayText(), QString(4, fillChar) + QLatin1Char('4'));
+    QTest::keyPress(canvas, Qt::Key_Backspace);
+    QCOMPARE(input->displayText(), QString(4, fillChar));
+    QTest::keyPress(canvas, '4');
+    QCOMPARE(input->displayText(), QString(4, fillChar) + QLatin1Char('4'));
+    QTest::qWait(QT_GUI_PASSWORD_ECHO_DELAY);
+    QTRY_COMPARE(input->displayText(), QString(5, fillChar));
+    QTest::keyPress(canvas, '5');
+    QCOMPARE(input->displayText(), QString(5, fillChar) + QLatin1Char('5'));
+    input->setFocus(false);
+    QVERIFY(!input->hasFocus());
+    QCOMPARE(input->displayText(), QString(6, fillChar));
+    input->setFocus(true);
+    QTRY_VERIFY(input->hasFocus());
+    QCOMPARE(input->displayText(), QString(6, fillChar));
+    QTest::keyPress(canvas, '6');
+    QCOMPARE(input->displayText(), QString(6, fillChar) + QLatin1Char('6'));
+
+    QInputMethodEvent ev;
+    ev.setCommitString(QLatin1String("7"));
+    QApplication::sendEvent(canvas, &ev);
+    QCOMPARE(input->displayText(), QString(7, fillChar) + QLatin1Char('7'));
+
+    delete canvas;
+}
+#endif
+
+
 void tst_qdeclarativetextinput::simulateKey(QDeclarativeView *view, int key)
 {
     QKeyEvent press(QKeyEvent::KeyPress, key, 0);
@@ -2293,7 +2368,7 @@ void tst_qdeclarativetextinput::openInputPanelOnFocus()
     QVERIFY(!view.testAttribute(Qt::WA_InputMethodEnabled));
 
     // input method should not be enabled
-    // if TextEdit is read only.
+    // if TextInput is read only.
     input.setReadOnly(true);
     ic.openInputPanelReceived = false;
     input.setFocus(true);
@@ -2431,15 +2506,20 @@ void tst_qdeclarativetextinput::preeditAutoScroll()
     QTest::qWaitForWindowShown(&view);
     QTRY_COMPARE(QApplication::activeWindow(), static_cast<QWidget *>(&view));
 
+    QSignalSpy cursorRectangleSpy(&input, SIGNAL(cursorRectangleChanged()));
+    int cursorRectangleChanges = 0;
+
     // test the text is scrolled so the preedit is visible.
     ic.sendPreeditText(preeditText.mid(0, 3), 1);
     QVERIFY(input.positionAt(0) != 0);
     QVERIFY(input.cursorRectangle().left() < input.boundingRect().width());
+    QCOMPARE(cursorRectangleSpy.count(), ++cursorRectangleChanges);
 
     // test the text is scrolled back when the preedit is removed.
     ic.sendEvent(QInputMethodEvent());
     QCOMPARE(input.positionAt(0), 0);
     QCOMPARE(input.positionAt(input.width()), 5);
+    QCOMPARE(cursorRectangleSpy.count(), ++cursorRectangleChanges);
 
     // some tolerance for different fonts.
 #ifdef Q_OS_LINUX
@@ -2455,26 +2535,31 @@ void tst_qdeclarativetextinput::preeditAutoScroll()
         ic.sendPreeditText(preeditText, i + 1);
         QVERIFY(input.cursorRectangle().right() >= fm.width(preeditText.at(i)) - error);
         QVERIFY(input.positionToRectangle(0).x() < x);
+        QCOMPARE(cursorRectangleSpy.count(), ++cursorRectangleChanges);
         x = input.positionToRectangle(0).x();
     }
     for (int i = 1; i >= 0; --i) {
         ic.sendPreeditText(preeditText, i + 1);
         QVERIFY(input.cursorRectangle().right() >= fm.width(preeditText.at(i)) - error);
         QVERIFY(input.positionToRectangle(0).x() > x);
+        QCOMPARE(cursorRectangleSpy.count(), ++cursorRectangleChanges);
         x = input.positionToRectangle(0).x();
     }
 
     // Test incrementing the preedit cursor doesn't cause further
     // scrolling when right most text is visible.
     ic.sendPreeditText(preeditText, preeditText.length() - 3);
+    QCOMPARE(cursorRectangleSpy.count(), ++cursorRectangleChanges);
     x = input.positionToRectangle(0).x();
     for (int i = 2; i >= 0; --i) {
         ic.sendPreeditText(preeditText, preeditText.length() - i);
         QCOMPARE(input.positionToRectangle(0).x(), x);
+        QCOMPARE(cursorRectangleSpy.count(), ++cursorRectangleChanges);
     }
     for (int i = 1; i <  3; ++i) {
         ic.sendPreeditText(preeditText, preeditText.length() - i);
         QCOMPARE(input.positionToRectangle(0).x(), x);
+        QCOMPARE(cursorRectangleSpy.count(), ++cursorRectangleChanges);
     }
 
     // Test disabling auto scroll.
@@ -2729,6 +2814,120 @@ void tst_qdeclarativetextinput::cursorRectangleSize()
 
     QCOMPARE(microFocusFromScene.size(), cursorRect.size());
     QCOMPARE(microFocusFromApp.size(), cursorRect.size());
+}
+
+void tst_qdeclarativetextinput::deselect()
+{
+    QDeclarativeView *canvas = createView(SRCDIR "/data/positionAt.qml");
+    QVERIFY(canvas->rootObject() != 0);
+    canvas->show();
+    canvas->setFocus();
+    QApplication::setActiveWindow(canvas);
+    QTest::qWaitForWindowShown(canvas);
+
+    QDeclarativeTextInput *textInput = qobject_cast<QDeclarativeTextInput *>(canvas->rootObject());
+    QVERIFY(textInput != 0);
+
+    textInput->setText("Select");
+
+    QSignalSpy selectionStartSpy(textInput, SIGNAL(selectionStartChanged()));
+    QSignalSpy selectionEndSpy(textInput, SIGNAL(selectionEndChanged()));
+    QSignalSpy selectedTextSpy(textInput, SIGNAL(selectedTextChanged()));
+
+    textInput->select(5, 6);
+
+    QCOMPARE(selectionStartSpy.count(), 1);
+    QCOMPARE(selectionEndSpy.count(), 0);
+    QCOMPARE(selectedTextSpy.count(), 1);
+    QCOMPARE(textInput->selectionStart(), 5);
+    QCOMPARE(textInput->selectionEnd(), 6);
+    QCOMPARE(textInput->selectedText(), QLatin1String("t"));
+    QCOMPARE(textInput->cursorPosition(), 6);
+
+    textInput->deselect();
+
+    QCOMPARE(selectionStartSpy.count(), 2);
+    QCOMPARE(selectionEndSpy.count(), 1);
+    QCOMPARE(selectedTextSpy.count(), 2);
+    QCOMPARE(textInput->selectionStart(), textInput->cursorPosition());
+    QCOMPARE(textInput->selectionEnd(), textInput->cursorPosition());
+    QCOMPARE(textInput->selectedText(), QLatin1String(""));
+    QCOMPARE(textInput->cursorPosition(), 6);
+
+    textInput->select(5, 6);
+
+    QCOMPARE(selectionStartSpy.count(), 3);
+    QCOMPARE(selectionEndSpy.count(), 1);
+    QCOMPARE(selectedTextSpy.count(), 3);
+    QCOMPARE(textInput->selectionStart(), 5);
+    QCOMPARE(textInput->selectionEnd(), 6);
+    QCOMPARE(textInput->selectedText(), QLatin1String("t"));
+    QCOMPARE(textInput->cursorPosition(), 6);
+
+    QKeyEvent leftArrowPress(QEvent::KeyPress, Qt::Key_Left, Qt::NoModifier);
+    QKeyEvent leftArrowRelese(QEvent::KeyRelease, Qt::Key_Left, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &leftArrowPress);
+    QApplication::sendEvent(canvas, &leftArrowRelese);
+
+    QCOMPARE(selectionStartSpy.count(), 4);
+    QCOMPARE(selectionEndSpy.count(), 2);
+    QCOMPARE(selectedTextSpy.count(), 4);
+    QCOMPARE(textInput->selectionStart(), textInput->cursorPosition());
+    QCOMPARE(textInput->selectionEnd(), textInput->cursorPosition());
+    QCOMPARE(textInput->selectedText(), QLatin1String(""));
+    QCOMPARE(textInput->cursorPosition(), 5);
+
+    textInput->select(5, 6);
+
+    QCOMPARE(selectionStartSpy.count(), 4);
+    QCOMPARE(selectionEndSpy.count(), 3);
+    QCOMPARE(selectedTextSpy.count(), 5);
+    QCOMPARE(textInput->selectionStart(), 5);
+    QCOMPARE(textInput->selectionEnd(), 6);
+    QCOMPARE(textInput->selectedText(), QLatin1String("t"));
+    QCOMPARE(textInput->cursorPosition(), 6);
+
+    QList<QInputMethodEvent::Attribute> attributes;
+    attributes << QInputMethodEvent::Attribute(QInputMethodEvent::Selection, 0, 0, QVariant());
+    QInputMethodEvent event(QLatin1String(""), attributes);
+    QApplication::sendEvent(canvas, &event);
+
+    QCOMPARE(selectionStartSpy.count(), 5);
+    QCOMPARE(selectionEndSpy.count(), 4);
+    QCOMPARE(selectedTextSpy.count(), 6);
+    QCOMPARE(textInput->selectionStart(), textInput->cursorPosition());
+    QCOMPARE(textInput->selectionEnd(), textInput->cursorPosition());
+    QCOMPARE(textInput->selectedText(), QLatin1String(""));
+    QCOMPARE(textInput->cursorPosition(), 0);
+
+    textInput->setCursorPosition(1);
+
+    QCOMPARE(selectionStartSpy.count(), 6);
+    QCOMPARE(selectionEndSpy.count(), 5);
+    QCOMPARE(selectedTextSpy.count(), 6);
+
+    QKeyEvent leftArrowShiftPress(QEvent::KeyPress, Qt::Key_Left, Qt::ShiftModifier);
+    QKeyEvent leftArrowShiftRelese(QEvent::KeyRelease, Qt::Key_Left, Qt::ShiftModifier);
+    QApplication::sendEvent(canvas, &leftArrowShiftPress);
+    QApplication::sendEvent(canvas, &leftArrowShiftRelese);
+
+    QCOMPARE(selectionStartSpy.count(), 7);
+    QCOMPARE(selectionEndSpy.count(), 5);
+    QCOMPARE(selectedTextSpy.count(), 7);
+    QCOMPARE(textInput->selectionStart(), 0);
+    QCOMPARE(textInput->selectionEnd(), 1);
+    QCOMPARE(textInput->selectedText(), QLatin1String("S"));
+    QCOMPARE(textInput->cursorPosition(), 0);
+
+    QApplication::sendEvent(canvas, &event);
+
+    QCOMPARE(selectionStartSpy.count(), 8);
+    QCOMPARE(selectionEndSpy.count(), 6);
+    QCOMPARE(selectedTextSpy.count(), 8);
+    QCOMPARE(textInput->selectionStart(), textInput->cursorPosition());
+    QCOMPARE(textInput->selectionEnd(), textInput->cursorPosition());
+    QCOMPARE(textInput->selectedText(), QLatin1String(""));
+    QCOMPARE(textInput->cursorPosition(), 0);
 }
 
 QTEST_MAIN(tst_qdeclarativetextinput)

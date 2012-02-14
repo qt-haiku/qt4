@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -63,8 +63,9 @@
     unencoded representation is suitable for showing to users, but
     the encoded representation is typically what you would send to
     a web server. For example, the unencoded URL
-    "http://b\uuml\c{}hler.example.com" would be sent to the server as
-    "http://xn--bhler-kva.example.com/List%20of%20applicants.xml".
+    "http://b\uuml\c{}hler.example.com/List of applicants.xml" would be sent to the server as
+    "http://xn--bhler-kva.example.com/List%20of%20applicants.xml",
+    and this can be verified by calling the toEncoded() function.
 
     A URL can also be constructed piece by piece by calling
     setScheme(), setUserName(), setPassword(), setHost(), setPort(),
@@ -105,6 +106,19 @@
     scheme extensions from \l{RFC 1738} (Uniform Resource Locators). Case
     folding rules in QUrl conform to \l{RFC 3491} (Nameprep: A Stringprep
     Profile for Internationalized Domain Names (IDN)).
+
+    \section2 Character Conversions
+
+    Follow these rules to avoid erroneous character conversion when
+    dealing with URLs and strings:
+
+    \list
+    \o When creating an QString to contain a URL from a QByteArray or a
+       char*, always use QString::fromUtf8().
+    \o Favor the use of QUrl::fromEncoded() and QUrl::toEncoded() instead of
+       QUrl(string) and QUrl::toString() when converting a QUrl to or from
+       a string.
+    \endlist
 
     \sa QUrlInfo
 */
@@ -192,7 +206,9 @@
 #if defined QT3_SUPPORT
 #include "qfileinfo.h"
 #endif
-
+#ifndef QT_BOOTSTRAPPED
+#include "qtldurl_p.h"
+#endif
 #if defined(Q_OS_WINCE_WM)
 #pragma optimize("g", off)
 #endif
@@ -4174,6 +4190,7 @@ QString QUrlPrivate::createErrorString()
     Constructs a URL by parsing \a url. \a url is assumed to be in human
     readable representation, with no percent encoding. QUrl will automatically
     percent encode all characters that are not allowed in a URL.
+    The default parsing mode is TolerantMode.
 
     Example:
 
@@ -4195,6 +4212,7 @@ QUrl::QUrl(const QString &url) : d(0)
     \overload
 
     Parses the \a url using the parser mode \a parsingMode.
+    The default parsing mode is TolerantMode.
 
     \sa setUrl()
 */
@@ -5464,6 +5482,7 @@ void QUrl::removeAllEncodedQueryItems(const QByteArray &key)
             if (end < d->query.size())
                 ++end; // remove additional '%'
             d->query.remove(pos, end - pos);
+            query = d->query.constData(); //required if remove detach;
         } else {
             pos = end + 1;
         }
@@ -5591,6 +5610,21 @@ bool QUrl::hasFragment() const
 
     return d->hasFragment;
 }
+
+/*!
+    \since 4.8
+
+    Returns the TLD (Top-Level Domain) of the URL, (e.g. .co.uk, .net).
+    Note that the return value is prefixed with a '.' unless the
+    URL does not contain a valid TLD, in which case the function returns
+    an empty string.
+*/
+#ifndef QT_BOOTSTRAPPED
+QString QUrl::topLevelDomain() const
+{
+    return qTopLevelDomain(host());
+}
+#endif
 
 /*!
     Returns the result of the merge of this URL with \a relative. This
@@ -6088,7 +6122,7 @@ bool QUrl::isDetached() const
     "//servername/path/to/file.txt". Note that only certain platforms can
     actually open this file using QFile::open().
 
-    \sa toLocalFile(), isLocalFile(), QDir::toNativeSeparators
+    \sa toLocalFile(), isLocalFile(), QDir::toNativeSeparators()
 */
 QUrl QUrl::fromLocalFile(const QString &localFile)
 {
@@ -6121,12 +6155,19 @@ QUrl QUrl::fromLocalFile(const QString &localFile)
     returned value in the form found on SMB networks (for example,
     "//servername/path/to/file.txt").
 
+    If this is a relative URL, in Qt 4.x this function returns the path to
+    maintain backward compatability. This will change from 5.0 onwards. Then
+    the path is returned only for URLs where the scheme is "file", and for
+    all other URLs an empty string is returned.
+
     \sa fromLocalFile(), isLocalFile()
 */
 QString QUrl::toLocalFile() const
 {
+    if (!d) return QString();
+
     // the call to isLocalFile() also ensures that we're parsed
-    if (!isLocalFile())
+    if (!isLocalFile() && !d->scheme.isEmpty())
         return QString();
 
     QString tmp;
@@ -6495,16 +6536,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     \o ftp.qt.nokia.com becomes ftp://ftp.qt.nokia.com
     \o hostname becomes http://hostname
     \o /home/user/test.html becomes file:///home/user/test.html
-    \endlist
-
-    \section2 Tips to avoid erroneous character conversion when dealing with
-    URLs and strings:
-
-    \list
-    \o When creating an URL QString from a QByteArray or a char*, always use
-       QString::fromUtf8().
-    \o Favor the use of QUrl::fromEncoded() and QUrl::toEncoded() instead of
-       QUrl(string) and QUrl::toString() when converting QUrl to/from string.
     \endlist
 */
 QUrl QUrl::fromUserInput(const QString &userInput)

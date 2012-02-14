@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -49,6 +49,10 @@ Window::Window(QWidget *parent)
     : QWidget(parent)
 {
     setupUi(this);
+
+#if defined(Q_OS_SYMBIAN) || defined(Q_WS_MAEMO_5)
+    this->layout()->setSizeConstraint(QLayout::SetDefaultConstraint);
+#endif
 }
 
 void Window::updateBackground(int background)

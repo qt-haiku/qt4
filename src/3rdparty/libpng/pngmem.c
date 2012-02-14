@@ -1,7 +1,7 @@
 
 /* pngmem.c - stub functions for memory allocation
  *
- * Last changed in libpng 1.5.1 [February 3, 2011]
+ * Last changed in libpng 1.5.4 [July 7, 2011]
  * Copyright (c) 1998-2011 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
@@ -18,6 +18,8 @@
  */
 
 #include "pngpriv.h"
+
+namespace PrivatePng {
 
 #if defined(PNG_READ_SUPPORTED) || defined(PNG_WRITE_SUPPORTED)
 
@@ -187,8 +189,9 @@ png_malloc_default,(png_structp png_ptr, png_alloc_size_t size),PNG_ALLOCATED)
             int num_blocks;
             png_uint_32 total_size;
             png_bytep table;
-            int i;
+            int i, mem_level, window_bits;
             png_byte huge * hptr;
+            int window_bits
 
             if (ret != NULL)
             {
@@ -196,14 +199,22 @@ png_malloc_default,(png_structp png_ptr, png_alloc_size_t size),PNG_ALLOCATED)
                ret = NULL;
             }
 
-            if (png_ptr->zlib_window_bits > 14)
-               num_blocks = (int)(1 << (png_ptr->zlib_window_bits - 14));
+            window_bits =
+                png_ptr->zlib_window_bits >= png_ptr->zlib_text_window_bits ?
+                png_ptr->zlib_window_bits : png_ptr->zlib_text_window_bits;
+
+            if (window_bits > 14)
+               num_blocks = (int)(1 << (window_bits - 14));
 
             else
                num_blocks = 1;
 
-            if (png_ptr->zlib_mem_level >= 7)
-               num_blocks += (int)(1 << (png_ptr->zlib_mem_level - 7));
+            mem_level =
+                png_ptr->zlib_mem_level >= png_ptr->zlib_text_mem_level ?
+                png_ptr->zlib_mem_level : png_ptr->zlib_text_mem_level;
+
+            if (mem_level >= 7)
+               num_blocks += (int)(1 << (mem_level - 7));
 
             else
                num_blocks++;
@@ -277,7 +288,7 @@ png_malloc_default,(png_structp png_ptr, png_alloc_size_t size),PNG_ALLOCATED)
       {
 #  ifndef PNG_USER_MEM_SUPPORTED
          if ((png_ptr->flags&PNG_FLAG_MALLOC_NULL_MEM_OK) == 0)
-            png_error(png_ptr, "Out of Memory"); /* Note "o" and "M" */
+            png_error(png_ptr, "Out of Memory"); /* Note "O" and "M" */
 
          else
             png_warning(png_ptr, "Out of Memory");
@@ -656,3 +667,4 @@ png_get_mem_ptr(png_const_structp png_ptr)
 }
 #endif /* PNG_USER_MEM_SUPPORTED */
 #endif /* PNG_READ_SUPPORTED || PNG_WRITE_SUPPORTED */
+} // PrivatePng namespace

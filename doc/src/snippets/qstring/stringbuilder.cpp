@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -49,13 +49,8 @@
 //! [0]
 
 //! [3]
-    #define QT_USE_FAST_CONCATENATION
+    DEFINES *= QT_USE_QSTRINGBUILDER
 //! [3]
-
-//! [4]
-    #define QT_USE_FAST_CONCATENATION
-    #define QT_USE_FAST_OPERATOR_PLUS
-//! [4]
 
 //! [5]
     #include <QStringBuilder>

@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the qmake application of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -126,8 +126,7 @@ QString SymbianMakefileGenerator::absolutizePath(const QString& origPath)
     if (resultPath.startsWith("/epoc32/", Qt::CaseInsensitive))
         resultPath = QDir::fromNativeSeparators(qt_epocRoot()) + resultPath.mid(1);
 
-    QFileInfo fi(fileInfo(resultPath));
-
+    QFileInfo fi(outputDir, resultPath);
     // Since origPath can be something given in HEADERS, we need to check if we are dealing
     // with a file or a directory. In case the origPath doesn't yet exist, isFile() returns
     // false and we default to assuming it is a dir.
@@ -271,6 +270,8 @@ void SymbianMakefileGenerator::init()
     MakefileGenerator::init();
     SymbianCommonGenerator::init();
 
+    outputDir = QDir(Option::output_dir);
+
     if (0 != project->values("QMAKE_PLATFORM").size())
         platform = varGlue("QMAKE_PLATFORM", "", " ", "");
 
@@ -338,7 +339,6 @@ void SymbianMakefileGenerator::initMmpVariables()
     srcpaths << project->values("UNUSED_SOURCES") << project->values("UI_SOURCES_DIR");
     srcpaths << project->values("UI_DIR");
 
-    QDir current = QDir::current();
     QString absolutizedCurrent = absolutizePath(".");
 
     for (int j = 0; j < srcpaths.size(); ++j) {
@@ -373,12 +373,12 @@ void SymbianMakefileGenerator::initMmpVariables()
     QStringList temporary;
     for (int i = 0; i < sysincspaths.size(); ++i) {
         QString origPath = sysincspaths.at(i);
-        QFileInfo origPathInfo(fileInfo(origPath));
+        QFileInfo origPathInfo(outputDir, origPath);
         bool bFound = false;
 
         for (int j = 0; j < temporary.size(); ++j) {
             QString tmpPath = temporary.at(j);
-            QFileInfo tmpPathInfo(fileInfo(tmpPath));
+            QFileInfo tmpPathInfo(outputDir, tmpPath);
 
             if (origPathInfo.absoluteFilePath() == tmpPathInfo.absoluteFilePath()) {
                 bFound = true;
@@ -515,14 +515,12 @@ void SymbianMakefileGenerator::writeMmpFile(QString &filename, const SymbianLoca
 
         writeMmpFileIncludePart(t);
 
-        QDir current = QDir::current();
-
         for (QMap<QString, QStringList>::iterator it = sources.begin(); it != sources.end(); ++it) {
             QStringList values = it.value();
             QString currentSourcePath = it.key();
 
             if (values.size())
-                t << "SOURCEPATH \t" <<  fixPathForMmp(currentSourcePath, current) << endl;
+                t << "SOURCEPATH \t" <<  fixPathForMmp(currentSourcePath, Option::output_dir) << endl;
 
             for (int i = 0; i < values.size(); ++i) {
                 QString sourceFileName = values.at(i);
@@ -574,7 +572,30 @@ void SymbianMakefileGenerator::writeMmpFileMacrosPart(QTextStream& t)
 
 void SymbianMakefileGenerator::addMacro(QTextStream& t, const QString& value)
 {
-    t << "MACRO\t\t" <<  value << endl;
+    // String macros for Makefile based platforms are defined like this in pro files:
+    //
+    //   DEFINES += VERSION_STRING=\\\"1.2.3\\\"
+    //
+    // This will not work in *.mmp files, which don't need double escaping, and
+    // will therefore result in a VERSION_STRING value of \"1.2.3\" instead of "1.2.3".
+    // Improve cross platform support by removing one level of escaping from all
+    // DEFINES values.
+    static QChar backslash = QLatin1Char('\\');
+    QString fixedValue;
+    fixedValue.reserve(value.size());
+    int pos = 0;
+    int prevPos = 0;
+    while (pos < value.size()) {
+        if (value.at(pos) == backslash) {
+            fixedValue += value.mid(prevPos, pos - prevPos);
+            pos++;
+            prevPos = pos;
+        }
+        pos++;
+    }
+    fixedValue += value.mid(prevPos);
+
+    t << "MACRO\t\t" << fixedValue << endl;
 }
 
 
@@ -660,6 +681,7 @@ void SymbianMakefileGenerator::writeMmpFileResourcePart(QTextStream& t, const Sy
         locTarget.append(".rss");
 
         t << "SOURCEPATH\t\t\t. " << endl;
+        t << MMP_START_RESOURCE "\t\t" << locTarget << endl;
         t << "LANG SC ";    // no endl
         SymbianLocalizationListIterator iter(symbianLocalizationList);
         while (iter.hasNext()) {
@@ -667,7 +689,6 @@ void SymbianMakefileGenerator::writeMmpFileResourcePart(QTextStream& t, const Sy
             t << loc.symbianLanguageCode << " "; // no endl
         }
         t << endl;
-        t << MMP_START_RESOURCE "\t\t" << locTarget << endl;
         t << "HEADER" << endl;
         t << "TARGETPATH\t\t\t" RESOURCE_DIRECTORY_MMP << endl;
         t << MMP_END_RESOURCE << endl << endl;
@@ -686,13 +707,11 @@ void SymbianMakefileGenerator::writeMmpFileResourcePart(QTextStream& t, const Sy
 
 void SymbianMakefileGenerator::writeMmpFileSystemIncludePart(QTextStream& t)
 {
-    QDir current = QDir::current();
-
     for (QMap<QString, QStringList>::iterator it = systeminclude.begin(); it != systeminclude.end(); ++it) {
         QStringList values = it.value();
         for (int i = 0; i < values.size(); ++i) {
             QString handledPath = values.at(i);
-            t << "SYSTEMINCLUDE\t\t" << fixPathForMmp(handledPath, current) << endl;
+            t << "SYSTEMINCLUDE\t\t" << fixPathForMmp(handledPath, Option::output_dir) << endl;
         }
     }
 
@@ -1082,7 +1101,7 @@ void SymbianMakefileGenerator::generateDistcleanTargets(QTextStream& t)
             fromFile = item.endsWith(Option::pro_ext);
             fixedItem = item;
         }
-        QFileInfo fi(fileInfo(fixedItem));
+        QFileInfo fi(outputDir, fixedItem);
         if (!fromFile) {
             t << "\t-$(MAKE) -f \"" << Option::fixPathToTargetOS(fi.absoluteFilePath() + "/Makefile") << "\" dodistclean" << endl;
         } else {
@@ -1095,19 +1114,19 @@ void SymbianMakefileGenerator::generateDistcleanTargets(QTextStream& t)
 
     }
 
-    generatedFiles << Option::fixPathToTargetOS(fileInfo(Option::output.fileName()).absoluteFilePath()); // bld.inf
+    generatedFiles << Option::output.fileName(); // bld.inf
     generatedFiles << project->values("QMAKE_INTERNAL_PRL_FILE"); // Add generated prl files for cleanup
     generatedFiles << project->values("QMAKE_DISTCLEAN"); // Add any additional files marked for distclean
     QStringList fixedFiles;
     QStringList fixedDirs;
     foreach(QString item, generatedFiles) {
-        QString fixedItem = Option::fixPathToTargetOS(fileInfo(item).absoluteFilePath());
+        QString fixedItem = Option::fixPathToTargetOS(outputDir.absoluteFilePath(item));
         if (!fixedFiles.contains(fixedItem)) {
             fixedFiles << fixedItem;
         }
     }
     foreach(QString item, generatedDirs) {
-        QString fixedItem = Option::fixPathToTargetOS(fileInfo(item).absoluteFilePath());
+        QString fixedItem = Option::fixPathToTargetOS(outputDir.absoluteFilePath(item));
         if (!fixedDirs.contains(fixedItem)) {
             fixedDirs << fixedItem;
         }

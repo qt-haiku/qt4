@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -306,6 +306,7 @@ private slots:
     void inputMethodHints();
     void toolTip();
     void visible();
+    void isVisibleTo();
     void explicitlyVisible();
     void enabled();
     void explicitlyEnabled();
@@ -475,6 +476,7 @@ private slots:
     void QTBUG_12112_focusItem();
     void QTBUG_13473_sceneposchange();
     void QTBUG_16374_crashInDestructor();
+    void QTBUG_20699_focusScopeCrash();
 
 private:
     QList<QGraphicsItem *> paintedItems;
@@ -1135,6 +1137,113 @@ void tst_QGraphicsItem::visible()
     QVERIFY(!item->hasFocus());
     item->setVisible(true);
     QVERIFY(!item->hasFocus());
+}
+
+void tst_QGraphicsItem::isVisibleTo()
+{
+    QGraphicsScene scene;
+    QGraphicsItem *parent = scene.addRect(QRectF(0, 0, 100, 100));
+    QGraphicsItem *child = scene.addRect(QRectF(25, 25, 50, 50));
+    QGraphicsItem *grandChild = scene.addRect(QRectF(50, 50, 50, 50));
+    QGraphicsItem *stranger = scene.addRect(100, 100, 100, 100);
+
+    child->setParentItem(parent);
+    grandChild->setParentItem(child);
+
+    QVERIFY(grandChild->isVisible());
+    QVERIFY(grandChild->isVisibleTo(grandChild));
+    QVERIFY(grandChild->isVisibleTo(child));
+    QVERIFY(grandChild->isVisibleTo(parent));
+    QVERIFY(grandChild->isVisibleTo(0));
+    QVERIFY(child->isVisible());
+    QVERIFY(child->isVisibleTo(child));
+    QVERIFY(child->isVisibleTo(parent));
+    QVERIFY(child->isVisibleTo(0));
+    QVERIFY(parent->isVisible());
+    QVERIFY(parent->isVisibleTo(parent));
+    QVERIFY(parent->isVisibleTo(0));
+    QVERIFY(!parent->isVisibleTo(child));
+    QVERIFY(!child->isVisibleTo(grandChild));
+    QVERIFY(!grandChild->isVisibleTo(stranger));
+    QVERIFY(!child->isVisibleTo(stranger));
+    QVERIFY(!parent->isVisibleTo(stranger));
+    QVERIFY(!stranger->isVisibleTo(grandChild));
+    QVERIFY(!stranger->isVisibleTo(child));
+    QVERIFY(!stranger->isVisibleTo(parent));
+
+    // Case 1: only parent is explicitly hidden
+    parent->hide();
+
+    QVERIFY(!grandChild->isVisible());
+    QVERIFY(grandChild->isVisibleTo(grandChild));
+    QVERIFY(grandChild->isVisibleTo(child));
+    QVERIFY(grandChild->isVisibleTo(parent));
+    QVERIFY(!grandChild->isVisibleTo(0));
+    QVERIFY(!child->isVisible());
+    QVERIFY(child->isVisibleTo(child));
+    QVERIFY(child->isVisibleTo(parent));
+    QVERIFY(!child->isVisibleTo(0));
+    QVERIFY(!parent->isVisible());
+    QVERIFY(!parent->isVisibleTo(parent));
+    QVERIFY(!parent->isVisibleTo(0));
+    QVERIFY(!parent->isVisibleTo(child));
+    QVERIFY(!child->isVisibleTo(grandChild));
+    QVERIFY(!grandChild->isVisibleTo(stranger));
+    QVERIFY(!child->isVisibleTo(stranger));
+    QVERIFY(!parent->isVisibleTo(stranger));
+    QVERIFY(!stranger->isVisibleTo(grandChild));
+    QVERIFY(!stranger->isVisibleTo(child));
+    QVERIFY(!stranger->isVisibleTo(parent));
+
+    // Case 2: only child is hidden
+    parent->show();
+    child->hide();
+
+    QVERIFY(!grandChild->isVisible());
+    QVERIFY(grandChild->isVisibleTo(grandChild));
+    QVERIFY(grandChild->isVisibleTo(child));
+    QVERIFY(!grandChild->isVisibleTo(parent));
+    QVERIFY(!grandChild->isVisibleTo(0));
+    QVERIFY(!child->isVisible());
+    QVERIFY(!child->isVisibleTo(child));
+    QVERIFY(!child->isVisibleTo(parent));
+    QVERIFY(!child->isVisibleTo(0));
+    QVERIFY(parent->isVisible());
+    QVERIFY(parent->isVisibleTo(parent));
+    QVERIFY(parent->isVisibleTo(0));
+    QVERIFY(!parent->isVisibleTo(child));
+    QVERIFY(!child->isVisibleTo(grandChild));
+    QVERIFY(!grandChild->isVisibleTo(stranger));
+    QVERIFY(!child->isVisibleTo(stranger));
+    QVERIFY(!parent->isVisibleTo(stranger));
+    QVERIFY(!stranger->isVisibleTo(grandChild));
+    QVERIFY(!stranger->isVisibleTo(child));
+    QVERIFY(!stranger->isVisibleTo(parent));
+
+    // Case 3: only grand child is hidden
+    child->show();
+    grandChild->hide();
+
+    QVERIFY(!grandChild->isVisible());
+    QVERIFY(!grandChild->isVisibleTo(grandChild));
+    QVERIFY(!grandChild->isVisibleTo(child));
+    QVERIFY(!grandChild->isVisibleTo(parent));
+    QVERIFY(!grandChild->isVisibleTo(0));
+    QVERIFY(child->isVisible());
+    QVERIFY(child->isVisibleTo(child));
+    QVERIFY(child->isVisibleTo(parent));
+    QVERIFY(child->isVisibleTo(0));
+    QVERIFY(parent->isVisible());
+    QVERIFY(parent->isVisibleTo(parent));
+    QVERIFY(parent->isVisibleTo(0));
+    QVERIFY(!parent->isVisibleTo(child));
+    QVERIFY(!child->isVisibleTo(grandChild));
+    QVERIFY(!grandChild->isVisibleTo(stranger));
+    QVERIFY(!child->isVisibleTo(stranger));
+    QVERIFY(!parent->isVisibleTo(stranger));
+    QVERIFY(!stranger->isVisibleTo(grandChild));
+    QVERIFY(!stranger->isVisibleTo(child));
+    QVERIFY(!stranger->isVisibleTo(parent));
 }
 
 void tst_QGraphicsItem::explicitlyVisible()
@@ -6413,6 +6522,7 @@ void tst_QGraphicsItem::boundingRegion_data()
 
     QTest::newRow("(0, 0, 10, 10) | 0.0 | identity | {(0, 0, 10, 10)}") << QLineF(0, 0, 10, 10) << qreal(0.0) << QTransform()
                                                                         << QRegion(QRect(0, 0, 10, 10));
+#if 0
     {
         QRegion r;
         r += QRect(0, 0, 6, 2);
@@ -6430,6 +6540,7 @@ void tst_QGraphicsItem::boundingRegion_data()
         r += QRect(6, 9, 4, 1);
         QTest::newRow("(0, 0, 10, 10) | 1.0 | identity | {(0, 0, 10, 10)}") << QLineF(0, 0, 10, 10) << qreal(1.0) << QTransform() << r;
     }
+#endif
     QTest::newRow("(0, 0, 10, 0) | 0.0 | identity | {(0, 0, 10, 10)}") << QLineF(0, 0, 10, 0) << qreal(0.0) << QTransform()
                                                                        << QRegion(QRect(0, 0, 10, 1));
     QTest::newRow("(0, 0, 10, 0) | 0.5 | identity | {(0, 0, 10, 1)}") << QLineF(0, 0, 10, 0) << qreal(0.5) << QTransform()
@@ -8029,7 +8140,16 @@ void tst_QGraphicsItem::sorting()
     QGraphicsView view(&scene);
     view.setResizeAnchor(QGraphicsView::NoAnchor);
     view.setTransformationAnchor(QGraphicsView::NoAnchor);
+#ifdef Q_OS_SYMBIAN
+    // Adjust area in devices where scrollbars are thicker than 25 pixels as they will
+    // obstruct painting otherwise.
+    int scrollWidth = qMax(25, view.verticalScrollBar()->width());
+    int scrollHeight = qMax(25, view.horizontalScrollBar()->height());
+
+    view.resize(95 + scrollWidth, 75 + scrollHeight);
+#else
     view.resize(120, 100);
+#endif
     view.setFrameStyle(0);
     view.show();
 #ifdef Q_WS_X11
@@ -10732,7 +10852,7 @@ void tst_QGraphicsItem::deviceCoordinateCache_simpleRotations()
     QTRY_VERIFY(view.repaints > 0);
 
     QGraphicsItemCache *itemCache = QGraphicsItemPrivate::get(item)->extraItemCache();
-    Q_ASSERT(itemCache);
+    QVERIFY(itemCache);
     QPixmapCache::Key currentKey = itemCache->deviceData.value(view.viewport()).key;
 
     // Trigger an update and verify that the cache is unchanged.
@@ -11252,6 +11372,37 @@ void tst_QGraphicsItem::QTBUG_16374_crashInDestructor()
 
     view.show();
     QTest::qWaitForWindowShown(&view);
+}
+
+void tst_QGraphicsItem::QTBUG_20699_focusScopeCrash()
+{
+    QGraphicsScene scene;
+    QGraphicsView view(&scene);
+    QGraphicsPixmapItem fs;
+    fs.setFlags(QGraphicsItem::ItemIsFocusScope | QGraphicsItem::ItemIsFocusable);
+    scene.addItem(&fs);
+    QGraphicsPixmapItem* fs2 = new QGraphicsPixmapItem(&fs);
+    fs2->setFlags(QGraphicsItem::ItemIsFocusScope | QGraphicsItem::ItemIsFocusable);
+    QGraphicsPixmapItem* fi2 = new QGraphicsPixmapItem(&fs);
+    fi2->setFlags(QGraphicsItem::ItemIsFocusable);
+    QGraphicsPixmapItem* fi = new QGraphicsPixmapItem(fs2);
+    fi->setFlags(QGraphicsItem::ItemIsFocusable);
+    fs.setFocus();
+    fi->setFocus();
+
+    view.show();
+    QTest::qWaitForWindowShown(&view);
+
+    fi->setParentItem(fi2);
+    fi->setFocus();
+    fs.setFocus();
+    fi->setParentItem(fs2);
+    fi->setFocus();
+    fs2->setFocus();
+    fs.setFocus();
+    fi->setParentItem(fi2);
+    fi->setFocus();
+    fs.setFocus();
 }
 
 QTEST_MAIN(tst_QGraphicsItem)

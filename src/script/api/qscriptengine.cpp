@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -196,8 +196,8 @@ QT_BEGIN_NAMESPACE
   "standard" Qt constructor, Qt Script can provide a default script
   constructor for you; see scriptValueFromQMetaObject().
 
-  See the \l{QtScript} documentation for more information on
-  the QObject integration.
+  For more information about QObject integration, see
+  \l{Making Applications Scriptable}
 
   \section1 Support for Custom C++ Types
 
@@ -3820,7 +3820,7 @@ QStringList QScriptEngine::importedExtensions() const
     which did not support member template functions. It is advised
     to use the other form in new code.
 
-    \sa QScriptEngine::toScriptValue(), qscriptvalue_cast
+    \sa QScriptEngine::toScriptValue(), qscriptvalue_cast()
 */
 
 /*!

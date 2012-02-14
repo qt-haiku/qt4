@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -134,3 +134,9 @@ void Lighting::animate()
     m_scene.update();
 }
 
+void Lighting::resizeEvent(QResizeEvent */*event*/)
+{
+#if defined(Q_OS_SYMBIAN) || defined(Q_WS_MAEMO_5) || defined(Q_WS_SIMULATOR)
+    fitInView(sceneRect(), Qt::KeepAspectRatio);
+#endif
+}

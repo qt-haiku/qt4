@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -159,10 +159,14 @@ void LifeCycle::start()
     m_machine->start();
 }
 
-void LifeCycle::addActivity(const QString &fileName, Qt::Key key)
+void LifeCycle::addActivity(const QString &fileName, Qt::Key key, QObject *sender, const char *signal)
 {
     QState *state = makeState(m_alive, fileName);
     m_alive->addTransition(new KeyPressTransition(m_keyReceiver, key, state));
+
+    if((sender != NULL) || (signal != NULL)) {
+        m_alive->addTransition(sender, signal, state);
+    }
 }
 
 QState *LifeCycle::makeState(QState *parentState, const QString &animationFileName)

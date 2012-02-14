@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -42,8 +42,8 @@
 
 #include "piecesmodel.h"
 
-PiecesModel::PiecesModel(QObject *parent)
-    : QAbstractListModel(parent)
+PiecesModel::PiecesModel(int pieceSize, QObject *parent)
+    : QAbstractListModel(parent), m_PieceSize(pieceSize)
 {
 }
 
@@ -53,7 +53,7 @@ QVariant PiecesModel::data(const QModelIndex &index, int role) const
         return QVariant();
 
     if (role == Qt::DecorationRole)
-        return QIcon(pixmaps.value(index.row()).scaled(60, 60,
+        return QIcon(pixmaps.value(index.row()).scaled(m_PieceSize, m_PieceSize,
                          Qt::KeepAspectRatio, Qt::SmoothTransformation));
     else if (role == Qt::UserRole)
         return pixmaps.value(index.row());
@@ -196,7 +196,7 @@ void PiecesModel::addPieces(const QPixmap& pixmap)
     endRemoveRows();
     for (int y = 0; y < 5; ++y) {
         for (int x = 0; x < 5; ++x) {
-            QPixmap pieceImage = pixmap.copy(x*80, y*80, 80, 80);
+            QPixmap pieceImage = pixmap.copy(x*m_PieceSize, y*m_PieceSize, m_PieceSize, m_PieceSize);
             addPiece(pieceImage, QPoint(x, y));
         }
     }

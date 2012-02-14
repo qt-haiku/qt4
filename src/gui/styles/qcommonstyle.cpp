@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -223,16 +223,13 @@ void QCommonStyle::drawPrimitive(PrimitiveElement pe, const QStyleOption *opt, Q
             --yy;
         }
         if (!(opt->state & State_Enabled) && !(opt->state & State_On)) {
-            int pnt;
-            p->setPen(opt->palette.highlightedText().color());
-            QPoint offset(1, 1);
-            for (pnt = 0; pnt < a.size(); ++pnt)
-                a[pnt].translate(offset.x(), offset.y());
+            p->save();
+            p->translate(1, 1);
+            p->setPen(opt->palette.light().color());
             p->drawLines(a);
-            for (pnt = 0; pnt < a.size(); ++pnt)
-                a[pnt].translate(offset.x(), offset.y());
+            p->restore();
         }
-        p->setPen(opt->palette.text().color());
+        p->setPen((opt->state & State_On) ? opt->palette.highlightedText().color() : opt->palette.text().color());
         p->drawLines(a);
         break; }
     case PE_Frame:
@@ -840,14 +837,12 @@ static void drawArrow(const QStyle *style, const QStyleOptionToolButton *toolbut
 
 QSize QCommonStylePrivate::viewItemSize(const QStyleOptionViewItemV4 *option, int role) const
 {
-    Q_Q(const QCommonStyle);
-
     const QWidget *widget = option->widget;
     switch (role) {
     case Qt::CheckStateRole:
         if (option->features & QStyleOptionViewItemV2::HasCheckIndicator)
-            return QSize(q->pixelMetric(QStyle::PM_IndicatorWidth, option, widget),
-                         q->pixelMetric(QStyle::PM_IndicatorHeight, option, widget));
+            return QSize(proxyStyle->pixelMetric(QStyle::PM_IndicatorWidth, option, widget),
+                         proxyStyle->pixelMetric(QStyle::PM_IndicatorHeight, option, widget));
         break;
     case Qt::DisplayRole:
         if (option->features & QStyleOptionViewItemV2::HasDisplay) {
@@ -858,7 +853,7 @@ QSize QCommonStylePrivate::viewItemSize(const QStyleOptionViewItemV4 *option, in
             textLayout.setFont(option->font);
             textLayout.setText(option->text);
             const bool wrapText = option->features & QStyleOptionViewItemV2::WrapText;
-            const int textMargin = q->pixelMetric(QStyle::PM_FocusFrameHMargin, option, widget) + 1;
+            const int textMargin = proxyStyle->pixelMetric(QStyle::PM_FocusFrameHMargin, option, widget) + 1;
             QRect bounds = option->rect;
             switch (option->decorationPosition) {
             case QStyleOptionViewItem::Left:
@@ -919,11 +914,11 @@ static QSizeF viewItemTextLayout(QTextLayout &textLayout, int lineWidth)
     return QSizeF(widthUsed, height);
 }
 
+
 void QCommonStylePrivate::viewItemDrawText(QPainter *p, const QStyleOptionViewItemV4 *option, const QRect &rect) const
 {
-    Q_Q(const QCommonStyle);
     const QWidget *widget = option->widget;
-    const int textMargin = q->pixelMetric(QStyle::PM_FocusFrameHMargin, 0, widget) + 1;
+    const int textMargin = proxyStyle->pixelMetric(QStyle::PM_FocusFrameHMargin, 0, widget) + 1;
 
     QRect textRect = rect.adjusted(textMargin, 0, -textMargin, 0); // remove width padding
     const bool wrapText = option->features & QStyleOptionViewItemV2::WrapText;
@@ -936,7 +931,7 @@ void QCommonStylePrivate::viewItemDrawText(QPainter *p, const QStyleOptionViewIt
     textLayout.setFont(option->font);
     textLayout.setText(option->text);
 
-    QSizeF textLayoutSize = viewItemTextLayout(textLayout, textRect.width());
+    viewItemTextLayout(textLayout, textRect.width());
 
     QString elidedText;
     qreal height = 0;
@@ -1001,7 +996,6 @@ void QCommonStylePrivate::viewItemDrawText(QPainter *p, const QStyleOptionViewIt
 void QCommonStylePrivate::viewItemLayout(const QStyleOptionViewItemV4 *opt,  QRect *checkRect,
                                          QRect *pixmapRect, QRect *textRect, bool sizehint) const
 {
-    Q_Q(const QCommonStyle);
     Q_ASSERT(checkRect && pixmapRect && textRect);
     *pixmapRect = QRect(QPoint(0, 0), viewItemSize(opt, Qt::DecorationRole));
     *textRect = QRect(QPoint(0, 0), viewItemSize(opt, Qt::DisplayRole));
@@ -1011,9 +1005,9 @@ void QCommonStylePrivate::viewItemLayout(const QStyleOptionViewItemV4 *opt,  QRe
     const bool hasCheck = checkRect->isValid();
     const bool hasPixmap = pixmapRect->isValid();
     const bool hasText = textRect->isValid();
-    const int textMargin = hasText ? q->pixelMetric(QStyle::PM_FocusFrameHMargin, opt, widget) + 1 : 0;
-    const int pixmapMargin = hasPixmap ? q->pixelMetric(QStyle::PM_FocusFrameHMargin, opt, widget) + 1 : 0;
-    const int checkMargin = hasCheck ? q->pixelMetric(QStyle::PM_FocusFrameHMargin, opt, widget) + 1 : 0;
+    const int textMargin = hasText ? proxyStyle->pixelMetric(QStyle::PM_FocusFrameHMargin, opt, widget) + 1 : 0;
+    const int pixmapMargin = hasPixmap ? proxyStyle->pixelMetric(QStyle::PM_FocusFrameHMargin, opt, widget) + 1 : 0;
+    const int checkMargin = hasCheck ? proxyStyle->pixelMetric(QStyle::PM_FocusFrameHMargin, opt, widget) + 1 : 0;
     int x = opt->rect.left();
     int y = opt->rect.top();
     int w, h;
@@ -5294,7 +5288,7 @@ QPixmap QCommonStyle::standardPixmap(StandardPixmap sp, const QStyleOption *opti
                 pixmap = QIcon::fromTheme(QLatin1String("media-seek-backward")).pixmap(16);
                 break;
         case SP_MediaSkipForward:
-                pixmap = QIcon::fromTheme(QLatin1String("media-skip-backward")).pixmap(16);
+                pixmap = QIcon::fromTheme(QLatin1String("media-skip-forward")).pixmap(16);
                 break;
         case SP_MediaSkipBackward:
                 pixmap = QIcon::fromTheme(QLatin1String("media-skip-backward")).pixmap(16);

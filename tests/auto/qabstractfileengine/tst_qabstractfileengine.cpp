@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the FOO module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -47,10 +47,13 @@
 #include <QtCore/QSharedPointer>
 #include <QtCore/QScopedPointer>
 #include <QtCore/QHash>
+#include <QtCore/QDir>
+#include <QtCore/QDirIterator>
 
 #include <QtTest/QTest>
 
 #include <QtCore/QDebug>
+#include "../../shared/filesystem.h"
 
 class tst_QAbstractFileEngine
     : public QObject
@@ -65,6 +68,8 @@ private slots:
     void fileIO_data();
     void fileIO();
 
+    void mounting_data();
+    void mounting();
 private:
     QStringList filesForRemoval;
 };
@@ -74,7 +79,7 @@ class ReferenceFileEngine
 {
 public:
     ReferenceFileEngine(const QString &fileName)
-        : fileName_(fileName)
+        : fileName_(QDir::cleanPath(fileName))
         , position_(-1)
         , openForRead_(false)
         , openForWrite_(false)
@@ -83,8 +88,12 @@ public:
 
     bool open(QIODevice::OpenMode openMode)
     {
-        Q_ASSERT(!openForRead_);
-        Q_ASSERT(!openForWrite_);
+        if (openForRead_ || openForWrite_) {
+            qWarning("%s: file is already open for %s",
+                     Q_FUNC_INFO,
+                     (openForRead_ ? "reading" : "writing"));
+            return false;
+        }
 
         openFile_ = resolveFile(openMode & QIODevice::WriteOnly);
         if (!openFile_)
@@ -132,13 +141,19 @@ public:
 
     qint64 pos() const
     {
-        Q_ASSERT(openForRead_ || openForWrite_);
+        if (!openForRead_ && !openForWrite_) {
+            qWarning("%s: file is not open", Q_FUNC_INFO);
+            return -1;
+        }
         return position_;
     }
 
     bool seek(qint64 pos)
     {
-        Q_ASSERT(openForRead_ || openForWrite_);
+        if (!openForRead_ && !openForWrite_) {
+            qWarning("%s: file is not open", Q_FUNC_INFO);
+            return false;
+        }
 
         if (pos >= 0) {
             position_ = pos;
@@ -150,7 +165,11 @@ public:
 
     bool flush()
     {
-        Q_ASSERT(openForRead_ || openForWrite_);
+        if (!openForRead_ && !openForWrite_) {
+            qWarning("%s: file is not open", Q_FUNC_INFO);
+            return false;
+        }
+
         return true;
     }
 
@@ -346,10 +365,10 @@ public:
 
     void setFileName(const QString &file)
     {
-        Q_ASSERT(!openForRead_);
-        Q_ASSERT(!openForWrite_);
-
-        fileName_ = file;
+        if (openForRead_ || openForWrite_)
+            qWarning("%s: Can't set file name while file is open", Q_FUNC_INFO);
+        else
+            fileName_ = file;
     }
 
     //  typedef QAbstractFileEngineIterator Iterator;
@@ -368,9 +387,16 @@ public:
 
     qint64 read(char *data, qint64 maxLen)
     {
-        Q_ASSERT(openForRead_);
+        if (!openForRead_) {
+            qWarning("%s: file must be open for reading", Q_FUNC_INFO);
+            return -1;
+        }
 
-        Q_ASSERT(!openFile_.isNull());
+        if (openFile_.isNull()) {
+            qWarning("%s: file must not be null", Q_FUNC_INFO);
+            return -1;
+        }
+
         QMutexLocker lock(&openFile_->mutex);
         qint64 readSize = qMin(openFile_->content.size() - position_, maxLen);
         if (readSize < 0)
@@ -384,12 +410,19 @@ public:
 
     qint64 write(const char *data, qint64 length)
     {
-        Q_ASSERT(openForWrite_);
+        if (!openForWrite_) {
+            qWarning("%s: file must be open for writing", Q_FUNC_INFO);
+            return -1;
+        }
+
+        if (openFile_.isNull()) {
+            qWarning("%s: file must not be null", Q_FUNC_INFO);
+            return -1;
+        }
 
         if (length < 0)
             return -1;
 
-        Q_ASSERT(!openFile_.isNull());
         QMutexLocker lock(&openFile_->mutex);
         if (openFile_->content.size() == position_)
             openFile_->content.append(data, length);
@@ -434,7 +467,8 @@ protected:
     QSharedPointer<File> resolveFile(bool create) const
     {
         if (openForRead_ || openForWrite_) {
-            Q_ASSERT(openFile_);
+            if (!openFile_)
+                qWarning("%s: file should not be null", Q_FUNC_INFO);
             return openFile_;
         }
 
@@ -462,6 +496,60 @@ private:
     mutable QSharedPointer<File> openFile_;
 };
 
+class MountingFileEngine : public QFSFileEngine
+{
+public:
+    class Iterator : public QAbstractFileEngineIterator
+    {
+    public:
+        Iterator(QDir::Filters filters, const QStringList &filterNames)
+            : QAbstractFileEngineIterator(filters, filterNames)
+        {
+            names.append("foo");
+            names.append("bar");
+            index = -1;
+        }
+        QString currentFileName() const
+        {
+            return names.at(index);
+        }
+        bool hasNext() const
+        {
+            return index < names.size() - 1;
+        }
+        QString next()
+        {
+            if (!hasNext())
+                return QString();
+            ++index;
+            return currentFilePath();
+        }
+        QStringList names;
+        int index;
+    };
+    MountingFileEngine(QString fileName)
+        : QFSFileEngine(fileName)
+    {
+    }
+    Iterator *beginEntryList(QDir::Filters filters, const QStringList &filterNames)
+    {
+        return new Iterator(filters, filterNames);
+    }
+    FileFlags fileFlags(FileFlags type) const
+    {
+        if (fileName(DefaultName).endsWith(".tar")) {
+            FileFlags ret = QFSFileEngine::fileFlags(type);
+            //make this file in file system appear to be a directory
+            ret &= ~FileType;
+            ret |= DirectoryType;
+            return ret;
+        } else {
+            //file inside the archive
+            return ExistsFlag | FileType;
+        }
+    }
+};
+
 QMutex ReferenceFileEngine::fileSystemMutex;
 QHash<uint, QString> ReferenceFileEngine::fileSystemUsers, ReferenceFileEngine::fileSystemGroups;
 QHash<QString, QSharedPointer<ReferenceFileEngine::File> > ReferenceFileEngine::fileSystem;
@@ -471,6 +559,8 @@ class FileEngineHandler
 {
     QAbstractFileEngine *create(const QString &fileName) const
     {
+        if (fileName.endsWith(".tar") || fileName.contains(".tar/"))
+            return new MountingFileEngine(fileName);
         if (fileName.startsWith("QFSFileEngine:"))
             return new QFSFileEngine(fileName.mid(14));
         if (fileName.startsWith("reference-file-engine:"))
@@ -758,6 +848,36 @@ void tst_QAbstractFileEngine::fileIO()
     //
     // File content is: readContent
     //
+}
+
+void tst_QAbstractFileEngine::mounting_data()
+{
+    QTest::addColumn<QString>("fileName");
+    QTest::newRow("native") << "test.tar";
+    QTest::newRow("Forced QFSFileEngine") << "QFSFileEngine:test.tar";
+}
+
+void tst_QAbstractFileEngine::mounting()
+{
+    FileSystem fs;
+    QVERIFY(fs.createFile("test.tar"));
+    FileEngineHandler handler;
+
+    QFETCH(QString, fileName);
+
+    QVERIFY(QFileInfo(fileName).isDir());
+    QDir dir(fileName);
+    QCOMPARE(dir.entryList(), (QStringList() << "bar" << "foo"));
+    QDir dir2;
+    bool found = false;
+    foreach (QFileInfo info, dir2.entryInfoList()) {
+        if (info.fileName() == QLatin1String("test.tar")) {
+            QVERIFY(!found);
+            found = true;
+            QVERIFY(info.isDir());
+        }
+    }
+    QVERIFY(found);
 }
 
 QTEST_APPLESS_MAIN(tst_QAbstractFileEngine)

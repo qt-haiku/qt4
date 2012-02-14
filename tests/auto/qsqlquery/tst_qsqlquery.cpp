@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -213,14 +213,14 @@ private slots:
     void QTBUG_5765();
     void QTBUG_14132_data() { generic_data("QOCI"); }
     void QTBUG_14132();
+    void QTBUG_21884_data() { generic_data("QSQLITE"); }
+    void QTBUG_21884();
 
     void sqlite_constraint_data() { generic_data("QSQLITE"); }
     void sqlite_constraint();
 
-#if 0
-    void benchmark_data() { generic_data(); }
-    void benchmark();
-#endif
+    void sqlite_real_data() { generic_data("QSQLITE"); }
+    void sqlite_real();
 
 private:
     // returns all database connections
@@ -328,6 +328,7 @@ void tst_QSqlQuery::dropTestTables( QSqlDatabase db )
                << qTableName("bug6421", __FILE__).toUpper()
                << qTableName("bug5765", __FILE__)
                << qTableName("bug6852", __FILE__)
+               << qTableName("bug21884", __FILE__)
                << qTableName( "qtest_lockedtable", __FILE__ )
                << qTableName( "Planet", __FILE__ )
                << qTableName( "task_250026", __FILE__ )
@@ -3104,6 +3105,50 @@ void tst_QSqlQuery::QTBUG_5765()
     QCOMPARE(q.value(0).toInt(), 123);
 }
 
+/**
+* This test case tests multiple statements in one execution.
+* Sqlite driver doesn't support multiple statement at one time.
+* If more than one statement is given, the exec or prepare function
+* return failure to the client.
+*/
+void tst_QSqlQuery::QTBUG_21884()
+{
+    QFETCH(QString, dbName);
+    QSqlDatabase db = QSqlDatabase::database(dbName);
+    CHECK_DATABASE(db);
+
+    QSqlQuery q(db);
+
+    QStringList stList;
+    QString tableName(qTableName("bug21884", __FILE__ ));
+    stList << "create table " + tableName + "(id integer primary key, note string)";
+    stList << "select * from " + tableName + ";";
+    stList << "select * from " + tableName + ";  \t\n\r";
+    stList << "drop table " + tableName;
+
+
+    foreach (const QString& st, stList) {
+        QVERIFY_SQL(q, exec(st));
+    }
+
+    foreach (const QString& st, stList) {
+        QVERIFY_SQL(q, prepare(st));
+        QVERIFY_SQL(q, exec());
+    }
+
+    stList.clear();
+    stList << "create table " + tableName + "(id integer primary key); select * from " + tableName;
+    stList << "create table " + tableName + "(id integer primary key); syntax error!;";
+    stList << "create table " + tableName + "(id integer primary key);;";
+    stList << "create table " + tableName + "(id integer primary key);\'\"\a\b\b\v";
+
+    foreach (const QString&st , stList) {
+        QVERIFY2(!q.prepare(st), qPrintable(QString("the statement is expected to fail! ") + st));
+        QVERIFY2(!q.exec(st), qPrintable(QString("the statement is expected to fail! ") + st));
+    }
+}
+
+
 void tst_QSqlQuery::oraOCINumber()
 {
     QFETCH( QString, dbName );
@@ -3233,35 +3278,32 @@ void tst_QSqlQuery::sqlite_constraint()
     QCOMPARE(q.lastError().databaseText(), QLatin1String("Raised Abort successfully"));
 }
 
-#if 0
-void tst_QSqlQuery::benchmark()
+void tst_QSqlQuery::sqlite_real()
 {
-    QFETCH( QString, dbName );
-    QSqlDatabase db = QSqlDatabase::database( dbName );
-    CHECK_DATABASE( db );
-    if ( tst_Databases::getMySqlVersion( db ).section( QChar('.'), 0, 0 ).toInt()<5 )
-        QSKIP( "Test requires MySQL >= 5.0", SkipSingle );
+    QFETCH(QString, dbName);
+    QSqlDatabase db = QSqlDatabase::database(dbName);
+    CHECK_DATABASE(db);
+    const QString tableName(qTableName("sqliterealtype", __FILE__));
+    tst_Databases::safeDropTable( db, tableName );
 
     QSqlQuery q(db);
-    const QString tableName(qTableName("benchmark", __FILE__));
+    QVERIFY_SQL(q, exec("CREATE TABLE " + tableName + " (id INTEGER, realVal REAL)"));
+    QVERIFY_SQL(q, exec("INSERT INTO " + tableName + " (id, realVal) VALUES (1, 2.3)"));
+    QVERIFY_SQL(q, exec("SELECT realVal FROM " + tableName));
+    QVERIFY(q.next());
+    QCOMPARE(q.value(0).toDouble(), 2.3);
+    QCOMPARE(q.record().field(0).type(), QVariant::Double);
 
-    tst_Databases::safeDropTable( db, tableName );
+    q.prepare("INSERT INTO " + tableName + " (id, realVal) VALUES (?, ?)");
+    QVariant var((double)5.6);
+    q.addBindValue(4);
+    q.addBindValue(var);
+    QVERIFY_SQL(q, exec());
 
-    QVERIFY_SQL(q, exec("CREATE TABLE "+tableName+"(\n"
-                        "MainKey INT NOT NULL,\n"
-                        "OtherTextCol VARCHAR(45) NOT NULL,\n"
-                        "PRIMARY KEY(`MainKey`))"));
-
-    int i=1;
-
-    QBENCHMARK {
-        QVERIFY_SQL(q, exec("INSERT INTO "+tableName+" VALUES("+QString::number(i)+", \"Value"+QString::number(i)+"\")"));
-        i++;
-    }
-
-    tst_Databases::safeDropTable( db, tableName );
+    QVERIFY_SQL(q, exec("SELECT realVal FROM " + tableName + " WHERE ID=4"));
+    QVERIFY(q.next());
+    QCOMPARE(q.value(0).toDouble(), 5.6);
 }
-#endif
 
 QTEST_MAIN( tst_QSqlQuery )
 #include "tst_qsqlquery.moc"

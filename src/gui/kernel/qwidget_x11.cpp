@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -44,6 +44,7 @@
 #include "qdesktopwidget.h"
 #include "qapplication.h"
 #include "qapplication_p.h"
+#include "qabstracteventdispatcher.h"
 #include "qnamespace.h"
 #include "qpainter.h"
 #include "qbitmap.h"
@@ -376,17 +377,21 @@ void qt_x11_wait_for_window_manager(QWidget *w, bool sendPostedEvents)
     do {
         if (XEventsQueued(X11->display, QueuedAlready)) {
             XNextEvent(X11->display, &ev);
-            qApp->x11ProcessEvent(&ev);
+            // Pass the event through the event dispatcher filter so that applications
+            // which install an event filter on the dispatcher get to handle it first.
+            if (!QAbstractEventDispatcher::instance()->filterEvent(&ev)) {
+                qApp->x11ProcessEvent(&ev);
 
-            switch (state) {
-            case Initial:
-                if (ev.type == MapNotify && ev.xany.window == winid)
-                    state = Mapped;
-                break;
-            case Mapped:
-                if (ev.type == Expose && ev.xany.window == winid)
-                    return;
-                break;
+                switch (state) {
+                case Initial:
+                    if (ev.type == MapNotify && ev.xany.window == winid)
+                        state = Mapped;
+                    break;
+                case Mapped:
+                    if (ev.type == Expose && ev.xany.window == winid)
+                        return;
+                    break;
+                }
             }
         } else {
             if (!XEventsQueued(X11->display, QueuedAfterFlush))
@@ -486,8 +491,6 @@ void QWidgetPrivate::create_sys(WId window, bool initializeWindow, bool destroyO
 
     bool topLevel = (flags & Qt::Window);
     bool popup = (type == Qt::Popup);
-    bool dialog = (type == Qt::Dialog
-                   || type == Qt::Sheet);
     bool desktop = (type == Qt::Desktop);
     bool tool = (type == Qt::Tool || type == Qt::SplashScreen
                  || type == Qt::ToolTip || type == Qt::Drawer);
@@ -553,7 +556,7 @@ void QWidgetPrivate::create_sys(WId window, bool initializeWindow, bool destroyO
     int sh = DisplayHeight(dpy,scr);
 
     if (desktop) {                                // desktop widget
-        dialog = popup = false;                        // force these flags off
+        popup = false;                        // force these flags off
         data.crect.setRect(0, 0, sw, sh);
     } else if (topLevel && !q->testAttribute(Qt::WA_Resized)) {
         QDesktopWidget *desktopWidget = qApp->desktop();
@@ -954,8 +957,13 @@ static void qt_x11_recreateWidget(QWidget *widget)
         // recreate their GL context, which in turn causes them to choose
         // their visual again. Now that WA_TranslucentBackground is set,
         // QGLContext::chooseVisual will select an ARGB visual.
-        QEvent e(QEvent::ParentChange);
-        QApplication::sendEvent(widget, &e);
+
+        // QGLWidget expects a ParentAboutToChange to be sent first
+        QEvent aboutToChangeEvent(QEvent::ParentAboutToChange);
+        QApplication::sendEvent(widget, &aboutToChangeEvent);
+
+        QEvent parentChangeEvent(QEvent::ParentChange);
+        QApplication::sendEvent(widget, &parentChangeEvent);
     } else {
         // For regular widgets, reparent them with their parent which
         // also triggers a recreation of the native window
@@ -1333,40 +1341,12 @@ QPoint QWidgetPrivate::mapFromGlobal(const QPoint &pos) const
 QPoint QWidget::mapToGlobal(const QPoint &pos) const
 {
     Q_D(const QWidget);
-    QPoint offset = data->crect.topLeft();
-    const QWidget *w = this;
-    const QWidget *p = w->parentWidget();
-    while (!w->isWindow() && p) {
-        w = p;
-        p = p->parentWidget();
-        offset += w->data->crect.topLeft();
-    }
-
-    const QWidgetPrivate *wd = w->d_func();
-    QTLWExtra *tlw = wd->topData();
-    if (!tlw->embedded)
-        return pos + offset;
-
     return d->mapToGlobal(pos);
 }
 
 QPoint QWidget::mapFromGlobal(const QPoint &pos) const
 {
     Q_D(const QWidget);
-    QPoint offset = data->crect.topLeft();
-    const QWidget *w = this;
-    const QWidget *p = w->parentWidget();
-    while (!w->isWindow() && p) {
-        w = p;
-        p = p->parentWidget();
-        offset += w->data->crect.topLeft();
-    }
-
-    const QWidgetPrivate *wd = w->d_func();
-    QTLWExtra *tlw = wd->topData();
-    if (!tlw->embedded)
-        return pos - offset;
-
     return d->mapFromGlobal(pos);
 }
 
@@ -2691,8 +2671,17 @@ void QWidgetPrivate::setConstraints_sys()
 #ifdef ALIEN_DEBUG
     qDebug() << "QWidgetPrivate::setConstraints_sys START" << q;
 #endif
-    if (q->testAttribute(Qt::WA_WState_Created))
+    if (q->testAttribute(Qt::WA_WState_Created)) {
         do_size_hints(q, extra);
+        QtMWMHints mwmHints = GetMWMHints(X11->display, q->internalWinId());
+        const bool wasFuncResize = mwmHints.functions & MWM_FUNC_RESIZE;
+        if (q->minimumSize() == q->maximumSize())
+            mwmHints.functions &= ~MWM_FUNC_RESIZE;
+        else
+            mwmHints.functions |= MWM_FUNC_RESIZE;
+        if (wasFuncResize != (mwmHints.functions & MWM_FUNC_RESIZE))
+            SetMWMHints(X11->display, q->internalWinId(), mwmHints);
+    }
 #ifdef ALIEN_DEBUG
     qDebug() << "QWidgetPrivate::setConstraints_sys END" << q;
 #endif
@@ -2876,6 +2865,12 @@ void QWidgetPrivate::deleteTLSysExtra()
 {
     // don't destroy input context here. it will be destroyed in
     // QWidget::destroy() destroyInputContext();
+#ifndef QT_NO_XSYNC
+    if (extra && extra->topextra && extra->topextra->syncUpdateCounter) {
+        XSyncDestroyCounter(X11->display, extra->topextra->syncUpdateCounter);
+        extra->topextra->syncUpdateCounter = 0;
+    }
+#endif
 }
 
 void QWidgetPrivate::registerDropSite(bool on)

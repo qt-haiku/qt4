@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -46,6 +46,99 @@
 #include <euserhl.h>
 
 #ifdef Q_OS_SYMBIAN
+
+struct QAllocFailAllocator : public RAllocator
+{
+    QAllocFailAllocator() : allocator(User::Allocator()), allocCount(0), failNext(0)
+    {
+        User::SwitchAllocator(this);
+    }
+
+    ~QAllocFailAllocator()
+    {
+        User::SwitchAllocator(&allocator);
+    }
+
+    RAllocator& allocator;
+    int allocCount;
+    int failNext;
+
+    TAny* CheckPtr(TAny* a)
+    {
+        if (a)
+            allocCount++;
+        return a;
+    }
+
+    bool CheckFail()
+    {
+        if (failNext > 0) {
+            failNext--;
+            return true;
+        }
+        return false;
+    }
+
+    // from MAllocator
+    TAny* Alloc(TInt aSize)
+    {
+        if (CheckFail())
+            return 0;
+        return CheckPtr(allocator.Alloc(aSize));
+    }
+
+    void Free(TAny* aPtr)
+    {
+        if (aPtr)
+            allocCount--;
+        allocator.Free(aPtr);
+    }
+
+    TAny* ReAlloc(TAny* aPtr, TInt aSize, TInt aMode)
+    {
+        if (CheckFail())
+            return 0;
+        return allocator.ReAlloc(aPtr, aSize, aMode);
+    }
+
+    TInt AllocLen(const TAny* aCell) const
+    {
+        return allocator.AllocLen(aCell);
+    }
+
+    TInt Compress()
+    {
+        return allocator.Compress();
+    }
+
+    void Reset()
+    {
+        allocator.Reset();
+    }
+
+    TInt AllocSize(TInt& aTotalAllocSize) const
+    {
+        return allocator.AllocSize(aTotalAllocSize);
+    }
+
+    TInt Available(TInt& aBiggestBlock) const
+    {
+        return allocator.Available(aBiggestBlock);
+    }
+
+    TInt DebugFunction(TInt aFunc, TAny* a1, TAny* a2)
+    {
+        return allocator.DebugFunction(aFunc, a1, a2);
+    }
+
+    TInt Extension_(TUint aExtensionId, TAny*& a0, TAny* a1)
+    {
+        return ((MAllocator&)allocator).Extension_(aExtensionId, a0, a1);
+    }
+};
+
+QAllocFailAllocator testAllocator;
+
 
 typedef void TLeavingFunc();
 
@@ -70,6 +163,7 @@ private slots:
     void leave();
     void testTranslateBadAlloc();
     void testTranslateBigAlloc();
+    void testExceptionFromAO();
     void testRoundTrip();
     void testTrap();
     void testPropagation();
@@ -99,35 +193,35 @@ void tst_qmainexceptions::trap()
 
 void tst_qmainexceptions::cleanupstack()
 {
-    __UHEAP_MARK;
+    int mark = testAllocator.allocCount;
     //fails if OOM
     CDummy* dummy1 = new (ELeave) CDummy;
-    __UHEAP_CHECK(1);
+    QCOMPARE(mark+1, testAllocator.allocCount);
     CleanupStack::PushL(dummy1);
     CleanupStack::PopAndDestroy(dummy1);
-    __UHEAP_MARKEND;
+    QCOMPARE(mark, testAllocator.allocCount);
 }
 
 void tst_qmainexceptions::leave()
 {
-    __UHEAP_MARK;
+    int mark = testAllocator.allocCount;
     CDummy* dummy1 = 0;
     TRAPD(err,{
         CDummy* csDummy = new (ELeave) CDummy;
         CleanupStack::PushL(csDummy);
-        __UHEAP_FAILNEXT(1);
+        testAllocator.failNext = 1;
         dummy1 = new (ELeave) CDummy;
         //CleanupStack::PopAndDestroy(csDummy); not executed as previous line throws
     });
     QCOMPARE(err,KErrNoMemory);
     QVERIFY(!((int)dummy1));
-    __UHEAP_MARKEND;
+    QCOMPARE(mark, testAllocator.allocCount);
 }
 
 class CTestActive : public CActive
 {
 public:
-    CTestActive(TLeavingFunc* aFunc) : CActive(EPriorityStandard), iFunc(aFunc)
+    CTestActive(TLeavingFunc* aFunc, bool qtLoop = false) : CActive(EPriorityStandard), iFunc(aFunc), useQtLoop(qtLoop)
     {
         CActiveScheduler::Add(this);
     }
@@ -142,30 +236,57 @@ public:
         TRequestStatus* s = &iStatus;
         SetActive();
         User::RequestComplete(s, KErrNone);
-        CActiveScheduler::Start();
+        StartLoop();
     }
     void RunL()
     {
+        cleanedUp = false;
+        CleanupStack::PushL(TCleanupItem(CleanUp, &cleanedUp));
         (*iFunc)();
-        CActiveScheduler::Stop();   // will only get here if iFunc does not leave
+        CleanupStack::Pop();
+        StopLoop();   // will only get here if iFunc does not leave
     }
     TInt RunError(TInt aError)
     {
         error = aError;
-        CActiveScheduler::Stop();   // will only get here if iFunc leaves
+        StopLoop();   // will only get here if iFunc leaves
         return KErrNone;
+    }
+    void StartLoop()
+    {
+        if (useQtLoop)
+            qEventLoop.exec();
+        else
+            CActiveScheduler::Start();
+    }
+    void StopLoop()
+    {
+        if (useQtLoop)
+            qEventLoop.exit();
+        else
+            CActiveScheduler::Stop();
+    }
+    static void CleanUp(TAny* cleanedUpFlag)
+    {
+        *((bool*)cleanedUpFlag) = true;
     }
 public:
     TLeavingFunc* iFunc;
     int error;
+    bool useQtLoop;
+    bool cleanedUp;
+    QEventLoop qEventLoop;
 };
 
 void tst_qmainexceptions::TestSchedulerCatchesError(TLeavingFunc* f, int error)
 {
-    CTestActive *act = new(ELeave) CTestActive(f);
-    act->Test();
-    QCOMPARE(act->error, error);
-    delete act;
+    for (int i=0; i<2; i++) {
+        CTestActive *act = new(ELeave) CTestActive(f, i==1);
+        act->Test();
+        QCOMPARE(act->error, error);
+        QVERIFY(act->cleanedUp);
+        delete act;
+    }
 }
 
 void ThrowBadAlloc()
@@ -205,6 +326,15 @@ void tst_qmainexceptions::testTranslateBigAlloc()
 {
     // this test will fail if new does not throw on failure, otherwise should give KErrNoMemory in AO
     TestSchedulerCatchesError(&TranslateBigAllocL, KErrNoMemory);
+}
+
+void tst_qmainexceptions::testExceptionFromAO()
+{
+    CTestActive *act = new(ELeave) CTestActive(&ThrowBadAlloc, true);
+    act->Test();
+    QCOMPARE(act->error, KErrNoMemory);
+    QVERIFY(act->cleanedUp);
+    delete act;
 }
 
 void tst_qmainexceptions::TestSymbianRoundTrip(int leave, int trap)
@@ -312,14 +442,15 @@ void tst_qmainexceptions::testDtor2()
 {
     // memory is cleaned up correctly on exception
     // this crashes with winscw compiler build < 481
-    __UHEAP_MARK;
+    int mark = testAllocator.allocCount;
     try {
+        QScopedPointer<QString> ptr(new QString("abc"));
         QString str("abc");
         str += "def";
         throw std::bad_alloc();
         QFAIL("should not get here");
     } catch (const std::bad_alloc&) { }
-    __UHEAP_MARKEND;
+    QCOMPARE(mark, testAllocator.allocCount);
 }
 
 void tst_qmainexceptions::testNestedExceptions()

@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -46,6 +46,10 @@ int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
     Client client;
+#if defined(Q_WS_S60)
+    client.showMaximized();
+#else
     client.show();
-    return client.exec();
+#endif
+    return app.exec();
 }

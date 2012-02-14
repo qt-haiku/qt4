@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -152,6 +152,7 @@ private slots:
 //  void indexOf3();
     void sprintf();
     void copy();
+    void latin1();
     void fill();
     void truncate();
     void constructor();
@@ -914,6 +915,24 @@ void tst_QString::copy()
     e = "XXX";
     QCOMPARE(ce,(QString)"String E");
     QCOMPARE(e,(QString)"XXX");
+#endif
+}
+
+void tst_QString::latin1()
+{
+#ifdef QT3_SUPPORT
+    QString e = "String E";
+    const char* lat = e.latin1();
+    QCOMPARE(lat, "String E");
+    e += "F";
+    QCOMPARE(e.latin1(), "String EF");
+
+    QString null;
+    QString empty = "";
+    QCOMPARE(null.latin1(), ""); // was a null pointer in Qt3!
+    QCOMPARE(empty.latin1(), "");
+#else
+    QSKIP("This test requires QT3_SUPPORT", SkipSingle);
 #endif
 }
 
@@ -3429,9 +3448,9 @@ void tst_QString::fromLatin1Roundtrip()
     QFETCH(QString, unicode);
 
     // QtTest safety check:
-    Q_ASSERT(latin1.isNull() == unicode.isNull());
-    Q_ASSERT(latin1.isEmpty() == unicode.isEmpty());
-    Q_ASSERT(latin1.length() == unicode.length());
+    QCOMPARE(latin1.isNull(), unicode.isNull());
+    QCOMPARE(latin1.isEmpty(), unicode.isEmpty());
+    QCOMPARE(latin1.length(), unicode.length());
 
     if (!latin1.isEmpty())
         while (latin1.length() < 128) {
@@ -3475,6 +3494,10 @@ void tst_QString::toLatin1Roundtrip_data()
 
     static const ushort unicode6[] = { 0x180, 0x1ff, 0x8001, 0x8080, 0xfffc };
     QTest::newRow("non-latin1b") << QByteArray("?????") << QString::fromUtf16(unicode6, 5) << questionmarks;
+
+    static const ushort unicode7[] = { 'H', 'e', 'l', 'l', 'o', 0x100, 0x17f, 0x180, 0x8080, 0xfffc };
+    static const ushort unicode7q[] = { 'H', 'e', 'l', 'l', 'o', '?', '?', '?', '?', '?' };
+    QTest::newRow("mixed") << QByteArray("Hello?????") << QString::fromUtf16(unicode7, 10) << QString::fromUtf16(unicode7q, 10);
 }
 
 void tst_QString::toLatin1Roundtrip()
@@ -3484,12 +3507,12 @@ void tst_QString::toLatin1Roundtrip()
     QFETCH(QString, unicodedst);
 
     // QtTest safety check:
-    Q_ASSERT(latin1.isNull() == unicodesrc.isNull());
-    Q_ASSERT(latin1.isEmpty() == unicodesrc.isEmpty());
-    Q_ASSERT(latin1.length() == unicodesrc.length());
-    Q_ASSERT(latin1.isNull() == unicodedst.isNull());
-    Q_ASSERT(latin1.isEmpty() == unicodedst.isEmpty());
-    Q_ASSERT(latin1.length() == unicodedst.length());
+    QCOMPARE(latin1.isNull(), unicodesrc.isNull());
+    QCOMPARE(latin1.isEmpty(), unicodesrc.isEmpty());
+    QCOMPARE(latin1.length(), unicodesrc.length());
+    QCOMPARE(latin1.isNull(), unicodedst.isNull());
+    QCOMPARE(latin1.isEmpty(), unicodedst.isEmpty());
+    QCOMPARE(latin1.length(), unicodedst.length());
 
     if (!latin1.isEmpty())
         while (latin1.length() < 128) {
@@ -3519,12 +3542,12 @@ void tst_QString::stringRef_toLatin1Roundtrip()
     QFETCH(QString, unicodedst);
 
     // QtTest safety check:
-    Q_ASSERT(latin1.isNull() == unicodesrc.isNull());
-    Q_ASSERT(latin1.isEmpty() == unicodesrc.isEmpty());
-    Q_ASSERT(latin1.length() == unicodesrc.length());
-    Q_ASSERT(latin1.isNull() == unicodedst.isNull());
-    Q_ASSERT(latin1.isEmpty() == unicodedst.isEmpty());
-    Q_ASSERT(latin1.length() == unicodedst.length());
+    QCOMPARE(latin1.isNull(), unicodesrc.isNull());
+    QCOMPARE(latin1.isEmpty(), unicodesrc.isEmpty());
+    QCOMPARE(latin1.length(), unicodesrc.length());
+    QCOMPARE(latin1.isNull(), unicodedst.isNull());
+    QCOMPARE(latin1.isEmpty(), unicodedst.isEmpty());
+    QCOMPARE(latin1.length(), unicodedst.length());
 
     if (!latin1.isEmpty())
         while (latin1.length() < 128) {
@@ -4334,7 +4357,7 @@ void tst_QString::localeAwareCompare_data()
 void tst_QString::localeAwareCompare()
 {
 #ifdef Q_OS_SYMBIAN
-    QSKIP("QTBUG-16921: There is no way to set up the system locale, so this test is not reliable in Symbian.");
+    QSKIP("QTBUG-16921: There is no way to set up the system locale, so this test is not reliable in Symbian.", SkipSingle);
 #else
 #ifdef Q_OS_WIN
 #   ifndef Q_OS_WINCE
@@ -5099,24 +5122,28 @@ void tst_QString::toUpperLower_icu()
 
     QLocale::setDefault(QLocale(QLocale::Turkish, QLocale::Turkey));
 
-    // turkish locale has a capital I with a dot (U+0130, utf8 c4b0)
+    QCOMPARE(s.toUpper(), QString::fromLatin1("I"));
+    QCOMPARE(s.toLower(), QString::fromLatin1("i"));
 
-    QCOMPARE(s.toUpper(), QString::fromUtf8("\xc4\xb0"));
-    QCOMPARE(QString::fromUtf8("\xc4\xb0").toLower(), s);
+    // turkish locale has a capital I with a dot (U+0130, utf8 c4b0)
+    QLocale l;
+
+    QCOMPARE(l.toUpper(s), QString::fromUtf8("\xc4\xb0"));
+    QCOMPARE(l.toLower(QString::fromUtf8("\xc4\xb0")), s);
 
     // nothing should happen here
-    QCOMPARE(s.toLower(), s);
-    QCOMPARE(QString::fromLatin1("I").toUpper(), QString::fromLatin1("I"));
+    QCOMPARE(l.toLower(s), s);
+    QCOMPARE(l.toUpper(QString::fromLatin1("I")), QString::fromLatin1("I"));
 
     // U+0131, utf8 c4b1 is the lower-case i without a dot
     QString sup = QString::fromUtf8("\xc4\xb1");
 
-    QCOMPARE(sup.toUpper(), QString::fromLatin1("I"));
-    QCOMPARE(QString::fromLatin1("I").toLower(), sup);
+    QCOMPARE(l.toUpper(sup), QString::fromLatin1("I"));
+    QCOMPARE(l.toLower(QString::fromLatin1("I")), sup);
 
     // nothing should happen here
-    QCOMPARE(sup.toLower(), sup);
-    QCOMPARE(QString::fromLatin1("i").toLower(), QString::fromLatin1("i"));
+    QCOMPARE(l.toLower(sup), sup);
+    QCOMPARE(l.toLower(QString::fromLatin1("i")), QString::fromLatin1("i"));
 
     // the cleanup function will restore the default locale
 }

@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtOpenGL module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -39,21 +39,22 @@
 **
 ****************************************************************************/
 
-
 #include "qgl.h"
-#include <fbs.h>
 #include <private/qt_s60_p.h>
-#include <private/qpixmap_s60_p.h>
+#include <private/qpixmap_raster_symbian_p.h>
 #include <private/qimagepixmapcleanuphooks_p.h>
 #include <private/qgl_p.h>
 #include <private/qpaintengine_opengl_p.h>
 #include <private/qwidget_p.h> // to access QWExtra
 #include <private/qnativeimagehandleprovider_p.h>
+#include <private/qapplication_p.h>
+#include <private/qgraphicssystem_p.h>
+#include <private/qgraphicssystemex_symbian_p.h>
 #include "qgl_egl_p.h"
 #include "qpixmapdata_gl_p.h"
 #include "qgltexturepool_p.h"
 #include "qcolormap.h"
-#include <QDebug>
+
 
 QT_BEGIN_NAMESPACE
 
@@ -71,7 +72,7 @@ QT_BEGIN_NAMESPACE
 #endif
 #endif
 
-extern int qt_gl_pixmap_serial;
+Q_OPENGL_EXPORT extern QGLWidget* qt_gl_share_widget();
 
 /*
     QGLTemporaryContext implementation
@@ -180,6 +181,21 @@ bool QGLContext::chooseContext(const QGLContext* shareContext) // almost same as
         d->ownsEglContext = true;
         d->eglContext->setApi(QEgl::OpenGL);
 
+        if (d->glFormat.samples() == EGL_DONT_CARE) {
+            // Allow apps to override ability to use multisampling by setting an environment variable. Eg:
+            //   qputenv("QT_SYMBIAN_DISABLE_GL_MULTISAMPLE", "1");
+            // Added to allow camera app to start with limited memory.
+            if (!QSymbianGraphicsSystemEx::hasBCM2727() && !qgetenv("QT_SYMBIAN_DISABLE_GL_MULTISAMPLE").toInt()) {
+                // Most likely we have hw support for multisampling
+                // so let's enable it.
+                d->glFormat.setSampleBuffers(1);
+                d->glFormat.setSamples(4);
+            } else {
+                d->glFormat.setSampleBuffers(0);
+                d->glFormat.setSamples(0);
+            }
+        }
+
 	    // If the device is a widget with WA_TranslucentBackground set, make sure the glFormat
         // has the alpha channel option set:
         if (devType == QInternal::Widget) {
@@ -229,20 +245,20 @@ bool QGLContext::chooseContext(const QGLContext* shareContext) // almost same as
 
         d->eglSurface = QEgl::createSurface(device(), d->eglContext->config());
 
-    eglGetError();  // Clear error state first.
+        eglGetError();  // Clear error state first.
 
 #ifdef QGL_NO_PRESERVED_SWAP
-    eglSurfaceAttrib(QEgl::display(), d->eglSurface,
-            EGL_SWAP_BEHAVIOR, EGL_BUFFER_DESTROYED);
+        eglSurfaceAttrib(QEgl::display(), d->eglSurface,
+                EGL_SWAP_BEHAVIOR, EGL_BUFFER_DESTROYED);
 
-    if (eglGetError() != EGL_SUCCESS)
-        qWarning("QGLContext: could not enable destroyed swap behaviour");
+        if (eglGetError() != EGL_SUCCESS)
+            qWarning("QGLContext: could not enable destroyed swap behaviour");
 #else
-    eglSurfaceAttrib(QEgl::display(), d->eglSurface,
-            EGL_SWAP_BEHAVIOR, EGL_BUFFER_PRESERVED);
+        eglSurfaceAttrib(QEgl::display(), d->eglSurface,
+                EGL_SWAP_BEHAVIOR, EGL_BUFFER_PRESERVED);
 
-    if (eglGetError() != EGL_SUCCESS)
-        qWarning("QGLContext: could not enable preserved swap behaviour");
+        if (eglGetError() != EGL_SUCCESS)
+            qWarning("QGLContext: could not enable preserved swap behaviour");
 #endif
 
         setWindowCreated(true);
@@ -251,23 +267,29 @@ bool QGLContext::chooseContext(const QGLContext* shareContext) // almost same as
     return true;
 }
 
-void QGLWidget::resizeEvent(QResizeEvent *)
+void QGLWidget::resizeEvent(QResizeEvent *e)
 {
     Q_D(QGLWidget);
     if (!isValid())
         return;
 
-    if (QGLContext::currentContext())
-        doneCurrent();
+    // Shared widget can ignore resize events which
+    // may happen due to orientation change
+    if (this == qt_gl_share_widget())
+        return;
 
-    // Symbian needs to recreate the surface on resize.
-    d->recreateEglSurface();
+    if (!d->surfaceSizeInitialized || e->oldSize() != e->size()) {
+        // On Symbian we need to recreate the surface on resize.
+        d->recreateEglSurface();
+        d->surfaceSizeInitialized = true;
+    }
 
     makeCurrent();
+
     if (!d->glcx->initialized())
         glInit();
+
     resizeGL(width(), height());
-    //handle overlay
 }
 
 const QGLContext* QGLWidget::overlayContext() const
@@ -350,6 +372,9 @@ void QGLWidgetPrivate::recreateEglSurface()
     WId currentId = q->winId();
 
     if (glcx->d_func()->eglSurface != EGL_NO_SURFACE) {
+        if (glcx == QGLContext::currentContext())
+            glcx->doneCurrent();
+
         eglDestroySurface(glcx->d_func()->eglContext->display(),
                                                 glcx->d_func()->eglSurface);
     }
@@ -367,106 +392,6 @@ void QGLWidgetPrivate::recreateEglSurface()
 #endif
 
     eglSurfaceWindowId = currentId;
-}
-
-static inline bool knownGoodFormat(QImage::Format format)
-{
-    switch (format) {
-        case QImage::Format_RGB16: // EColor64K
-        case QImage::Format_RGB32: // EColor16MU
-        case QImage::Format_ARGB32_Premultiplied: // EColor16MAP
-            return true;
-        default:
-            return false;
-    }
-}
-
-void QGLPixmapData::fromNativeType(void* pixmap, NativeType type)
-{
-    if (type == QPixmapData::FbsBitmap) {
-        CFbsBitmap *bitmap = reinterpret_cast<CFbsBitmap *>(pixmap);
-        QSize size(bitmap->SizeInPixels().iWidth, bitmap->SizeInPixels().iHeight);
-        if (size.width() == w && size.height() == h)
-            setSerialNumber(++qt_gl_pixmap_serial);
-        resize(size.width(), size.height());
-        m_source = QVolatileImage(bitmap);
-        if (pixelType() == BitmapType) {
-            m_source.ensureFormat(QImage::Format_MonoLSB);
-        } else if (!knownGoodFormat(m_source.format())) {
-            m_source.beginDataAccess();
-            QImage::Format format = idealFormat(m_source.imageRef(), Qt::AutoColor);
-            m_source.endDataAccess(true);
-            m_source.ensureFormat(format);
-        }
-        m_hasAlpha = m_source.hasAlphaChannel();
-        m_hasFillColor = false;
-        m_dirty = true;
-
-    } else if (type == QPixmapData::VolatileImage && pixmap) {
-        // Support QS60Style in more efficient skin graphics retrieval.
-        QVolatileImage *img = static_cast<QVolatileImage *>(pixmap);
-        if (img->width() == w && img->height() == h)
-            setSerialNumber(++qt_gl_pixmap_serial);
-        resize(img->width(), img->height());
-        m_source = *img;
-        m_hasAlpha = m_source.hasAlphaChannel();
-        m_hasFillColor = false;
-        m_dirty = true;
-    } else if (type == QPixmapData::NativeImageHandleProvider && pixmap) {
-        destroyTexture();
-        nativeImageHandleProvider = static_cast<QNativeImageHandleProvider *>(pixmap);
-        // Cannot defer the retrieval, we need at least the size right away.
-        createFromNativeImageHandleProvider();
-    }
-}
-
-void* QGLPixmapData::toNativeType(NativeType type)
-{
-    if (type == QPixmapData::FbsBitmap) {
-        if (m_source.isNull())
-            m_source = QVolatileImage(w, h, QImage::Format_ARGB32_Premultiplied);
-        return m_source.duplicateNativeImage();
-    }
-
-    return 0;
-}
-
-bool QGLPixmapData::initFromNativeImageHandle(void *handle, const QString &type)
-{
-    if (type == QLatin1String("RSgImage")) {
-        fromNativeType(handle, QPixmapData::SgImage);
-        return true;
-    } else if (type == QLatin1String("CFbsBitmap")) {
-        fromNativeType(handle, QPixmapData::FbsBitmap);
-        return true;
-    }
-    return false;
-}
-
-void QGLPixmapData::createFromNativeImageHandleProvider()
-{
-    void *handle = 0;
-    QString type;
-    nativeImageHandleProvider->get(&handle, &type);
-    if (handle) {
-        if (initFromNativeImageHandle(handle, type)) {
-            nativeImageHandle = handle;
-            nativeImageType = type;
-        } else {
-            qWarning("QGLPixmapData: Unknown native image type '%s'", qPrintable(type));
-        }
-    } else {
-        qWarning("QGLPixmapData: Native handle is null");
-    }
-}
-
-void QGLPixmapData::releaseNativeImageHandle()
-{
-    if (nativeImageHandleProvider && nativeImageHandle) {
-        nativeImageHandleProvider->release(nativeImageHandle, nativeImageType);
-        nativeImageHandle = 0;
-        nativeImageType = QString();
-    }
 }
 
 QT_END_NAMESPACE

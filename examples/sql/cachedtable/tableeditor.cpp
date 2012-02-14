@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -45,7 +45,7 @@
 
 //! [0]
 TableEditor::TableEditor(const QString &tableName, QWidget *parent)
-    : QDialog(parent)
+    : QWidget(parent)
 {
     model = new QSqlTableModel(this);
     model->setTable(tableName);
@@ -59,6 +59,7 @@ TableEditor::TableEditor(const QString &tableName, QWidget *parent)
 //! [0] //! [1]
     QTableView *view = new QTableView;
     view->setModel(model);
+    view->resizeColumnsToContents();
 //! [1]
 
 //! [2]

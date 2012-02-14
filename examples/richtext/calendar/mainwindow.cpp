@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -70,7 +70,6 @@ MainWindow::MainWindow()
     QLabel *fontSizeLabel = new QLabel(tr("Font size:"));
     QSpinBox *fontSizeSpinBox = new QSpinBox;
     fontSizeSpinBox->setRange(1, 64);
-    fontSizeSpinBox->setValue(10);
 
     editor = new QTextBrowser;
     insertCalendar();
@@ -82,6 +81,12 @@ MainWindow::MainWindow()
     connect(fontSizeSpinBox, SIGNAL(valueChanged(int)),
             this, SLOT(setFontSize(int)));
 //! [3]
+
+#if defined(Q_OS_SYMBIAN) || defined(Q_WS_SIMULATOR)
+    fontSizeSpinBox->setValue(4);
+#else
+    fontSizeSpinBox->setValue(10);
+#endif
 
 //! [4]
     QHBoxLayout *controlsLayout = new QHBoxLayout;

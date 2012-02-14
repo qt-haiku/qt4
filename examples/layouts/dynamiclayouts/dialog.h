@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -41,6 +41,7 @@
 #ifndef DIALOG_H
 #define DIALOG_H
 
+#include <QMainWindow>
 #include <QDialog>
 #include <QQueue>
 
@@ -53,7 +54,11 @@ class QLabel;
 class QPushButton;
 QT_END_NAMESPACE
 
+#if defined(Q_OS_SYMBIAN) || defined(Q_WS_MAEMO_5) || defined(Q_WS_SIMULATOR)
+class Dialog : public QWidget
+#else
 class Dialog : public QDialog
+#endif
 {
     Q_OBJECT
 

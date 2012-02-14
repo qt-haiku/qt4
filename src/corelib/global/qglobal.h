@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -173,7 +173,6 @@ namespace QT_NAMESPACE {}
      RELIANT  - Reliant UNIX
      DYNIX    - DYNIX/ptx
      QNX      - QNX
-     QNX6     - QNX RTP 6.1
      LYNX     - LynxOS
      BSD4     - Any BSD 4.4 system
      UNIX     - Any UNIX BSD/SYSV system
@@ -428,14 +427,11 @@ namespace QT_NAMESPACE {}
 
 #if defined(Q_CC_MSVC) && _MSC_VER >= 1600
 #      define Q_COMPILER_RVALUE_REFS
-#      define Q_COMPILER_INITIALIZER_LISTS
 #      define Q_COMPILER_AUTO_TYPE
 #      define Q_COMPILER_LAMBDA
-//#      define Q_COMPILER_VARIADIC_TEMPLATES
-//#      define Q_COMPILER_CLASS_ENUM
-//#      define Q_COMPILER_DEFAULT_DELETE_MEMBERS
-//#      define Q_COMPILER_UNICODE_STRINGS
-//#      define Q_COMPILER_EXTERN_TEMPLATES
+#      define Q_COMPILER_DECLTYPE
+//  MSCV has std::initilizer_list, but do not support the braces initialization
+//#      define Q_COMPILER_INITIALIZER_LISTS
 #  endif
 
 
@@ -527,6 +523,7 @@ namespace QT_NAMESPACE {}
 #    if (__GNUC__ * 100 + __GNUC_MINOR__) >= 403
        /* C++0x features supported in GCC 4.3: */
 #      define Q_COMPILER_RVALUE_REFS
+#      define Q_COMPILER_DECLTYPE
 #    endif
 #    if (__GNUC__ * 100 + __GNUC_MINOR__) >= 404
        /* C++0x features supported in GCC 4.4: */
@@ -542,6 +539,11 @@ namespace QT_NAMESPACE {}
 #      define Q_COMPILER_LAMBDA
 #      define Q_COMPILER_UNICODE_STRINGS
 #    endif
+#    if (__GNUC__ * 100 + __GNUC_MINOR__) >= 406
+       /* C++0x features supported in GCC 4.6: */
+#      define Q_COMPILER_CONSTEXPR
+#    endif
+
 #  endif
 
 /* IBM compiler versions are a bit messy. There are actually two products:
@@ -794,6 +796,7 @@ namespace QT_NAMESPACE {}
 #    if __INTEL_COMPILER >= 1100
 #      define Q_COMPILER_RVALUE_REFS
 #      define Q_COMPILER_EXTERN_TEMPLATES
+#      define Q_COMPILER_DECLTYPE
 #    elif __INTEL_COMPILER >= 1200
 #      define Q_COMPILER_VARIADIC_TEMPLATES
 #      define Q_COMPILER_AUTO_TYPE
@@ -1147,6 +1150,12 @@ redefine to built-in booleans to make autotests work properly */
 #  define QT_FASTCALL
 #endif
 
+#ifdef Q_COMPILER_CONSTEXPR
+# define Q_DECL_CONSTEXPR constexpr
+#else
+# define Q_DECL_CONSTEXPR
+#endif
+
 //defines the type for the WNDPROC on windows
 //the alignment needs to be forced for sse2 to not crash with mingw
 #if defined(Q_WS_WIN)
@@ -1178,25 +1187,25 @@ typedef double qreal;
 */
 
 template <typename T>
-inline T qAbs(const T &t) { return t >= 0 ? t : -t; }
+Q_DECL_CONSTEXPR inline T qAbs(const T &t) { return t >= 0 ? t : -t; }
 
-inline int qRound(qreal d)
+Q_DECL_CONSTEXPR inline int qRound(qreal d)
 { return d >= qreal(0.0) ? int(d + qreal(0.5)) : int(d - int(d-1) + qreal(0.5)) + int(d-1); }
 
 #if defined(QT_NO_FPU) || defined(QT_ARCH_ARM) || defined(QT_ARCH_WINDOWSCE) || defined(QT_ARCH_SYMBIAN)
-inline qint64 qRound64(double d)
+Q_DECL_CONSTEXPR inline qint64 qRound64(double d)
 { return d >= 0.0 ? qint64(d + 0.5) : qint64(d - qreal(qint64(d-1)) + 0.5) + qint64(d-1); }
 #else
-inline qint64 qRound64(qreal d)
+Q_DECL_CONSTEXPR inline qint64 qRound64(qreal d)
 { return d >= qreal(0.0) ? qint64(d + qreal(0.5)) : qint64(d - qreal(qint64(d-1)) + qreal(0.5)) + qint64(d-1); }
 #endif
 
 template <typename T>
-inline const T &qMin(const T &a, const T &b) { if (a < b) return a; return b; }
+Q_DECL_CONSTEXPR inline const T &qMin(const T &a, const T &b) { return (a < b) ? a : b; }
 template <typename T>
-inline const T &qMax(const T &a, const T &b) { if (a < b) return b; return a; }
+Q_DECL_CONSTEXPR inline const T &qMax(const T &a, const T &b) { return (a < b) ? b : a; }
 template <typename T>
-inline const T &qBound(const T &min, const T &val, const T &max)
+Q_DECL_CONSTEXPR inline const T &qBound(const T &min, const T &val, const T &max)
 { return qMax(min, qMin(max, val)); }
 
 #ifdef QT3_SUPPORT
@@ -1434,6 +1443,7 @@ class QDataStream;
 #    define Q_DECLARATIVE_EXPORT
 #    define Q_OPENGL_EXPORT
 #    define Q_MULTIMEDIA_EXPORT
+#    define Q_OPENVG_EXPORT
 #    define Q_XML_EXPORT
 #    define Q_XMLPATTERNS_EXPORT
 #    define Q_SCRIPT_EXPORT
@@ -1824,7 +1834,7 @@ inline T *q_check_ptr(T *p) { Q_CHECK_PTR(p); return p; }
 #elif defined(_MSC_VER)
 #  define Q_FUNC_INFO __FUNCSIG__
 #else
-#   if defined(Q_OS_SOLARIS) || defined(Q_CC_XLC) || defined(Q_OS_SYMBIAN)
+#   if defined(Q_OS_SOLARIS) || defined(Q_CC_XLC) || defined(Q_OS_SYMBIAN) || defined(Q_OS_INTEGRITY)
 #      define Q_FUNC_INFO __FILE__ "(line number unavailable)"
 #   else
         /* These two macros makes it possible to turn the builtin line expander into a
@@ -1924,50 +1934,51 @@ public:
     }
 };
 
+#define Q_GLOBAL_STATIC_INIT(TYPE, NAME)                                      \
+        static QGlobalStatic<TYPE > this_ ## NAME                             \
+                            = { Q_BASIC_ATOMIC_INITIALIZER(0), false }
+
 #define Q_GLOBAL_STATIC(TYPE, NAME)                                           \
     static TYPE *NAME()                                                       \
     {                                                                         \
-        static QGlobalStatic<TYPE > thisGlobalStatic                          \
-                            = { Q_BASIC_ATOMIC_INITIALIZER(0), false };       \
-        if (!thisGlobalStatic.pointer && !thisGlobalStatic.destroyed) {       \
+        Q_GLOBAL_STATIC_INIT(TYPE, _StaticVar_);                              \
+        if (!this__StaticVar_.pointer && !this__StaticVar_.destroyed) {       \
             TYPE *x = new TYPE;                                               \
-            if (!thisGlobalStatic.pointer.testAndSetOrdered(0, x))            \
+            if (!this__StaticVar_.pointer.testAndSetOrdered(0, x))            \
                 delete x;                                                     \
             else                                                              \
-                static QGlobalStaticDeleter<TYPE > cleanup(thisGlobalStatic); \
+                static QGlobalStaticDeleter<TYPE > cleanup(this__StaticVar_); \
         }                                                                     \
-        return thisGlobalStatic.pointer;                                      \
+        return this__StaticVar_.pointer;                                      \
     }
 
 #define Q_GLOBAL_STATIC_WITH_ARGS(TYPE, NAME, ARGS)                           \
     static TYPE *NAME()                                                       \
     {                                                                         \
-        static QGlobalStatic<TYPE > thisGlobalStatic                          \
-                            = { Q_BASIC_ATOMIC_INITIALIZER(0), false };       \
-        if (!thisGlobalStatic.pointer && !thisGlobalStatic.destroyed) {       \
+        Q_GLOBAL_STATIC_INIT(TYPE, _StaticVar_);                              \
+        if (!this__StaticVar_.pointer && !this__StaticVar_.destroyed) {       \
             TYPE *x = new TYPE ARGS;                                          \
-            if (!thisGlobalStatic.pointer.testAndSetOrdered(0, x))            \
+            if (!this__StaticVar_.pointer.testAndSetOrdered(0, x))            \
                 delete x;                                                     \
             else                                                              \
-                static QGlobalStaticDeleter<TYPE > cleanup(thisGlobalStatic); \
+                static QGlobalStaticDeleter<TYPE > cleanup(this__StaticVar_); \
         }                                                                     \
-        return thisGlobalStatic.pointer;                                      \
+        return this__StaticVar_.pointer;                                      \
     }
 
 #define Q_GLOBAL_STATIC_WITH_INITIALIZER(TYPE, NAME, INITIALIZER)             \
     static TYPE *NAME()                                                       \
     {                                                                         \
-        static QGlobalStatic<TYPE > thisGlobalStatic                          \
-                            = { Q_BASIC_ATOMIC_INITIALIZER(0), false };       \
-        if (!thisGlobalStatic.pointer && !thisGlobalStatic.destroyed) {       \
+        Q_GLOBAL_STATIC_INIT(TYPE, _StaticVar_);                              \
+        if (!this__StaticVar_.pointer && !this__StaticVar_.destroyed) {       \
             QScopedPointer<TYPE > x(new TYPE);                                \
             INITIALIZER;                                                      \
-            if (thisGlobalStatic.pointer.testAndSetOrdered(0, x.data())) {    \
-                static QGlobalStaticDeleter<TYPE > cleanup(thisGlobalStatic); \
+            if (this__StaticVar_.pointer.testAndSetOrdered(0, x.data())) {    \
+                static QGlobalStaticDeleter<TYPE > cleanup(this__StaticVar_); \
                 x.take();                                                     \
             }                                                                 \
         }                                                                     \
-        return thisGlobalStatic.pointer;                                      \
+        return this__StaticVar_.pointer;                                      \
     }
 
 #endif
@@ -1989,12 +2000,12 @@ inline bool operator!=(QBool b1, bool b2) { return !b1 != !b2; }
 inline bool operator!=(bool b1, QBool b2) { return !b1 != !b2; }
 inline bool operator!=(QBool b1, QBool b2) { return !b1 != !b2; }
 
-static inline bool qFuzzyCompare(double p1, double p2)
+Q_DECL_CONSTEXPR static inline bool qFuzzyCompare(double p1, double p2)
 {
     return (qAbs(p1 - p2) <= 0.000000000001 * qMin(qAbs(p1), qAbs(p2)));
 }
 
-static inline bool qFuzzyCompare(float p1, float p2)
+Q_DECL_CONSTEXPR static inline bool qFuzzyCompare(float p1, float p2)
 {
     return (qAbs(p1 - p2) <= 0.00001f * qMin(qAbs(p1), qAbs(p2)));
 }
@@ -2002,7 +2013,7 @@ static inline bool qFuzzyCompare(float p1, float p2)
 /*!
   \internal
 */
-static inline bool qFuzzyIsNull(double d)
+Q_DECL_CONSTEXPR static inline bool qFuzzyIsNull(double d)
 {
     return qAbs(d) <= 0.000000000001;
 }
@@ -2010,7 +2021,7 @@ static inline bool qFuzzyIsNull(double d)
 /*!
   \internal
 */
-static inline bool qFuzzyIsNull(float f)
+Q_DECL_CONSTEXPR static inline bool qFuzzyIsNull(float f)
 {
     return qAbs(f) <= 0.00001f;
 }
@@ -2278,9 +2289,9 @@ class QFlags
     int i;
 public:
     typedef Enum enum_type;
-    inline QFlags(const QFlags &f) : i(f.i) {}
-    inline QFlags(Enum f) : i(f) {}
-    inline QFlags(Zero = 0) : i(0) {}
+    Q_DECL_CONSTEXPR inline QFlags(const QFlags &f) : i(f.i) {}
+    Q_DECL_CONSTEXPR inline QFlags(Enum f) : i(f) {}
+    Q_DECL_CONSTEXPR inline QFlags(Zero = 0) : i(0) {}
     inline QFlags(QFlag f) : i(f) {}
 
     inline QFlags &operator=(const QFlags &f) { i = f.i; return *this; }
@@ -2291,18 +2302,18 @@ public:
     inline QFlags &operator^=(QFlags f) { i ^= f.i; return *this; }
     inline QFlags &operator^=(Enum f) { i ^= f; return *this; }
 
-    inline operator int() const { return i; }
+    Q_DECL_CONSTEXPR  inline operator int() const { return i; }
 
-    inline QFlags operator|(QFlags f) const { QFlags g; g.i = i | f.i; return g; }
-    inline QFlags operator|(Enum f) const { QFlags g; g.i = i | f; return g; }
-    inline QFlags operator^(QFlags f) const { QFlags g; g.i = i ^ f.i; return g; }
-    inline QFlags operator^(Enum f) const { QFlags g; g.i = i ^ f; return g; }
-    inline QFlags operator&(int mask) const { QFlags g; g.i = i & mask; return g; }
-    inline QFlags operator&(uint mask) const { QFlags g; g.i = i & mask; return g; }
-    inline QFlags operator&(Enum f) const { QFlags g; g.i = i & f; return g; }
-    inline QFlags operator~() const { QFlags g; g.i = ~i; return g; }
+    Q_DECL_CONSTEXPR inline QFlags operator|(QFlags f) const { return QFlags(Enum(i | f.i)); }
+    Q_DECL_CONSTEXPR inline QFlags operator|(Enum f) const { return QFlags(Enum(i | f)); }
+    Q_DECL_CONSTEXPR inline QFlags operator^(QFlags f) const { return QFlags(Enum(i ^ f.i)); }
+    Q_DECL_CONSTEXPR inline QFlags operator^(Enum f) const { return QFlags(Enum(i ^ f)); }
+    Q_DECL_CONSTEXPR inline QFlags operator&(int mask) const { return QFlags(Enum(i & mask)); }
+    Q_DECL_CONSTEXPR inline QFlags operator&(uint mask) const { return QFlags(Enum(i & mask)); }
+    Q_DECL_CONSTEXPR inline QFlags operator&(Enum f) const { return QFlags(Enum(i & f)); }
+    Q_DECL_CONSTEXPR inline QFlags operator~() const { return QFlags(Enum(~i)); }
 
-    inline bool operator!() const { return !i; }
+    Q_DECL_CONSTEXPR inline bool operator!() const { return !i; }
 
     inline bool testFlag(Enum f) const { return (i & f) == f && (f != 0 || i == int(f) ); }
 };
@@ -2315,9 +2326,9 @@ inline QIncompatibleFlag operator|(Flags::enum_type f1, int f2) \
 { return QIncompatibleFlag(int(f1) | f2); }
 
 #define Q_DECLARE_OPERATORS_FOR_FLAGS(Flags) \
-inline QFlags<Flags::enum_type> operator|(Flags::enum_type f1, Flags::enum_type f2) \
+Q_DECL_CONSTEXPR inline QFlags<Flags::enum_type> operator|(Flags::enum_type f1, Flags::enum_type f2) \
 { return QFlags<Flags::enum_type>(f1) | f2; } \
-inline QFlags<Flags::enum_type> operator|(Flags::enum_type f1, QFlags<Flags::enum_type> f2) \
+Q_DECL_CONSTEXPR inline QFlags<Flags::enum_type> operator|(Flags::enum_type f1, QFlags<Flags::enum_type> f2) \
 { return f2 | f1; } Q_DECLARE_INCOMPATIBLE_FLAGS(Flags)
 
 
@@ -2555,6 +2566,16 @@ QT3_SUPPORT Q_CORE_EXPORT const char *qInstallPathSysconf();
 //Symbian does not support data imports from a DLL
 #define Q_NO_DATA_RELOCATION
 
+// Winscw compiler is unable to compile QtConcurrent.
+#ifdef Q_CC_NOKIAX86
+#ifndef QT_NO_CONCURRENT
+#define QT_NO_CONCURRENT
+#endif
+#ifndef QT_NO_QFUTURE
+#define QT_NO_QFUTURE
+#endif
+#endif
+
 QT_END_NAMESPACE
 // forward declare std::exception
 #ifdef __cplusplus
@@ -2746,17 +2767,6 @@ QT_LICENSED_MODULE(DBus)
 #  define QT_NO_CONCURRENT_FILTER
 #endif
 
-#ifdef Q_OS_QNX
-// QNX doesn't have SYSV style shared memory. Multiprocess QWS apps,
-// shared fonts and QSystemSemaphore + QSharedMemory are not available
-#  define QT_NO_QWS_MULTIPROCESS
-#  define QT_NO_QWS_SHARE_FONTS
-#  define QT_NO_SYSTEMSEMAPHORE
-#  define QT_NO_SHAREDMEMORY
-// QNX currently doesn't support forking in a thread, so disable QProcess
-#  define QT_NO_PROCESS
-#endif
-
 #if defined (__ELF__)
 #  if defined (Q_OS_LINUX) || defined (Q_OS_SOLARIS) || defined (Q_OS_FREEBSD) || defined (Q_OS_OPENBSD) || defined (Q_OS_IRIX)
 #    define Q_OF_ELF
@@ -2765,9 +2775,16 @@ QT_LICENSED_MODULE(DBus)
 
 #if !(defined(Q_WS_WIN) && !defined(Q_WS_WINCE)) \
     && !(defined(Q_WS_MAC) && defined(QT_MAC_USE_COCOA)) \
-    && !(defined(Q_WS_X11) && !defined(QT_NO_FREETYPE))
+    && !(defined(Q_WS_X11) && !defined(QT_NO_FREETYPE)) \
+    && !(defined(Q_WS_QPA))
 #  define QT_NO_RAWFONT
 #endif
+
+namespace QtPrivate {
+//like std::enable_if
+template <bool B, typename T = void> struct QEnableIf;
+template <typename T> struct QEnableIf<true, T> { typedef T Type; };
+}
 
 QT_END_NAMESPACE
 QT_END_HEADER

@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -47,7 +47,7 @@
 //  -------------
 //
 // This file is not part of the Qt API.  It exists purely as an
-// implementation detail.  This header file may change from version to
+// platformMenuBarementation detail.  This header file may change from version to
 // version without notice, or even be removed.
 //
 // We mean it.
@@ -61,6 +61,10 @@
 #include "qguifunctions_wince.h"
 #endif
 
+#ifdef Q_WS_X11
+#include "qabstractplatformmenubar_p.h"
+#endif
+
 #ifndef QT_NO_MENUBAR
 #ifdef Q_WS_S60
 class CCoeControl;
@@ -71,21 +75,27 @@ class CEikMenuBar;
 QT_BEGIN_NAMESPACE
 
 #ifndef QT_NO_MENUBAR
+class QToolBar;
 class QMenuBarExtension;
 class QMenuBarPrivate : public QWidgetPrivate
 {
     Q_DECLARE_PUBLIC(QMenuBar)
 public:
     QMenuBarPrivate() : itemsDirty(0), currentAction(0), mouseDown(0),
-                         closePopupMode(0), defaultPopDown(1), popupState(0), keyboardState(0), altPressed(0),
-                         nativeMenuBar(-1), doChildEffects(false)
+                         closePopupMode(0), defaultPopDown(1), popupState(0), keyboardState(0), altPressed(0)
+#ifndef Q_WS_X11
+                         , nativeMenuBar(-1)
+#endif
+                         , doChildEffects(false)
 #ifdef QT3_SUPPORT
                          , doAutoResize(false)
 #endif
 #ifdef Q_WS_MAC
                          , mac_menubar(0)
 #endif
-
+#ifdef Q_WS_X11
+                         , platformMenuBar(0)
+#endif
 #ifdef Q_WS_WINCE
                          , wce_menubar(0), wceClassicMenu(false)
 #endif
@@ -96,6 +106,9 @@ public:
         { }
     ~QMenuBarPrivate()
         {
+#ifdef Q_WS_X11
+            delete platformMenuBar;
+#endif
 #ifdef Q_WS_MAC
             delete mac_menubar;
 #endif
@@ -136,8 +149,9 @@ public:
     uint keyboardState : 1, altPressed : 1;
     QPointer<QWidget> keyboardFocusWidget;
 
-
+#ifndef Q_WS_X11
     int nativeMenuBar : 3;  // Only has values -1, 0, and 1
+#endif
     //firing of events
     void activateAction(QAction *, QAction::ActionEvent);
 
@@ -173,6 +187,9 @@ public:
 #ifdef QT3_SUPPORT
     bool doAutoResize;
 #endif
+#ifdef Q_WS_X11
+    QAbstractPlatformMenuBar *platformMenuBar;
+#endif
 #ifdef Q_WS_MAC
     //mac menubar binding
     struct QMacMenuBarPrivate {
@@ -181,7 +198,7 @@ public:
         QMacMenuBarPrivate();
         ~QMacMenuBarPrivate();
 
-        void addAction(QAction *, QMacMenuAction* =0);
+        void addAction(QAction *, QAction* =0);
         void addAction(QMacMenuAction *, QMacMenuAction* =0);
         void syncAction(QMacMenuAction *);
         inline void syncAction(QAction *a) { syncAction(findAction(a)); }
@@ -220,7 +237,7 @@ public:
 
         QWceMenuBarPrivate(QMenuBarPrivate *menubar);
         ~QWceMenuBarPrivate();
-        void addAction(QAction *, QWceMenuAction* =0);
+        void addAction(QAction *, QAction* =0);
         void addAction(QWceMenuAction *, QWceMenuAction* =0);
         void syncAction(QWceMenuAction *);
         inline void syncAction(QAction *a) { syncAction(findAction(a)); }
@@ -250,7 +267,7 @@ public:
         QMenuBarPrivate *d;
         QSymbianMenuBarPrivate(QMenuBarPrivate *menubar);
         ~QSymbianMenuBarPrivate();
-        void addAction(QAction *, QSymbianMenuAction* =0);
+        void addAction(QAction *, QAction* =0);
         void addAction(QSymbianMenuAction *, QSymbianMenuAction* =0);
         void syncAction(QSymbianMenuAction *);
         inline void syncAction(QAction *a) { syncAction(findAction(a)); }
@@ -272,6 +289,12 @@ public:
 #endif
 #ifdef QT_SOFTKEYS_ENABLED
     QAction *menuBarAction;
+#endif
+
+#ifdef Q_WS_X11
+    void updateCornerWidgetToolBar();
+    QToolBar *cornerWidgetToolBar;
+    QWidget *cornerWidgetContainer;
 #endif
 };
 #endif

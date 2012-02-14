@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -83,7 +83,7 @@ void BaselineProtocol::sysSleep(int ms)
 }
 
 PlatformInfo::PlatformInfo()
-    : QMap<QString, QString>(), replaceDefault(false)
+    : QMap<QString, QString>(), adHoc(true)
 {
 }
 
@@ -134,11 +134,15 @@ PlatformInfo PlatformInfo::localHostInfo()
         pi.insert(PI_GitCommit, QLS("Unknown"));
 
     QByteArray gb = qgetenv("PULSE_GIT_BRANCH");
-    if (!gb.isEmpty())
+    if (!gb.isEmpty()) {
         pi.insert(PI_PulseGitBranch, QString::fromLatin1(gb));
+        pi.setAdHocRun(false);
+    }
     QByteArray tb = qgetenv("PULSE_TESTR_BRANCH");
-    if (!tb.isEmpty())
+    if (!tb.isEmpty()) {
         pi.insert(PI_PulseTestrBranch, QString::fromLatin1(tb));
+        pi.setAdHocRun(false);
+    }
 
     return pi;
 }
@@ -147,43 +151,49 @@ PlatformInfo PlatformInfo::localHostInfo()
 PlatformInfo::PlatformInfo(const PlatformInfo &other)
     : QMap<QString, QString>(other)
 {
-    sigKeys = other.sigKeys;
-    replaceDefault = other.replaceDefault;
+    orides = other.orides;
+    adHoc = other.adHoc;
 }
 
 
 PlatformInfo &PlatformInfo::operator=(const PlatformInfo &other)
 {
     QMap<QString, QString>::operator=(other);
-    sigKeys = other.sigKeys;
-    replaceDefault = other.replaceDefault;
+    orides = other.orides;
+    adHoc = other.adHoc;
     return *this;
 }
 
 
-void PlatformInfo::addSignificantKeys(const QStringList &keys, bool replaceDefaultKeys)
+void PlatformInfo::addOverride(const QString& key, const QString& value)
 {
-    sigKeys = keys;
-    replaceDefault = replaceDefaultKeys;
+    orides.append(key);
+    orides.append(value);
 }
 
 
-QStringList PlatformInfo::addedKeys() const
+QStringList PlatformInfo::overrides() const
 {
-    return sigKeys;
+    return orides;
 }
 
 
-bool PlatformInfo::addedKeysReplaceDefault() const
+void PlatformInfo::setAdHocRun(bool isAdHoc)
 {
-    return replaceDefault;
+    adHoc = isAdHoc;
+}
+
+
+bool PlatformInfo::isAdHocRun() const
+{
+    return adHoc;
 }
 
 
 QDataStream & operator<< (QDataStream &stream, const PlatformInfo &pi)
 {
     stream << static_cast<const QMap<QString, QString>&>(pi);
-    stream << pi.sigKeys << pi.replaceDefault;
+    stream << pi.orides << pi.adHoc;
     return stream;
 }
 
@@ -191,7 +201,7 @@ QDataStream & operator<< (QDataStream &stream, const PlatformInfo &pi)
 QDataStream & operator>> (QDataStream &stream, PlatformInfo &pi)
 {
     stream >> static_cast<QMap<QString, QString>&>(pi);
-    stream >> pi.sigKeys >> pi.replaceDefault;
+    stream >> pi.orides >> pi.adHoc;
     return stream;
 }
 
@@ -346,7 +356,7 @@ BaselineProtocol::~BaselineProtocol()
 }
 
 
-bool BaselineProtocol::connect(const QString &testCase, bool *dryrun)
+bool BaselineProtocol::connect(const QString &testCase, bool *dryrun, const PlatformInfo& clientInfo)
 {
     errMsg.clear();
     QByteArray serverName(qgetenv("QT_LANCELOT_SERVER"));
@@ -362,7 +372,7 @@ bool BaselineProtocol::connect(const QString &testCase, bool *dryrun)
         }
     }
 
-    PlatformInfo pi = PlatformInfo::localHostInfo();
+    PlatformInfo pi = clientInfo.isEmpty() ? PlatformInfo::localHostInfo() : clientInfo;
     pi.insert(PI_TestCase, testCase);
     QByteArray block;
     QDataStream ds(&block, QIODevice::ReadWrite);
@@ -374,7 +384,7 @@ bool BaselineProtocol::connect(const QString &testCase, bool *dryrun)
 
     Command cmd = UnknownError;
     if (!receiveBlock(&cmd, &block)) {
-        errMsg += QLS("Failed to get response from server.");
+        errMsg.prepend(QLS("Failed to get response from server. "));
         return false;
     }
 
@@ -424,15 +434,17 @@ bool BaselineProtocol::requestBaselineChecksums(const QString &testFunction, Ima
         it->testFunction = testFunction;
 
     QByteArray block;
-    QDataStream ds(&block, QIODevice::ReadWrite);
+    QDataStream ds(&block, QIODevice::WriteOnly);
     ds << *itemList;
     if (!sendBlock(RequestBaselineChecksums, block))
         return false;
+
     Command cmd;
-    if (!receiveBlock(&cmd, &block))
+    QByteArray rcvBlock;
+    if (!receiveBlock(&cmd, &rcvBlock) || cmd != BaselineProtocol::Ack)
         return false;
-    ds.device()->seek(0);
-    ds >> *itemList;
+    QDataStream rds(&rcvBlock, QIODevice::ReadOnly);
+    rds >> *itemList;
     return true;
 }
 

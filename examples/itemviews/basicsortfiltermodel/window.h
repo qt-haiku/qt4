@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -71,8 +71,14 @@ private slots:
 private:
     QSortFilterProxyModel *proxyModel;
 
+#if defined(Q_OS_SYMBIAN) || defined(Q_WS_MAEMO_5) || defined(Q_WS_SIMULATOR)
+    QWidget *sourceWidget;
+    QWidget *filterWidget;
+    QWidget *proxyWidget;
+#else
     QGroupBox *sourceGroupBox;
     QGroupBox *proxyGroupBox;
+#endif
     QTreeView *sourceView;
     QTreeView *proxyView;
     QCheckBox *filterCaseSensitivityCheckBox;

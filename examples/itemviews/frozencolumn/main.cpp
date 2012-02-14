@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -81,8 +81,14 @@ int main( int argc, char** argv )
       FreezeTableWidget *tableView = new FreezeTableWidget(model);
 
       tableView->setWindowTitle(QObject::tr("Frozen Column Example"));
+#if defined(Q_OS_SYMBIAN)
+      tableView->showMaximized();
+#elif defined(Q_WS_MAEMO_5)
+      tableView->show();
+#else
       tableView->resize(560,680);
       tableView->show();
+#endif
       return app.exec();
 }
 

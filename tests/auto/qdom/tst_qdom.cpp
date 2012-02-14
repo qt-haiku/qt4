@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -132,12 +132,13 @@ private slots:
 
     void taskQTBUG4595_dontAssertWhenDocumentSpecifiesUnknownEncoding() const;
     void cloneDTD_QTBUG8398() const;
+    void DTDNotationDecl();
+    void DTDEntityDecl();
 
     void cleanupTestCase() const;
 
 private:
     static QDomDocument generateRequest();
-    static QDomDocument doc(const QString &title, const QByteArray &ba);
     static int hasAttributesHelper( const QDomNode& node );
     static bool compareDocuments( const QDomDocument &doc1, const QDomDocument &doc2 );
     static bool compareNodes( const QDomNode &node1, const QDomNode &node2, bool deep );
@@ -174,7 +175,7 @@ void tst_QDom::setContent_data()
     QTest::addColumn<QStringList>("featuresFalse");
     QTest::addColumn<QString>("res");
 
-/*    QTest::newRow( "01" ) << doc01
+    QTest::newRow( "01" ) << doc01
                        << QStringList()
                        << QString("http://trolltech.com/xml/features/report-whitespace-only-CharData").split(' ')
                        << QString("<!DOCTYPE a1>\n"
@@ -246,7 +247,7 @@ void tst_QDom::setContent_data()
                                    " </b3>\n"
                                    "</a1>\n");
 
-  */   QTest::newRow("05") << QString("<message>\n"
+    QTest::newRow("05") << QString("<message>\n"
                                 "    <body>&lt;b&gt;foo&lt;/b&gt;>]]&gt;</body>\n"
                                 "</message>\n")
                      << QStringList() << QStringList()
@@ -1591,14 +1592,6 @@ void tst_QDom::reportDuplicateAttributes() const
     QVERIFY2(!isSuccess, "Duplicate attributes are well-formedness errors, and should be reported as such.");
 }
 
-QDomDocument tst_QDom::doc(const QString &title, const QByteArray &ba)
-{
-    QDomDocument doc(title);
-    const bool ret = doc.setContent(ba, true);
-    Q_ASSERT(ret);
-    return doc;
-}
-
 void tst_QDom::namespacedAttributes() const
 {
     static const char *const xml =
@@ -1611,8 +1604,13 @@ void tst_QDom::namespacedAttributes() const
         "  <Title displayLabel='Title' >>>> SIMPLE BASIC OP - SEND - DUT AS SINK</Title>\n"
         "</xan:td>\n";
 
-    QDomDocument one = doc("document", xml);
-    QDomDocument two = doc("document2", one.toByteArray(2));
+    QDomDocument one("document");
+    QString error;
+    bool docParsed = one.setContent(QByteArray(xml), true, &error);
+    QVERIFY2(docParsed, qPrintable(error));
+    QDomDocument two("document2");
+    docParsed = two.setContent(one.toByteArray(2), true, &error);
+    QVERIFY2(docParsed, qPrintable(error));
 
     QVERIFY(isDeepEqual(one, two));
 }
@@ -1934,5 +1932,52 @@ void tst_QDom::cloneDTD_QTBUG8398() const
     domDocument2.save(stream, 0);
     QCOMPARE(output, expected);
 }
+
+void tst_QDom::DTDNotationDecl()
+{
+    QString dtd("<?xml version='1.0' encoding='UTF-8'?>\n"
+                   "<!DOCTYPE first [\n"
+                   "<!NOTATION gif SYSTEM 'image/gif'>\n"
+                   "<!NOTATION jpeg SYSTEM 'image/jpeg'>\n"
+                   "]>\n"
+                   "<first/>\n");
+
+    QDomDocument domDocument;
+    QVERIFY(domDocument.setContent(dtd));
+
+    const QDomDocumentType doctype = domDocument.doctype();
+    QCOMPARE(doctype.notations().size(), 2);
+
+    QVERIFY(doctype.namedItem(QString("gif")).isNotation());
+    QCOMPARE(doctype.namedItem(QString("gif")).toNotation().systemId(), QString("image/gif"));
+
+    QVERIFY(doctype.namedItem(QString("jpeg")).isNotation());
+    QCOMPARE(doctype.namedItem(QString("jpeg")).toNotation().systemId(), QString("image/jpeg"));
+}
+
+void tst_QDom::DTDEntityDecl()
+{
+    QString dtd("<?xml version='1.0' encoding='UTF-8'?>\n"
+                   "<!DOCTYPE first [\n"
+                   "<!ENTITY secondFile SYSTEM 'second.xml'>\n"
+                   "<!ENTITY logo SYSTEM \"http://www.w3c.org/logo.gif\" NDATA gif>"
+                   "]>\n"
+                   "<first/>\n");
+
+    QDomDocument domDocument;
+    QVERIFY(domDocument.setContent(dtd));
+
+    const QDomDocumentType doctype = domDocument.doctype();
+    QCOMPARE(doctype.entities().count(), 2);
+
+    QVERIFY(doctype.namedItem(QString("secondFile")).isEntity());
+    QCOMPARE(doctype.namedItem(QString("secondFile")).toEntity().systemId(), QString("second.xml"));
+    QCOMPARE(doctype.namedItem(QString("secondFile")).toEntity().notationName(), QString());
+
+    QVERIFY(doctype.namedItem(QString("logo")).isEntity());
+    QCOMPARE(doctype.namedItem(QString("logo")).toEntity().systemId(), QString("http://www.w3c.org/logo.gif"));
+    QCOMPARE(doctype.namedItem(QString("logo")).toEntity().notationName(), QString("gif"));
+}
+
 QTEST_MAIN(tst_QDom)
 #include "tst_qdom.moc"

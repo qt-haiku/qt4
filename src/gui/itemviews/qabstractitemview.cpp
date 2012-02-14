@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -60,11 +60,9 @@
 #include <private/qabstractitemmodel_p.h>
 #ifndef QT_NO_ACCESSIBILITY
 #include <qaccessible.h>
+#include <qaccessible2.h>
 #endif
 #include <private/qsoftkeymanager_p.h>
-#ifndef QT_NO_GESTURE
-#  include <qscroller.h>
-#endif
 
 QT_BEGIN_NAMESPACE
 
@@ -194,40 +192,6 @@ void QAbstractItemViewPrivate::checkMouseMove(const QPersistentModelIndex &index
     }
 }
 
-#ifndef QT_NO_GESTURES
-
-// stores and restores the selection and current item when flicking
-void QAbstractItemViewPrivate::_q_scrollerStateChanged()
-{
-    Q_Q(QAbstractItemView);
-
-    if (QScroller *scroller = QScroller::scroller(viewport)) {
-        switch (scroller->state()) {
-        case QScroller::Pressed:
-            // store the current selection in case we start scrolling
-            if (q->selectionModel()) {
-                oldSelection = q->selectionModel()->selection();
-                oldCurrent = q->selectionModel()->currentIndex();
-            }
-            break;
-
-        case QScroller::Dragging:
-            // restore the old selection if we really start scrolling
-            if (q->selectionModel()) {
-                q->selectionModel()->select(oldSelection, QItemSelectionModel::ClearAndSelect);
-                q->selectionModel()->setCurrentIndex(oldCurrent, QItemSelectionModel::NoUpdate);
-            }
-            // fall through
-
-        default:
-            oldSelection = QItemSelection();
-            oldCurrent = QModelIndex();
-            break;
-        }
-    }
-}
-
-#endif // QT_NO_GESTURES
 
 /*!
     \class QAbstractItemView
@@ -682,6 +646,8 @@ void QAbstractItemView::setModel(QAbstractItemModel *model)
                    this, SLOT(rowsAboutToBeRemoved(QModelIndex,int,int)));
         disconnect(d->model, SIGNAL(rowsRemoved(QModelIndex,int,int)),
                    this, SLOT(_q_rowsRemoved(QModelIndex,int,int)));
+        disconnect(d->model, SIGNAL(rowsInserted(QModelIndex,int,int)),
+                   this, SLOT(_q_rowsInserted(QModelIndex,int,int)));
         disconnect(d->model, SIGNAL(columnsAboutToBeRemoved(QModelIndex,int,int)),
                    this, SLOT(_q_columnsAboutToBeRemoved(QModelIndex,int,int)));
         disconnect(d->model, SIGNAL(columnsRemoved(QModelIndex,int,int)),
@@ -712,6 +678,8 @@ void QAbstractItemView::setModel(QAbstractItemModel *model)
                 this, SLOT(_q_headerDataChanged()));
         connect(d->model, SIGNAL(rowsInserted(QModelIndex,int,int)),
                 this, SLOT(rowsInserted(QModelIndex,int,int)));
+        connect(d->model, SIGNAL(rowsInserted(QModelIndex,int,int)),
+                this, SLOT(_q_rowsInserted(QModelIndex,int,int)));
         connect(d->model, SIGNAL(rowsAboutToBeRemoved(QModelIndex,int,int)),
                 this, SLOT(rowsAboutToBeRemoved(QModelIndex,int,int)));
         connect(d->model, SIGNAL(rowsRemoved(QModelIndex,int,int)),
@@ -1095,6 +1063,14 @@ void QAbstractItemView::reset()
     setRootIndex(QModelIndex());
     if (d->selectionModel)
         d->selectionModel->reset();
+#ifndef QT_NO_ACCESSIBILITY
+#ifdef Q_WS_X11
+    if (QAccessible::isActive()) {
+        QAccessible::queryAccessibleInterface(this)->table2Interface()->modelReset();
+        QAccessible::updateAccessibility(this, 0, QAccessible::TableModelChanged);
+    }
+#endif
+#endif
 }
 
 /*!
@@ -1662,13 +1638,6 @@ bool QAbstractItemView::viewportEvent(QEvent *event)
     case QEvent::WindowDeactivate:
         d->viewport->update();
         break;
-    case QEvent::ScrollPrepare:
-        executeDelayedItemsLayout();
-#ifndef QT_NO_GESTURES
-        connect(QScroller::scroller(d->viewport), SIGNAL(stateChanged(QScroller::State)), this, SLOT(_q_scrollerStateChanged()), Qt::UniqueConnection);
-#endif
-        break;
-
     default:
         break;
     }
@@ -2849,7 +2818,7 @@ void QAbstractItemView::editorDestroyed(QObject *editor)
 */
 void QAbstractItemView::setHorizontalStepsPerItem(int steps)
 {
-    Q_UNUSED(steps);
+    Q_UNUSED(steps)
     // do nothing
 }
 
@@ -2878,7 +2847,7 @@ int QAbstractItemView::horizontalStepsPerItem() const
 */
 void QAbstractItemView::setVerticalStepsPerItem(int steps)
 {
-    Q_UNUSED(steps);
+    Q_UNUSED(steps)
     // do nothing
 }
 
@@ -3311,12 +3280,24 @@ void QAbstractItemView::rowsAboutToBeRemoved(const QModelIndex &parent, int star
     rows are those under the given \a parent from \a start to \a end
     inclusive.
 */
-void QAbstractItemViewPrivate::_q_rowsRemoved(const QModelIndex &, int, int)
+void QAbstractItemViewPrivate::_q_rowsRemoved(const QModelIndex &index, int start, int end)
 {
+    Q_UNUSED(index)
+    Q_UNUSED(start)
+    Q_UNUSED(end)
+
     Q_Q(QAbstractItemView);
     if (q->isVisible())
         q->updateEditorGeometries();
     q->setState(QAbstractItemView::NoState);
+#ifndef QT_NO_ACCESSIBILITY
+#ifdef Q_WS_X11
+    if (QAccessible::isActive()) {
+        QAccessible::queryAccessibleInterface(q)->table2Interface()->rowsRemoved(index, start, end);
+        QAccessible::updateAccessibility(q, 0, QAccessible::TableModelChanged);
+    }
+#endif
+#endif
 }
 
 /*!
@@ -3379,27 +3360,72 @@ void QAbstractItemViewPrivate::_q_columnsAboutToBeRemoved(const QModelIndex &par
     rows are those under the given \a parent from \a start to \a end
     inclusive.
 */
-void QAbstractItemViewPrivate::_q_columnsRemoved(const QModelIndex &, int, int)
+void QAbstractItemViewPrivate::_q_columnsRemoved(const QModelIndex &index, int start, int end)
 {
+    Q_UNUSED(index)
+    Q_UNUSED(start)
+    Q_UNUSED(end)
+
     Q_Q(QAbstractItemView);
     if (q->isVisible())
         q->updateEditorGeometries();
     q->setState(QAbstractItemView::NoState);
+#ifndef QT_NO_ACCESSIBILITY
+#ifdef Q_WS_X11
+    if (QAccessible::isActive()) {
+        QAccessible::queryAccessibleInterface(q)->table2Interface()->columnsRemoved(index, start, end);
+        QAccessible::updateAccessibility(q, 0, QAccessible::TableModelChanged);
+    }
+#endif
+#endif
 }
+
 
 /*!
     \internal
 
     This slot is called when rows have been inserted.
 */
-void QAbstractItemViewPrivate::_q_columnsInserted(const QModelIndex &, int, int)
+void QAbstractItemViewPrivate::_q_rowsInserted(const QModelIndex &index, int start, int end)
 {
+    Q_UNUSED(index)
+    Q_UNUSED(start)
+    Q_UNUSED(end)
+
+#ifndef QT_NO_ACCESSIBILITY
+#ifdef Q_WS_X11
+    Q_Q(QAbstractItemView);
+    if (QAccessible::isActive()) {
+        QAccessible::queryAccessibleInterface(q)->table2Interface()->rowsInserted(index, start, end);
+        QAccessible::updateAccessibility(q, 0, QAccessible::TableModelChanged);
+    }
+#endif
+#endif
+}
+
+/*!
+    \internal
+
+    This slot is called when columns have been inserted.
+*/
+void QAbstractItemViewPrivate::_q_columnsInserted(const QModelIndex &index, int start, int end)
+{
+    Q_UNUSED(index)
+    Q_UNUSED(start)
+    Q_UNUSED(end)
+
     Q_Q(QAbstractItemView);
     if (q->isVisible())
         q->updateEditorGeometries();
+#ifndef QT_NO_ACCESSIBILITY
+#ifdef Q_WS_X11
+    if (QAccessible::isActive()) {
+        QAccessible::queryAccessibleInterface(q)->table2Interface()->columnsInserted(index, start, end);
+        QAccessible::updateAccessibility(q, 0, QAccessible::TableModelChanged);
+    }
+#endif
+#endif
 }
-
-
 
 /*!
     \internal
@@ -3418,6 +3444,15 @@ void QAbstractItemViewPrivate::_q_modelDestroyed()
 void QAbstractItemViewPrivate::_q_layoutChanged()
 {
     doDelayedItemsLayout();
+#ifndef QT_NO_ACCESSIBILITY
+#ifdef Q_WS_X11
+    Q_Q(QAbstractItemView);
+    if (QAccessible::isActive()) {
+        QAccessible::queryAccessibleInterface(q)->table2Interface()->modelReset();
+        QAccessible::updateAccessibility(q, 0, QAccessible::TableModelChanged);
+    }
+#endif
+#endif
 }
 
 /*!
@@ -3742,7 +3777,7 @@ QItemSelectionModel::SelectionFlags QAbstractItemView::selectionCommand(const QM
 QItemSelectionModel::SelectionFlags QAbstractItemViewPrivate::multiSelectionCommand(
     const QModelIndex &index, const QEvent *event) const
 {
-    Q_UNUSED(index);
+    Q_UNUSED(index)
 
     if (event) {
         switch (event->type()) {
@@ -4203,6 +4238,7 @@ QPixmap QAbstractItemViewPrivate::renderToPixmap(const QModelIndexList &indexes,
     for (int j = 0; j < paintPairs.count(); ++j) {
         option.rect = paintPairs.at(j).first.translated(-r->topLeft());
         const QModelIndex &current = paintPairs.at(j).second;
+        adjustViewOptionsForIndex(&option, current);
         delegateForIndex(current)->paint(&painter, option, current);
     }
     return pixmap;

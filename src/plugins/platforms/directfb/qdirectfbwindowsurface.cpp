@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the plugins of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -43,39 +43,29 @@
 #include "qdirectfbintegration.h"
 #include "qdirectfbblitter.h"
 #include "qdirectfbconvenience.h"
+#include "qdirectfbwindow.h"
 #include <private/qpixmap_blitter_p.h>
 
 #include <QtCore/qdebug.h>
 
 QT_BEGIN_NAMESPACE
 
-QDirectFbWindowSurface::QDirectFbWindowSurface(QWidget *window, WId wId)
-    : QWindowSurface(window), m_pixmap(0), m_pmdata(0), m_dfbSurface(0)
+QDirectFbWindowSurface::QDirectFbWindowSurface(QWidget *window)
+    : QWindowSurface(window), m_pixmap(0), m_pmdata(0)
 {
+    IDirectFBWindow *dfbWindow = static_cast<QDirectFbWindow *>(window->platformWindow())->dfbWindow();
+    dfbWindow->GetSurface(dfbWindow, m_dfbSurface.outPtr());
 
-    IDirectFBDisplayLayer *layer = QDirectFbConvenience::dfbDisplayLayer();
-
-    DFBWindowID id(wId);
-    IDirectFBWindow *dfbWindow;
-
-    layer->GetWindow(layer,id,&dfbWindow);
-
-    dfbWindow->GetSurface(dfbWindow,&m_dfbSurface);
 //WRONGSIZE
-    QDirectFbBlitter *blitter = new QDirectFbBlitter(window->rect().size(), m_dfbSurface);
-    m_pmdata = new QDirectFbBlitterPixmapData;
+    QDirectFbBlitter *blitter = new QDirectFbBlitter(window->size(), m_dfbSurface.data());
+    m_pmdata = new QDirectFbBlitterPlatformPixmap;
     m_pmdata->setBlittable(blitter);
-    m_pixmap = new QPixmap(m_pmdata);
-}
-
-QDirectFbWindowSurface::~QDirectFbWindowSurface()
-{
-    delete m_pixmap;
+    m_pixmap.reset(new QPixmap(m_pmdata));
 }
 
 QPaintDevice *QDirectFbWindowSurface::paintDevice()
 {
-    return m_pixmap;
+    return m_pixmap.data();
 }
 
 void QDirectFbWindowSurface::flush(QWidget *widget, const QRegion &region, const QPoint &offset)
@@ -87,17 +77,13 @@ void QDirectFbWindowSurface::flush(QWidget *widget, const QRegion &region, const
     for (int i = 0 ; i < rects.size(); i++) {
         const QRect rect = rects.at(i);
         DFBRegion dfbReg = { rect.x() + offset.x(),rect.y() + offset.y(),rect.right() + offset.x(),rect.bottom() + offset.y()};
-        m_dfbSurface->Flip(m_dfbSurface, &dfbReg, DFBSurfaceFlipFlags(DSFLIP_BLIT|DSFLIP_ONSYNC));
+        m_dfbSurface->Flip(m_dfbSurface.data(), &dfbReg, DFBSurfaceFlipFlags(DSFLIP_BLIT|DSFLIP_ONSYNC));
     }
 }
 
 void QDirectFbWindowSurface::resize(const QSize &size)
 {
-    QWindowSurface::resize(size);
-
-    //Have to add 1 ref ass it will be removed by deleting the old blitter in setBlittable
-    m_dfbSurface->AddRef(m_dfbSurface);
-    QDirectFbBlitter *blitter = new QDirectFbBlitter(size,m_dfbSurface);
+    QDirectFbBlitter *blitter = new QDirectFbBlitter(size, m_dfbSurface.data());
     m_pmdata->setBlittable(blitter);
 }
 
@@ -115,14 +101,14 @@ bool QDirectFbWindowSurface::scroll(const QRegion &area, int dx, int dy)
 
     if (!m_dfbSurface || area.isEmpty())
         return false;
-    m_dfbSurface->SetBlittingFlags(m_dfbSurface, DSBLIT_NOFX);
+    m_dfbSurface->SetBlittingFlags(m_dfbSurface.data(), DSBLIT_NOFX);
     if (area.rectCount() == 1) {
-        scrollSurface(m_dfbSurface, area.boundingRect(), dx, dy);
+        scrollSurface(m_dfbSurface.data(), area.boundingRect(), dx, dy);
     } else {
         const QVector<QRect> rects = area.rects();
         const int n = rects.size();
         for (int i=0; i<n; ++i) {
-            scrollSurface(m_dfbSurface, rects.at(i), dx, dy);
+            scrollSurface(m_dfbSurface.data(), rects.at(i), dx, dy);
         }
     }
     return true;

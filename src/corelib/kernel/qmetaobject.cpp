@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -432,9 +432,10 @@ int QMetaObject::constructorCount() const
 }
 
 /*!
-    Returns the number of methods in this class, including the number of
-    properties provided by each base class. These include signals and slots
-    as well as normal member functions.
+    Returns the number of methods known to the meta-object system in this class,
+    including the number of properties provided by each base class. These
+    include signals and slots as well as member functions declared with the
+    Q_INVOKABLE macro.
 
     Use code like the following to obtain a QStringList containing the methods
     specific to a given class:
@@ -1245,6 +1246,10 @@ bool QMetaObject::invokeMethod(QObject *obj,
     tag(), and an access() specifier. You can use invoke() to invoke
     the method on an arbitrary QObject.
 
+    A method will only be registered with the meta-object system if it
+    is a slot, a signal, or declared with the Q_INVOKABLE macro.
+    Constructors can also be registered with Q_INVOKABLE.
+
     \sa QMetaObject, QMetaEnum, QMetaProperty, {Qt's Property System}
 */
 
@@ -1364,7 +1369,30 @@ const char *QMetaMethod::typeName() const
     Returns the tag associated with this method.
 
     Tags are special macros recognized by \c moc that make it
-    possible to add extra information about a method. For the moment,
+    possible to add extra information about a method.
+
+    Tag information can be added in the following
+    way in the function declaration:
+
+    \code
+        #define THISISTESTTAG // tag text
+        ...
+        private slots:
+            THISISTESTTAG void testFunc();
+    \endcode
+
+    and the information can be accessed by using:
+
+    \code
+        MainWindow win;
+        win.show();
+
+        int functionIndex = win.metaObject()->indexOfSlot("testFunc()");
+        QMetaMethod mm = metaObject()->method(functionIndex);
+        qDebug() << mm.tag(); // prints THISISTESTTAG
+    \endcode
+
+    For the moment,
     \c moc doesn't support any special tags.
 */
 const char *QMetaMethod::tag() const

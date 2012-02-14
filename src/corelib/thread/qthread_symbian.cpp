@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -46,10 +46,12 @@
 #include "qthreadstorage.h"
 #include "qthread_p.h"
 #include <private/qsystemerror_p.h>
+#include <private/qcore_symbian_p.h>
 
 #include <sched.h>
 #include <hal.h>
 #include <hal_data.h>
+#include <e32math.h>
 
 // You only find these enumerations on Symbian^3 onwards, so we need to provide our own
 // to remain compatible with older releases. They won't be called by pre-Sym^3 SDKs.
@@ -324,6 +326,9 @@ void *QThreadPrivate::start(void *arg)
     data->threadId = QThread::currentThreadId();
     set_thread_data(data);
 
+    CTrapCleanup *cleanup = CTrapCleanup::New();
+    q_check_ptr(cleanup);
+
     {
         QMutexLocker locker(&thr->d_func()->mutex);
         data->quitNow = thr->d_func()->exited;
@@ -333,9 +338,19 @@ void *QThreadPrivate::start(void *arg)
     createEventDispatcher(data);
 
     emit thr->started();
-    thr->run();
+    TRAPD(err, {
+        try {
+            thr->run();
+        } catch (const std::exception& ex) {
+            qWarning("QThreadPrivate::start: Thread exited on exception %s", ex.what());
+        }
+    });
+    if (err)
+        qWarning("QThreadPrivate::start: Thread exited on leave %d", err);
 
     QThreadPrivate::finish(arg);
+
+    delete cleanup;
 
     return 0;
 }
@@ -496,7 +511,21 @@ void QThread::start(Priority priority)
         // operations like file I/O fail, so we increase it by default.
         d->stackSize = 0x14000; // Maximum stack size on Symbian.
 
-    int code = d->data->symbian_thread_handle.Create(KNullDesC, (TThreadFunction) QThreadPrivate::start, d->stackSize, NULL, this);
+    int code = KErrAlreadyExists;
+    QString objName = objectName();
+    TPtrC objNamePtr(qt_QString2TPtrC(objName));
+    TName name;
+    objNamePtr.Set(objNamePtr.Left(qMin(objNamePtr.Length(), name.MaxLength() - 16)));
+    const int MaxRetries = 10;
+    for (int i=0; i<MaxRetries && code == KErrAlreadyExists; i++) {
+        // generate a thread name using a similar method to libpthread in Symbian
+        // a named thread can be opened from another process
+        name.Zero();
+        name.Append(objNamePtr);
+        name.AppendNumFixedWidth(int(this), EHex, 8);
+        name.AppendNumFixedWidth(Math::Random(), EHex, 8);
+        code = d->data->symbian_thread_handle.Create(name, (TThreadFunction) QThreadPrivate::start, d->stackSize, NULL, this);
+    }
     if (code == KErrNone) {
         d->thread_id = d->data->symbian_thread_handle.Id();
         TThreadPriority symPriority = calculateSymbianPriority(priority);

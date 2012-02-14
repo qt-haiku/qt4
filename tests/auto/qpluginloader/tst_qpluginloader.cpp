@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -219,7 +219,7 @@ void tst_QPluginLoader::errorString()
     QVERIFY(loader.errorString() != unknown);
     }
 
-#if !defined Q_OS_WIN && !defined Q_OS_MAC && !defined Q_OS_HPUX && !defined Q_OS_SYMBIAN
+#if !defined Q_OS_WIN && !defined Q_OS_MAC && !defined Q_OS_HPUX && !defined Q_OS_SYMBIAN && !defined Q_OS_QNX
     {
     QPluginLoader loader( sys_qualifiedLibraryName("almostplugin"));     //a plugin with unresolved symbols
     loader.setLoadHints(QLibrary::ResolveAllSymbolsHint);
@@ -272,10 +272,10 @@ void tst_QPluginLoader::loadHints()
 
 void tst_QPluginLoader::deleteinstanceOnUnload()
 {
-    for (int pass = 0; pass < 2; ++pass) {
+    for (int pass = 0; pass < 4; ++pass) {
         QPluginLoader loader1;
         loader1.setFileName( sys_qualifiedLibraryName("theplugin"));     //a plugin
-        if (pass == 0)
+        if (pass < 2)
             loader1.load(); // not recommended, instance() should do the job.
         PluginInterface *instance1 = qobject_cast<PluginInterface*>(loader1.instance());
         QVERIFY(instance1);
@@ -283,21 +283,32 @@ void tst_QPluginLoader::deleteinstanceOnUnload()
 
         QPluginLoader loader2;
         loader2.setFileName( sys_qualifiedLibraryName("theplugin"));     //a plugin
-        if (pass == 0)
+        if (pass < 2)
             loader2.load(); // not recommended, instance() should do the job.
         PluginInterface *instance2 = qobject_cast<PluginInterface*>(loader2.instance());
         QCOMPARE(instance2->pluginName(), QLatin1String("Plugin ok"));
 
         QSignalSpy spy1(loader1.instance(), SIGNAL(destroyed()));
         QSignalSpy spy2(loader2.instance(), SIGNAL(destroyed()));
-        if (pass == 0) {
-            QCOMPARE(loader2.unload(), false);  // refcount not reached 0, not really unloaded
-            QCOMPARE(spy1.count(), 0);
-            QCOMPARE(spy2.count(), 0);
-        }
+
+        // refcount not reached 0, not really unloaded
+        if (pass % 2)
+            QCOMPARE(loader1.unload(), false);
+        else
+            QCOMPARE(loader2.unload(), false);
+
+        QCOMPARE(spy1.count(), 0);
+        QCOMPARE(spy2.count(), 0);
+
         QCOMPARE(instance1->pluginName(), QLatin1String("Plugin ok"));
         QCOMPARE(instance2->pluginName(), QLatin1String("Plugin ok"));
-        QVERIFY(loader1.unload());   // refcount reached 0, did really unload
+
+        // refcount reached 0, did really unload
+        if (pass % 2)
+            QVERIFY(loader2.unload());
+        else
+            QVERIFY(loader1.unload());
+
         QCOMPARE(spy1.count(), 1);
         QCOMPARE(spy2.count(), 1);
     }
@@ -370,15 +381,15 @@ if (sizeof(void*) == 8) {
 
     QPluginLoader lib1(SRCDIR "elftest/corrupt1.elf64.so");
     QCOMPARE(lib1.load(), false);
-    QVERIFY(lib1.errorString().contains("not an ELF object"));
+    QVERIFY(lib1.errorString().contains("not a valid Qt plugin"));
 
     QPluginLoader lib2(SRCDIR "elftest/corrupt2.elf64.so");
     QCOMPARE(lib2.load(), false);
-    QVERIFY(lib2.errorString().contains("invalid"));
+    QVERIFY(lib2.errorString().contains("not a valid Qt plugin"));
 
     QPluginLoader lib3(SRCDIR "elftest/corrupt3.elf64.so");
     QCOMPARE(lib3.load(), false);
-    QVERIFY(lib3.errorString().contains("invalid"));
+    QVERIFY(lib3.errorString().contains("not a valid Qt plugin"));
 } else if (sizeof(void*) == 4) {
     QPluginLoader libW(SRCDIR "elftest/corrupt3.elf64.so");
     QCOMPARE(libW.load(), false);

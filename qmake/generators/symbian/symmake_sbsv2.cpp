@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the qmake application of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -569,12 +569,27 @@ void SymbianSbsv2MakefileGenerator::writeBldInfExtensionRulesPart(QTextStream& t
     exportFlm();
 
     // Parse extra compilers data
+    QStringList rawDefines;
     QStringList defines;
     QStringList incPath;
 
-    defines << varGlue("PRL_EXPORT_DEFINES","-D"," -D"," ")
-            << varGlue("QMAKE_COMPILER_DEFINES", "-D", "-D", " ")
-            << varGlue("DEFINES","-D"," -D","");
+    rawDefines << project->values("PRL_EXPORT_DEFINES")
+               << project->values("QMAKE_COMPILER_DEFINES")
+               << project->values("DEFINES");
+
+    // Remove defines containing doubly-escaped characters (e.g. escaped double-quotation mark
+    // inside a string define) as bld.inf parsing done by sbsv2 toolchain breaks if they are
+    // present.
+    static QString backslashes = QLatin1String("\\\\");
+    QMutableStringListIterator i(rawDefines);
+    while (i.hasNext()) {
+        QString val = i.next();
+        if (val.indexOf(backslashes) != -1)
+            i.remove();
+    }
+
+    defines << valGlue(rawDefines,"-D"," -D","");
+
     for (QMap<QString, QStringList>::iterator it = systeminclude.begin(); it != systeminclude.end(); ++it) {
         QStringList values = it.value();
         for (int i = 0; i < values.size(); ++i) {
@@ -609,11 +624,11 @@ void SymbianSbsv2MakefileGenerator::writeBldInfExtensionRulesPart(QTextStream& t
     // are not necessary.
     QStringList allPreDeps;
     foreach(QString item, project->values("PRE_TARGETDEPS")) {
-        allPreDeps.append(fileInfo(item).absoluteFilePath());
+        allPreDeps.append(QDir::cleanPath(outputDir.absoluteFilePath(item)));
     }
 
     foreach (QString item, project->values("GENERATED_SOURCES")) {
-        allPreDeps.append(fileInfo(item).absoluteFilePath());
+        allPreDeps.append(QDir::cleanPath(outputDir.absoluteFilePath(item)));
     }
 
     for (QMap<QString, QStringList>::iterator it = sources.begin(); it != sources.end(); ++it) {
@@ -623,7 +638,7 @@ void SymbianSbsv2MakefileGenerator::writeBldInfExtensionRulesPart(QTextStream& t
             QString sourceFile = currentSourcePath + "/" + values.at(i);
             QStringList deps = findDependencies(QDir::toNativeSeparators(sourceFile));
             foreach(QString depItem, deps) {
-                appendIfnotExist(allPreDeps, fileInfo(depItem).absoluteFilePath());
+                appendIfnotExist(allPreDeps, QDir::cleanPath(outputDir.absoluteFilePath(depItem)));
             }
         }
     }
@@ -634,8 +649,12 @@ void SymbianSbsv2MakefileGenerator::writeBldInfExtensionRulesPart(QTextStream& t
     foreach(QString item, extraTargets) {
         foreach(QString targetItem, project->values(QLatin1String("QMAKE_INTERNAL_ET_PARSED_TARGETS.") + item)) {
             // Make sure targetpath is absolute
-            QString absoluteTarget = fileInfo(targetItem).absoluteFilePath();
+            QString absoluteTarget = QDir::cleanPath(outputDir.absoluteFilePath(targetItem));
+#if defined(Q_OS_WIN)
+            if (allPreDeps.contains(absoluteTarget, Qt::CaseInsensitive)) {
+#else
             if (allPreDeps.contains(absoluteTarget)) {
+#endif
                 QStringList deps = project->values(QLatin1String("QMAKE_INTERNAL_ET_PARSED_DEPS.") + item + targetItem);
                 QString commandItem =  project->values(QLatin1String("QMAKE_INTERNAL_ET_PARSED_CMD.") + item + targetItem).join(" ");
 
@@ -643,7 +662,7 @@ void SymbianSbsv2MakefileGenerator::writeBldInfExtensionRulesPart(QTextStream& t
                 QString absoluteDeps;
                 foreach (QString depItem, deps) {
                     if (!depItem.isEmpty()) {
-                        absoluteDeps.append(fileInfo(depItem).absoluteFilePath());
+                        absoluteDeps.append(QDir::cleanPath(outputDir.absoluteFilePath(depItem)));
                         absoluteDeps.append(" ");
                     }
                 }
@@ -668,13 +687,24 @@ void SymbianSbsv2MakefileGenerator::writeBldInfExtensionRulesPart(QTextStream& t
     t << endl;
 
     // Write deployment rules
-    QString remoteTestPath = qt_epocRoot() + QLatin1String("epoc32/winscw/c/private/") + privateDirUid;
+    QString remoteTestPath = qt_epocRoot()
+        + QLatin1String("epoc32/release/winscw/udeb/z/private/") + privateDirUid;
     DeploymentList depList;
 
     //write emulator deployment
+    // There are deployment targets for both uded and urel emulators.
     t << "#if defined(WINSCW)" << endl;
     initProjectDeploySymbian(project, depList, remoteTestPath, false, true,
-        QLatin1String(EMULATOR_DEPLOYMENT_PLATFORM), QString(), generatedDirs, generatedFiles);
+        QLatin1String(EMULATOR_DEPLOYMENT_PLATFORM), QLatin1String(BUILD_DEBUG),
+        generatedDirs, generatedFiles);
+    writeSbsDeploymentList(depList, t);
+
+    depList.clear();
+    remoteTestPath = qt_epocRoot()
+        + QLatin1String("epoc32/release/winscw/urel/z/private/") + privateDirUid;
+    initProjectDeploySymbian(project, depList, remoteTestPath, false, true,
+        QLatin1String(EMULATOR_DEPLOYMENT_PLATFORM), QLatin1String(BUILD_RELEASE),
+        generatedDirs, generatedFiles);
     writeSbsDeploymentList(depList, t);
     t << "#endif" << endl;
 
@@ -708,9 +738,7 @@ void SymbianSbsv2MakefileGenerator::writeBldInfExtensionRulesPart(QTextStream& t
 
         QFileInfo iconInfo = fileInfo(icon);
 
-        QFileInfo bldinf(project->values("MAKEFILE").first());
-        QString iconPath = bldinf.dir().relativeFilePath(iconInfo.path());
-
+        QString iconPath = outputDir.relativeFilePath(iconInfo.absolutePath());
         QString iconFile = iconInfo.baseName();
 
         QFileInfo iconTargetInfo = fileInfo(iconTargetFile);
@@ -732,11 +760,10 @@ void SymbianSbsv2MakefileGenerator::writeBldInfExtensionRulesPart(QTextStream& t
     if (!cleanFiles.isEmpty()) {
         QStringList absoluteCleanFiles;
         foreach (QString cleanFile, cleanFiles) {
-            QFileInfo fi(cleanFile);
             QString fileName = QLatin1String("\"");
-            fileName.append(fi.absoluteFilePath());
+            fileName.append(QDir::cleanPath(outputDir.absoluteFilePath(cleanFile)));
             fileName.append(QLatin1String("\""));
-            absoluteCleanFiles << fileName;   	
+            absoluteCleanFiles << fileName;
         }
         t << "START EXTENSION qt/qmake_clean" << endl;
         t << "OPTION CLEAN_FILES " << absoluteCleanFiles.join(" ") << endl;

@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -44,8 +44,9 @@
 #include "qpainter.h"
 #include "qstyleoption.h"
 #include "qstyle.h"
+#include "private/qapplication_p.h"
 #include "private/qt_s60_p.h"
-#include "private/qpixmap_s60_p.h"
+#include "private/qpixmap_raster_symbian_p.h"
 #include "private/qcore_symbian_p.h"
 #include "private/qvolatileimage_p.h"
 #include "qapplication.h"
@@ -90,6 +91,7 @@ enum TSupportRelease {
     ES60_5_1      = 0x0008,
     ES60_5_2      = 0x0010,
     ES60_5_3      = 0x0020,
+    ES60_5_4      = 0x0040,
     ES60_3_X      = ES60_3_1 | ES60_3_2,
     // Releases before Symbian Foundation
     ES60_PreSF    = ES60_3_1 | ES60_3_2 | ES60_5_0,
@@ -97,8 +99,10 @@ enum TSupportRelease {
     ES60_Pre52    = ES60_3_1 | ES60_3_2 | ES60_5_0 | ES60_5_1,
     // Releases before S60 5.3
     ES60_Pre53    = ES60_3_1 | ES60_3_2 | ES60_5_0 | ES60_5_1 | ES60_5_2,
+    // Releases before S60 5.4
+    ES60_Pre54    = ES60_3_1 | ES60_3_2 | ES60_5_0 | ES60_5_1 | ES60_5_2 | ES60_5_3,
     // Add all new releases here
-    ES60_All = ES60_3_1 | ES60_3_2 | ES60_5_0 | ES60_5_1 | ES60_5_2 | ES60_5_3
+    ES60_All = ES60_3_1 | ES60_3_2 | ES60_5_0 | ES60_5_1 | ES60_5_2 | ES60_5_3 | ES60_5_4
 };
 
 typedef struct {
@@ -106,7 +110,7 @@ typedef struct {
     TDrawType drawType; // Determines which native drawing routine is used to draw this item.
     int supportInfo;    // Defines the S60 versions that use the default graphics.
     // These two, define new graphics that are used in releases other than partMapEntry.supportInfo defined releases.
-    // In general, these are given in numeric form to allow style compilation in earlier 
+    // In general, these are given in numeric form to allow style compilation in earlier
     // native releases that do not contain the new graphics.
     int newMajorSkinId;
     int newMinorSkinId;
@@ -128,14 +132,12 @@ AnimationDataV2::~AnimationDataV2()
 
 QS60StyleAnimation::QS60StyleAnimation(const QS60StyleEnums::SkinParts part, int frames, int interval)
 {
-    QT_TRAP_THROWING(m_defaultData = new (ELeave) AnimationData(part, frames, interval));
-    QT_TRAP_THROWING(m_currentData = new (ELeave) AnimationDataV2(*m_defaultData));
+    m_defaultData.reset(new AnimationData(part, frames, interval));
+    m_currentData.reset(new AnimationDataV2(*m_defaultData));
 }
 
 QS60StyleAnimation::~QS60StyleAnimation()
 {
-    delete m_currentData;
-    delete m_defaultData;
 }
 
 void QS60StyleAnimation::setAnimationObject(CAknBitmapAnimation* animation)
@@ -148,9 +150,7 @@ void QS60StyleAnimation::setAnimationObject(CAknBitmapAnimation* animation)
 
 void QS60StyleAnimation::resetToDefaults()
 {
-    delete m_currentData;
-    m_currentData = 0;
-    QT_TRAP_THROWING(m_currentData = new (ELeave) AnimationDataV2(*m_defaultData));
+    m_currentData.reset(new AnimationDataV2(*m_defaultData));
 }
 
 class QS60StyleModeSpecifics
@@ -412,6 +412,106 @@ const partMapEntry QS60StyleModeSpecifics::m_partMap[] = {
     /* SP_QsnFrListSideLPressed */       {KAknsIIDQsnFrListSideL,       ENoDraw,     ES60_3_X,    EAknsMajorSkin, 0x2691},
     /* SP_QsnFrListSideRPressed */       {KAknsIIDQsnFrListSideR,       ENoDraw,     ES60_3_X,    EAknsMajorSkin, 0x2692},
     /* SP_QsnFrListCenterPressed */      {KAknsIIDQsnFrListCenter,      ENoDraw,     ES60_3_X,    EAknsMajorSkin, 0x2693},
+
+    /* SP_QtgToolBarAdd */               {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x27c0}, //KAknsIIDQtgToolbarAdd
+    /* SP_QtgToolBarAddDetail */         {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2778}, //KAknsIIDQtgToolbarAddDetail
+    /* SP_QtgToolbarAgain */             {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x271a}, //KAknsIIDQtgToolbarAgain
+    /* SP_QtgToolBarAgenda */            {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x281a}, //KAknsIIDQtgToolbarAgenda
+    /* SP_QtgToolBarAudioOff */          {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2751}, //KAknsIIDQtgToolbarAudioOff
+    /* SP_QtgToolBarAudioOn */           {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2752}, //KAknsIIDQtgToolbarAudioOn
+    /* SP_CustomToolBarBack */           {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x271b}, //KAknsIIDQtgToolbarBack
+    /* SP_QtgToolBarBluetoothOff */      {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2753}, //KAknsIIDQtgToolbarBluetoothOff
+    /* SP_QtgToolBarBluetoothOn */       {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2754}, //KAknsIIDQtgToolbarBluetoothOn
+    /* SP_QtgToolBarCancel */            {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2895}, //KAknsIIDQtgToolbarCancel
+    /* SP_QtgToolBarDelete */            {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2755}, //KAknsIIDQtgToolbarDelete
+    /* SP_QtgToolBarDetails */           {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x271e}, //KAknsIIDQtgToolbarDetails
+    /* SP_QtgToolBarDone */              {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x271f}, //KAknsIIDQtgToolbarDone
+    /* SP_QtgToolBarEdit */              {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2720}, //KAknsIIDQtgToolbarEdit
+    /* SP_QtgToolBarEditDisabled */      {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2946}, //KAknsIIDQtgToolbarEditDisabled
+    /* SP_QtgToolBarEmailSend */         {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x292f}, //KAknsIIDQtgToolbarEmailSend
+    /* SP_QtgToolBarEmergencyCall */     {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2721}, //KAknsIIDQtgToolbarEmergencyCall
+    /* SP_QtgToolBarFavouriteAdd */      {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x28ed}, //KAknsIIDQtgToolbarFavouriteAdd
+    /* SP_QtgToolBarFavouriteRemove */   {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x28ee}, //KAknsIIDQtgToolbarFavouriteRemove
+    /* SP_QtgToolBarFavourites */        {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x28b8}, //KAknsIIDQtgToolbarFavourites
+    /* SP_QtgToolBarForward */           {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x281b}, //KAknsIIDQtgToolbarForward
+    /* SP_QtgToolBarGo */                {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2930}, //KAknsIIDQtgToolbarGo
+    /* SP_QtgToolBarHome */              {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2722}, //KAknsIIDQtgToolbarHome
+    /* SP_QtgToolBarImageTools */        {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2947}, //KAknsIIDQtgToolbarImageTools
+    /* SP_QtgToolBarList */              {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x28b9}, //KAknsIIDQtgToolbarList
+    /* SP_QtgToolBarLock */              {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2723}, //KAknsIIDQtgToolbarLock
+    /* SP_QtgToolBarLogs */              {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x281c}, //KAknsIIDQtgToolbarLogs
+    /* SP_QtgToolBarMenu */              {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2724}, //KAknsIIDQtgToolbarMenu
+    /* SP_QtgToolBarNewContact */        {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2779}, //KAknsIIDQtgToolbarNewContact
+    /* SP_QtgToolBarNewGroup */          {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x277a}, //KAknsIIDQtgToolbarNewGroup
+    /* SP_QtgToolBarNext */              {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x281d}, //KAknsIIDQtgToolbarNext
+    /* SP_QtgToolBarNextFrame */         {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2981}, //KAknsIIDQtgToolbarNextFrame
+    /* SP_QtgToolBarNowPlay */           {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x28ef}, //KAknsIIDQtgToolbarNowplay
+    /* SP_QtgToolBarOptions */           {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2725}, //KAknsIIDQtgToolbarOptions
+    /* SP_QtgToolBarOther */             {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2726}, //KAknsIIDQtgToolbarOther
+    /* SP_QtgToolBarOvi */               {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2931}, //KAknsIIDQtgToolbarOvi
+    /* SP_QtgToolBarPause */             {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2727}, //KAknsIIDQtgToolbarPause
+    /* SP_QtgToolBarPlay */              {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2728}, //KAknsIIDQtgToolbarPlay
+    /* SP_QtgToolBarPrevious */          {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x281e}, //KAknsIIDQtgToolbarPrevious
+    /* SP_QtgToolBarPreviousFrame */     {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2982}, //KAknsIIDQtgToolbarPreviousFrame
+    /* SP_QtgToolBarRead */              {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2729}, //KAknsIIDQtgToolbarRead
+    /* SP_QtgToolBarRedo */              {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2948}, //KAknsIIDQtgToolbarRedo
+    /* SP_QtgToolBarRedoDisabled */      {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2949}, //KAknsIIDQtgToolbarRedoDisabled
+    /* SP_QtgToolBarRefresh */           {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2932}, //KAknsIIDQtgToolbarRefresh
+    /* SP_QtgToolBarRemoveDetail */      {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x277b}, //KAknsIIDQtgToolbarRemoveDetail
+    /* SP_QtgToolBarRemoveDisabled */    {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x294a}, //KAknsIIDQtgToolbarRemoveDisabled
+    /* SP_QtgToolBarRepeat */            {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x281f}, //KAknsIIDQtgToolbarRepeat
+    /* SP_QtgToolBarRepeatOff */         {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2820}, //KAknsIIDQtgToolbarRepeatOff
+    /* SP_QtgToolBarRepeatOne */         {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2821}, //KAknsIIDQtgToolbarRepeatOne
+    /* SP_QtgToolBarRewind */            {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2822}, //KAknsIIDQtgToolbarRewind
+    /* SP_QtgToolBarSearch */            {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x272a}, //KAknsIIDQtgToolbarSearch
+    /* SP_QtgToolBarSearchDisabled */    {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x294b}, //KAknsIIDQtgToolbarSearchDisabled
+    /* SP_QtgToolBarSelectContent */     {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x294c}, //KAknsIIDQtgToolbarSelectContent
+    /* SP_QtgToolBarSelfTimer */         {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2756}, //KAknsIIDQtgToolbarSelfTimer
+    /* SP_QtgToolBarSend */              {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x272b}, //KAknsIIDQtgToolbarSend
+    /* SP_QtgToolBarSendDimmed */        {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x29b0}, //KAknsIIDQtgToolbarSendDimmed
+    /* SP_QtgToolBarShare */             {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2823}, //KAknsIIDQtgToolbarShare
+    /* SP_QtgToolBarShift */             {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x272c}, //KAknsIIDQtgToolbarShift
+    /* SP_QtgToolBarShuffle */           {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2824}, //KAknsIIDQtgToolbarShuffle
+    /* SP_QtgToolBarShuffleOff */        {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2825}, //KAknsIIDQtgToolbarShuffleOff
+    /* SP_QtgToolBarSignalOff */         {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2757}, //KAknsIIDQtgToolbarSignalOff
+    /* SP_QtgToolBarSignalOn */          {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2758}, //KAknsIIDQtgToolbarSignalOn
+    /* SP_QtgToolBarStop */              {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x272d}, //KAknsIIDQtgToolbarStop
+    /* SP_QtgToolBarSync */              {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2894}, //KAknsIIDQtgToolbarSync
+    /* SP_QtgToolBarTools */             {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2983}, //KAknsIIDQtgToolbarTools
+    /* SP_QtgToolBarTrim */              {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2954}, //KAknsIIDQtgToolbarTrim
+    /* SP_QtgToolBarUnlock */            {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x272e}, //KAknsIIDQtgToolbarUnlock
+    /* SP_QtgToolBarUnmark */            {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x272f}, //KAknsIIDQtgToolbarUnmark
+    /* SP_QtgToolBarView */              {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2730}, //KAknsIIDQtgToolbarView
+    /* SP_QtgToolBarWlanOff */           {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2759}, //KAknsIIDQtgToolbarWlanOff
+    /* SP_QtgToolBarWlanOn */            {KAknsIIDNone,                 EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x275a}, //KAknsIIDQtgToolbarWlanOn
+
+    /* SP_QtgGrafCameraButtonCaptureNormal */   {KAknsIIDNone,  EDrawIcon,   ES60_Pre52,  EAknsMajorGeneric, 0x2743}, //KAknsIIDQtgGrafCameraButtonCaptureNormal (already in 9.2)
+    /* SP_QtgGrafCameraButtonCapturePressed */  {KAknsIIDNone,  EDrawIcon,   ES60_Pre52,  EAknsMajorGeneric, 0x2744}, //KAknsIIDQtgGrafCameraButtonCapturePressed
+    /* SP_QtgGrafCameraButtonPauseNormal */     {KAknsIIDNone,  EDrawIcon,   ES60_Pre52,  EAknsMajorGeneric, 0x2745}, //KAknsIIDQtgGrafCameraButtonPauseNormal
+    /* SP_QtgGrafCameraButtonPausePressed */    {KAknsIIDNone,  EDrawIcon,   ES60_Pre52,  EAknsMajorGeneric, 0x2746}, //KAknsIIDQtgGrafCameraButtonPausePressed
+    /* SP_QtgGrafCameraButtonPlayNormal */      {KAknsIIDNone,  EDrawIcon,   ES60_Pre52,  EAknsMajorGeneric, 0x2747}, //KAknsIIDQtgGrafCameraButtonPlayNormal
+    /* SP_QtgGrafCameraButtonPlayPressed */     {KAknsIIDNone,  EDrawIcon,   ES60_Pre52,  EAknsMajorGeneric, 0x2748}, //KAknsIIDQtgGrafCameraButtonPlayPressed
+    /* SP_QtgGrafCameraButtonRecNormal */       {KAknsIIDNone,  EDrawIcon,   ES60_Pre52,  EAknsMajorGeneric, 0x2749}, //KAknsIIDQtgGrafCameraButtonRecNormal
+    /* SP_QtgGrafCameraButtonRecPressed */      {KAknsIIDNone,  EDrawIcon,   ES60_Pre52,  EAknsMajorGeneric, 0x274a}, //KAknsIIDQtgGrafCameraButtonRecPressed
+    /* SP_QtgGrafCameraButtonStopNormal */      {KAknsIIDNone,  EDrawIcon,   ES60_Pre52,  EAknsMajorGeneric, 0x274b}, //KAknsIIDQtgGrafCameraButtonStopNormal
+    /* SP_QtgGrafCameraButtonStopPressed */     {KAknsIIDNone,  EDrawIcon,   ES60_Pre52,  EAknsMajorGeneric, 0x274c}, //KAknsIIDQtgGrafCameraButtonStopPressed
+
+    /* SP_QtgTabAll */                          {KAknsIIDNone,  EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2851}, //KAknsIIDQtgTabAll
+    /* SP_QtgTabArtist */                       {KAknsIIDNone,  EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x288f}, //KAknsIIDQtgTabArtist
+    /* SP_QtgTabFavourite */                    {KAknsIIDNone,  EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x28eb}, //KAknsIIDQtgTabFavourite
+    /* SP_QtgTabGenre */                        {KAknsIIDNone,  EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2890}, //KAknsIIDQtgTabGenre
+    /* SP_QtgTabLanguage */                     {KAknsIIDNone,  EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x28ec}, //KAknsIIDQtgTabLanguage
+    /* SP_QtgTabMusicAlbum */                   {KAknsIIDNone,  EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2891}, //KAknsIIDQtgTabMusicAlbum
+    /* SP_QtgTabPhotosAlbum */                  {KAknsIIDNone,  EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2818}, //KAknsIIDQtgTabPhotosAlbum
+    /* SP_QtgTabPhotosAll */                    {KAknsIIDNone,  EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2819}, //KAknsIIDQtgTabPhotosAll
+    /* SP_QtgTabPlaylist */                     {KAknsIIDNone,  EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2892}, //KAknsIIDQtgTabPlaylist
+    /* SP_QtgTabServices */                     {KAknsIIDNone,  EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x274f}, //KAknsIIDQtgTabServices
+    /* SP_QtgTabSongs */                        {KAknsIIDNone,  EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2893}, //KAknsIIDQtgTabSongs
+    /* SP_QtgTabVideos */                       {KAknsIIDNone,  EDrawIcon,   ES60_Pre53,  EAknsMajorGeneric, 0x2750}, //KAknsIIDQtgTabVideos
+
+    /* SP_QgnIndiBrowserTbReload */             {KAknsIIDQgnIndiBrowserTbReload,   EDrawIcon,   ES60_All, -1, -1},
+    /* SP_QgnIndiBrowserTbHome */               {KAknsIIDQgnIndiBrowserTbHome,     EDrawIcon,   ES60_All, -1, -1},
+    /* SP_QgnIndiBrowserTbStop */               {KAknsIIDQgnIndiBrowserTbStop,     EDrawIcon,   ES60_All, -1, -1},
 };
 
 QPixmap QS60StyleModeSpecifics::skinnedGraphics(
@@ -579,7 +679,6 @@ QPixmap QS60StyleModeSpecifics::colorSkinnedGraphicsLX(
     const TAknsItemID skinId = m_partMap[stylepartIndex].skinID;
 
     TInt fallbackGraphicID = -1;
-    HBufC* iconFile = HBufC::NewLC( KMaxFileName );
     fallbackInfo(stylepart, fallbackGraphicID);
 
     TAknsItemID colorGroup = KAknsIIDQsnIconColors;
@@ -607,13 +706,13 @@ QPixmap QS60StyleModeSpecifics::colorSkinnedGraphicsLX(
         colorIndex,
         icon,
         iconMask,
-        AknIconUtils::AvkonIconFileName(),
+        (fallbackGraphicID != KErrNotFound ? AknIconUtils::AvkonIconFileName() : KNullDesC),
         fallbackGraphicID,
         fallbackGraphicsMaskID,
         defaultColor);
 
     QPixmap result = fromFbsBitmap(icon, iconMask, flags, targetSize);
-    CleanupStack::PopAndDestroy(3); //icon, iconMask, iconFile
+    CleanupStack::PopAndDestroy(2); //icon, iconMask
     return result;
 }
 
@@ -691,21 +790,6 @@ QPixmap QS60StyleModeSpecifics::fromFbsBitmap(CFbsBitmap *icon, CFbsBitmap *mask
     }
 
     return pixmap;
-}
-
-bool QS60StylePrivate::isTouchSupported()
-{
-    return bool(AknLayoutUtils::PenEnabled());
-}
-
-bool QS60StylePrivate::isToolBarBackground()
-{
-    return (QSysInfo::s60Version() == QSysInfo::SV_S60_3_1 || QSysInfo::s60Version() == QSysInfo::SV_S60_3_2);
-}
-
-bool QS60StylePrivate::hasSliderGrooveGraphic()
-{
-    return QSysInfo::s60Version() != QSysInfo::SV_S60_3_1;
 }
 
 bool QS60StylePrivate::isSingleClickUi()
@@ -837,9 +921,19 @@ QPixmap QS60StyleModeSpecifics::createSkinnedGraphicsLX(
                 skinId,
                 icon,
                 iconMask,
-                AknIconUtils::AvkonIconFileName(),
+                (fallbackGraphicID != KErrNotFound ? AknIconUtils::AvkonIconFileName() : KNullDesC),
                 fallbackGraphicID ,
                 fallbackGraphicsMaskID);
+
+            // If drawing fails, re-try without a mask.
+            if (!icon) {
+                AknsUtils::CreateIconL(
+                    skinInstance,
+                    skinId,
+                    icon,
+                    (fallbackGraphicID != KErrNotFound ? AknIconUtils::AvkonIconFileName() : KNullDesC),
+                    fallbackGraphicID);
+            }
 
             result = fromFbsBitmap(icon, iconMask, flags, targetSize);
             delete icon;
@@ -873,17 +967,22 @@ QPixmap QS60StyleModeSpecifics::createSkinnedGraphicsLX(
                 targetSize,
                 drawParam);
 
-            if (drawn)
+            if (drawn) {
                 result = fromFbsBitmap(background, NULL, flags, targetSize);
-            // if drawing fails in skin server, just ignore the background (probably OOM case)
+            } else {
+                // if drawing fails in skin server, draw background as white
+                QPixmap defaultBg = QPixmap(targetSize.iWidth, targetSize.iHeight);
+                defaultBg.fill(Qt::white);
+                result = defaultBg;
+            }
 
             CleanupStack::PopAndDestroy(4, background); //background, dev, gc, bgContext
     //        QS60WindowSurface::lockBitmapHeap();
             break;
         }
         case EDrawAnimation: {
-            CFbsBitmap* animationFrame;
-            CFbsBitmap* frameMask;
+            CFbsBitmap* animationFrame = 0;
+            CFbsBitmap* frameMask = 0;
             CAknBitmapAnimation* aknAnimation = 0;
             TBool constructedFromTheme = ETrue;
 
@@ -931,7 +1030,7 @@ QPixmap QS60StyleModeSpecifics::createSkinnedGraphicsLX(
                     KAknsIIDDefault, //animation is not themed, lets force fallback graphics
                     animationFrame,
                     frameMask,
-                    AknIconUtils::AvkonIconFileName(),
+                    (fallbackGraphicID != KErrNotFound ? AknIconUtils::AvkonIconFileName() : KNullDesC),
                     fallbackGraphicID ,
                     fallbackGraphicsMaskID);
             }
@@ -1068,24 +1167,24 @@ void QS60StyleModeSpecifics::frameIdAndCenterId(QS60StylePrivate::SkinFrameEleme
 
     switch(frameElement) {
         case QS60StylePrivate::SF_ToolTip:
-            if (QSysInfo::s60Version() != QSysInfo::SV_S60_3_1) {
-                centerId.Set(EAknsMajorGeneric, 0x19c2);
-                frameId.Set(EAknsMajorSkin, 0x5300);
-            } else {
-                centerId.Set(KAknsIIDQsnFrPopupCenter);
-                frameId.iMinor = centerId.iMinor - 9;
-            }
-            break;
-        case QS60StylePrivate::SF_ToolBar:
-            if (QSysInfo::s60Version() == QSysInfo::SV_S60_3_1 || 
-                QSysInfo::s60Version() == QSysInfo::SV_S60_3_2) {
-                centerId.Set(KAknsIIDQsnFrPopupCenterSubmenu);
-                frameId.Set(KAknsIIDQsnFrPopupSub);
-            }
+            centerId.Set(EAknsMajorGeneric, 0x19c2);
+            frameId.Set(EAknsMajorSkin, 0x5300);
             break;
         case QS60StylePrivate::SF_PopupBackground:
             centerId.Set(KAknsIIDQsnFrPopupCenterSubmenu);
             frameId.Set(KAknsIIDQsnFrPopupSub);
+            break;
+        case QS60StylePrivate::SF_DialogBackground:
+            centerId.Set(KAknsIIDQsnFrPopupCenter);
+            frameId.Set(KAknsIIDQsnFrPopup);
+            break;
+        case QS60StylePrivate::SF_SettingsList:
+            // Starting from S60_5_3, the root theme has been changed so that KAknsIIDQsnFrSetOpt is empty.
+            // Set the theme ID to None, to avoid theme server trying to draw the empty frame.
+            if (QSysInfo::s60Version() > QSysInfo::SV_S60_5_2) {
+                centerId.Set(KAknsIIDNone);
+                frameId.Set(KAknsIIDNone);
+            }
             break;
         case QS60StylePrivate::SF_PanelBackground:
             // remove center piece for panel graphics, so that only border is drawn
@@ -1137,13 +1236,17 @@ TRect QS60StyleModeSpecifics::innerRectFromElement(QS60StylePrivate::SkinFrameEl
 
 bool QS60StyleModeSpecifics::checkSupport(const int supportedRelease)
 {
+    if (supportedRelease == ES60_All)
+        return true;
+
     const QSysInfo::S60Version currentRelease = QSysInfo::s60Version();
     return ( (currentRelease == QSysInfo::SV_S60_3_1 && supportedRelease & ES60_3_1) ||
              (currentRelease == QSysInfo::SV_S60_3_2 && supportedRelease & ES60_3_2) ||
              (currentRelease == QSysInfo::SV_S60_5_0 && supportedRelease & ES60_5_0) ||
              (currentRelease == QSysInfo::SV_S60_5_1 && supportedRelease & ES60_5_1) ||
              (currentRelease == QSysInfo::SV_S60_5_2 && supportedRelease & ES60_5_2) ||
-             (currentRelease == QSysInfo::SV_S60_5_3 && supportedRelease & ES60_5_3) );
+             (currentRelease == QSysInfo::SV_S60_5_3 && supportedRelease & ES60_5_3) ||
+             (currentRelease == QSysInfo::SV_S60_5_4 && supportedRelease & ES60_5_4) );
 }
 
 TAknsItemID QS60StyleModeSpecifics::partSpecificThemeId(int part)
@@ -1223,10 +1326,7 @@ void QS60StylePrivate::setActiveLayout()
 
     //not found, lets try with either of dimensions
     if (activeLayoutIndex==-1){
-        const QSysInfo::S60Version currentRelease = QSysInfo::s60Version();
         const bool landscape = screenHeight < screenWidth;
-
-        activeLayoutIndex = (currentRelease == QSysInfo::SV_S60_3_1 || currentRelease == QSysInfo::SV_S60_3_2) ? 0 : 2;
         activeLayoutIndex += (!landscape) ? 1 : 0;
     }
 
@@ -1247,7 +1347,9 @@ QS60StylePrivate::QS60StylePrivate()
 void QS60StylePrivate::removeAnimations()
 {
     //currently only one animation in the list.
-    m_animations()->removeFirst();
+    if (!m_animations()->isEmpty()) {
+        delete m_animations()->takeFirst();
+    }
 }
 
 QColor QS60StylePrivate::s60Color(QS60StyleEnums::ColorLists list,
@@ -1282,9 +1384,7 @@ bool QS60StyleModeSpecifics::disabledPartGraphic(QS60StyleEnums::SkinParts &part
         case QS60StyleEnums::SP_QsnFrButtonSideLInactive:
         case QS60StyleEnums::SP_QsnFrButtonSideRInactive:
         case QS60StyleEnums::SP_QsnFrButtonCenterInactive:
-            if (!(QSysInfo::s60Version()==QSysInfo::SV_S60_3_1 ||
-                  QSysInfo::s60Version()==QSysInfo::SV_S60_3_2))
-                disabledGraphic = true;
+            disabledGraphic = true;
             break;
         default:
             break;
@@ -1300,9 +1400,7 @@ bool QS60StyleModeSpecifics::disabledFrameGraphic(QS60StylePrivate::SkinFrameEle
     switch(frame){
         // inactive button graphics are available from 5.0 onwards
         case QS60StylePrivate::SF_ButtonInactive:
-            if (!(QSysInfo::s60Version()==QSysInfo::SV_S60_3_1 ||
-                  QSysInfo::s60Version()==QSysInfo::SV_S60_3_2))
-                disabledGraphic = true;
+            disabledGraphic = true;
             break;
         default:
             break;
@@ -1313,9 +1411,6 @@ bool QS60StyleModeSpecifics::disabledFrameGraphic(QS60StylePrivate::SkinFrameEle
 QPixmap QS60StyleModeSpecifics::generateMissingThemeGraphic(QS60StyleEnums::SkinParts &part,
         const QSize &size, QS60StylePrivate::SkinElementFlags flags)
 {
-    if (!QS60StylePrivate::isTouchSupported())
-        return QPixmap();
-
     QS60StyleEnums::SkinParts updatedPart = part;
     switch(part){
     // AVKON UI has a abnormal handling for scrollbar graphics. It is possible that the root
@@ -1417,12 +1512,26 @@ QPixmap QS60StylePrivate::backgroundTexture(bool skipCreation)
         // Notify all widgets that palette is updated with the actual background texture.
         QPalette pal = QApplication::palette();
         pal.setBrush(QPalette::Window, *m_background);
+
+        //Application palette hash is automatically cleared when QApplication::setPalette is called.
+        //To avoid losing palette hash data, back it up before calling the setPalette() API and
+        //restore it afterwards.
+        typedef QHash<QByteArray, QPalette> PaletteHash;
+        PaletteHash hash;
+        if (qt_app_palettes_hash() || !qt_app_palettes_hash()->isEmpty())
+            hash = *qt_app_palettes_hash();
         QApplication::setPalette(pal);
-        setThemePaletteHash(&pal);
+        if (hash.isEmpty()) {
+            //set default theme palette hash
+            setThemePaletteHash(&pal);
+        } else {
+            for (int i = 0; i < hash.count() - 1; i++) {
+                QByteArray widgetClassName = hash.keys().at(i);
+                QApplication::setPalette(hash.value(widgetClassName), widgetClassName);
+            }
+        }
         storeThemePalette(&pal);
-        foreach (QWidget *widget, QApplication::allWidgets()){
-            QEvent e(QEvent::PaletteChange);
-            QApplication::sendEvent(widget, &e);
+        foreach (QWidget *widget, QApplication::allWidgets()) {
             setThemePalette(widget);
             widget->ensurePolished();
         }
@@ -1541,7 +1650,7 @@ QVariant QS60StyleModeSpecifics::themeDefinition(
     //Animation definitions
     case QS60StyleEnums::TD_AnimationData:
         {
-            CAknsBmpAnimItemData *animationData;
+            CAknsBmpAnimItemData *animationData = 0;
             TAknsItemID animationSkinId = partSpecificThemeId(part);
             QList<QVariant> list;
 
@@ -1557,9 +1666,6 @@ QVariant QS60StyleModeSpecifics::themeDefinition(
 
                 QS60StyleEnums::AnimationMode playMode;
                 switch(animationData->PlayMode()) {
-                    case CBitmapAnimClientData::EPlay:
-                        playMode = QS60StyleEnums::AM_PlayOnce;
-                        break;
                     case CBitmapAnimClientData::ECycle:
                         playMode = QS60StyleEnums::AM_Looping;
                         break;
@@ -1567,6 +1673,7 @@ QVariant QS60StyleModeSpecifics::themeDefinition(
                         playMode = QS60StyleEnums::AM_Bounce;
                         break;
                     default:
+                        playMode = QS60StyleEnums::AM_PlayOnce;
                         break;
                 }
                 list.append(QVariant((int)playMode));

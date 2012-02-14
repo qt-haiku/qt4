@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -42,7 +42,6 @@
 #ifndef QPAINTENGINE_BLITTER_P_H
 #define QPAINTENGINE_BLITTER_P_H
 
-#include "private/qpaintengineex_p.h"
 #include "private/qpaintengine_raster_p.h"
 
 #ifndef QT_NO_BLITTABLE
@@ -52,59 +51,51 @@ class QBlitterPaintEnginePrivate;
 class QBlittablePixmapData;
 class QBlittable;
 
-class Q_GUI_EXPORT QBlitterPaintEngine : public QPaintEngineEx
+class Q_GUI_EXPORT QBlitterPaintEngine : public QRasterPaintEngine
 {
     Q_DECLARE_PRIVATE(QBlitterPaintEngine);
 public:
     QBlitterPaintEngine(QBlittablePixmapData *p);
-    ~QBlitterPaintEngine();
-
-    virtual QPainterState *createState(QPainterState *orig) const;
 
     virtual QPaintEngine::Type type() const { return Blitter; }
 
     virtual bool begin(QPaintDevice *pdev);
     virtual bool end();
 
+    // Call down into QBlittable
     virtual void fill(const QVectorPath &path, const QBrush &brush);
-    virtual void stroke(const QVectorPath &path, const QPen &pen);
+    virtual void fillRect(const QRectF &rect, const QBrush &brush);
+    virtual void fillRect(const QRectF &rect, const QColor &color);
+    virtual void drawRects(const QRect *rects, int rectCount);
+    virtual void drawRects(const QRectF *rects, int rectCount);
+    void drawPixmap(const QPointF &p, const QPixmap &pm);
+    void drawPixmap(const QRectF &r, const QPixmap &pm, const QRectF &sr);
 
-    virtual void clip(const QVectorPath &path, Qt::ClipOperation op);
-    virtual void clip(const QRect &rect, Qt::ClipOperation op);
-    virtual void clip(const QRegion &region, Qt::ClipOperation op);
-
+    // State tracking
+    void setState(QPainterState *s);
     virtual void clipEnabledChanged();
     virtual void penChanged();
     virtual void brushChanged();
-    virtual void brushOriginChanged();
     virtual void opacityChanged();
     virtual void compositionModeChanged();
     virtual void renderHintsChanged();
     virtual void transformChanged();
 
-    virtual void fillRect(const QRectF &rect, const QBrush &brush);
-    virtual void fillRect(const QRectF &rect, const QColor &color);
-
-    virtual void drawRects(const QRect *rects, int rectCount);
-    virtual void drawRects(const QRectF *rects, int rectCount);
-
-    virtual void drawPixmap(const QRectF &r, const QPixmap &pm, const QRectF &sr);
-
-    virtual void drawImage(const QRectF &r, const QImage &pm, const QRectF &sr, Qt::ImageConversionFlags flags);
-
-    virtual void drawTextItem(const QPointF &pos, const QTextItem &ti);
-    virtual void drawStaticTextItem(QStaticTextItem *);
-
-    virtual void drawEllipse(const QRectF &r);
-
-    virtual void setState(QPainterState *s);
-
-    inline QPainterState *state() { return raster()->state(); }
-    inline const QPainterState *state() const { const QPainterState *state = raster()->state(); return state;}
-    inline const QClipData *clip(){return raster()->d_func()->clip();}
-
-private:
-    QRasterPaintEngine *raster() const;
+    // Override to lock the QBlittable before using raster
+    void drawPolygon(const QPointF *points, int pointCount, PolygonDrawMode mode);
+    void drawPolygon(const QPoint *points, int pointCount, PolygonDrawMode mode);
+    void fillPath(const QPainterPath &path, QSpanData *fillData);
+    void fillPolygon(const QPointF *points, int pointCount, PolygonDrawMode mode);
+    void drawEllipse(const QRectF &rect);
+    void drawImage(const QPointF &p, const QImage &img);
+    void drawImage(const QRectF &r, const QImage &pm, const QRectF &sr,
+                   Qt::ImageConversionFlags flags = Qt::AutoColor);
+    void drawTiledPixmap(const QRectF &r, const QPixmap &pm, const QPointF &sr);
+    void drawTextItem(const QPointF &p, const QTextItem &textItem);
+    void drawPoints(const QPointF *points, int pointCount);
+    void drawPoints(const QPoint *points, int pointCount);
+    void stroke(const QVectorPath &path, const QPen &pen);
+    void drawStaticTextItem(QStaticTextItem *);
 };
 
 QT_END_NAMESPACE

@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -85,8 +85,8 @@ void MainWindow::backgroundButtonGroupClicked(QAbstractButton *button)
 {
     QList<QAbstractButton *> buttons = backgroundButtonGroup->buttons();
     foreach (QAbstractButton *myButton, buttons) {
-    if (myButton != button)
-        button->setChecked(false);
+        if (myButton != button)
+            myButton->setChecked(false);
     }
     QString text = button->text();
     if (text == tr("Blue Grid"))

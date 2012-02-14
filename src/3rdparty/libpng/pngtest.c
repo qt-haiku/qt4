@@ -1,7 +1,7 @@
 
 /* pngtest.c - a simple test program to test libpng
  *
- * Last changed in libpng 1.5.0 [January 6, 2011]
+ * Last changed in libpng 1.5.4 [July 7, 2011]
  * Copyright (c) 1998-2011 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
@@ -31,12 +31,14 @@
  * of files at once by typing "pngtest -m file1.png file2.png ..."
  */
 
+#define _POSIX_SOURCE 1
 #include "zlib.h"
 #include "png.h"
 /* Copied from pngpriv.h but only used in error messages below. */
 #ifndef PNG_ZBUF_SIZE
 #  define PNG_ZBUF_SIZE 8192
 #endif
+
 #  include <stdio.h>
 #  include <stdlib.h>
 #  include <string.h>
@@ -97,8 +99,9 @@ static char tIME_string[PNG_tIME_STRING_LENGTH] = "tIME chunk is not present";
 
 static int verbose = 0;
 
+namespace PrivatePng {
 int test_one_file PNGARG((PNG_CONST char *inname, PNG_CONST char *outname));
-
+}
 #ifdef __TURBOC__
 #include <mem.h>
 #endif
@@ -112,6 +115,7 @@ int test_one_file PNGARG((PNG_CONST char *inname, PNG_CONST char *outname));
 #  define png_jmpbuf(png_ptr) png_ptr->jmpbuf
 #endif
 
+namespace PrivatePng {
 /* Example of using row callbacks to make a simple progress meter */
 static int status_pass = 1;
 static int status_dots_requested = 0;
@@ -779,7 +783,7 @@ test_one_file(PNG_CONST char *inname, PNG_CONST char *outname)
    int bit_depth, color_type;
 #ifdef PNG_SETJMP_SUPPORTED
 #ifdef USE_FAR_KEYWORD
-   jmp_buf png_jmpbuf;
+   jmp_buf tmp_jmpbuf;
 #endif
 #endif
 
@@ -848,7 +852,7 @@ test_one_file(PNG_CONST char *inname, PNG_CONST char *outname)
 #ifdef PNG_SETJMP_SUPPORTED
    pngtest_debug("Setting jmpbuf for read struct");
 #ifdef USE_FAR_KEYWORD
-   if (setjmp(png_jmpbuf))
+   if (setjmp(tmp_jmpbuf))
 #else
    if (setjmp(png_jmpbuf(read_ptr)))
 #endif
@@ -866,14 +870,14 @@ test_one_file(PNG_CONST char *inname, PNG_CONST char *outname)
       return (1);
    }
 #ifdef USE_FAR_KEYWORD
-   png_memcpy(png_jmpbuf(read_ptr), png_jmpbuf, png_sizeof(jmp_buf));
+   png_memcpy(png_jmpbuf(read_ptr), tmp_jmpbuf, png_sizeof(jmp_buf));
 #endif
 
 #ifdef PNG_WRITE_SUPPORTED
    pngtest_debug("Setting jmpbuf for write struct");
 #ifdef USE_FAR_KEYWORD
 
-   if (setjmp(png_jmpbuf))
+   if (setjmp(tmp_jmpbuf))
 #else
    if (setjmp(png_jmpbuf(write_ptr)))
 #endif
@@ -890,7 +894,7 @@ test_one_file(PNG_CONST char *inname, PNG_CONST char *outname)
    }
 
 #ifdef USE_FAR_KEYWORD
-   png_memcpy(png_jmpbuf(write_ptr), png_jmpbuf, png_sizeof(jmp_buf));
+   png_memcpy(png_jmpbuf(write_ptr), tmp_jmpbuf, png_sizeof(jmp_buf));
 #endif
 #endif
 #endif
@@ -911,6 +915,14 @@ test_one_file(PNG_CONST char *inname, PNG_CONST char *outname)
       NULL);
 #    endif
 #  endif
+#endif
+
+#ifdef PNG_WRITE_CUSTOMIZE_ZTXT_COMPRESSION_SUPPORTED
+   /* Normally one would use Z_DEFAULT_STRATEGY for text compression.
+    * This is here just to make pngtest replicate the results from libpng
+    * versions prior to 1.5.4, and to test this new API.
+    */
+   png_set_text_compression_strategy(write_ptr, Z_FILTERED);
 #endif
 
    if (status_dots_requested == 1)
@@ -1784,4 +1796,5 @@ main(int argc, char *argv[])
 }
 
 /* Generate a compiler error if there is an old png.h in the search path. */
-typedef png_libpng_version_1_5_1 Your_png_h_is_not_version_1_5_1;
+typedef png_libpng_version_1_5_4 Your_png_h_is_not_version_1_5_4;
+} // namespace PrivatePng

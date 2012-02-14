@@ -58,7 +58,7 @@ SUBDIRS=\
     qfontdialog \
     qfontmetrics \
     qformlayout \
-    qglyphs \
+    qglyphrun \
     qgraphicsanchorlayout \
     qgraphicsanchorlayout1 \
     qgraphicseffect \
@@ -84,6 +84,7 @@ SUBDIRS=\
     qheaderview \
     qicoimageformat \
     qicon \
+    qidentityproxymodel \
     qimageiohandler \
     qimagereader \
     qimagewriter \
@@ -141,7 +142,6 @@ SUBDIRS=\
     qregion \
     qscrollarea \
     qscrollbar \
-    qscroller \
     qsharedpointer_and_qwidget \
     qshortcut \
     qsidebar \
@@ -209,11 +209,26 @@ SUBDIRS=\
 win32:SUBDIRS -= qtextpiecetable
 
 !contains(QT_CONFIG, private_tests): SUBDIRS -= \
-           qgraphicssceneindex \
-           qnetworkreply \
-           qpathclipper \
-           qstylesheetstyle \
-           qtextpiecetable \
+    qcolumnview \
+    qgraphicsanchorlayout \
+    qgraphicsanchorlayout1 \
+    qgraphicsitem \
+    qgraphicsscene \
+    qgraphicssceneindex \
+    qlistwidget \
+    qmainwindow \
+    qnetworkreply \
+    qpathclipper \
+    qpixmapcache \
+    qsidebar \
+    qstatictext \
+    qstylesheetstyle \
+    qtcpsocket \
+    qtextlayout \
+    qtextpiecetable \
+    qtipc \
+    qtoolbar \
+    qtreeview \
 
 symbian:SUBDIRS -= \
     qsystemtrayicon \

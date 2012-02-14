@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
 #ifndef Q_OS_SYMBIAN
     view.show();
 #else
-    view.showFullScreen();
+    view.showMaximized();
 #endif
 #ifdef QT_KEYPAD_NAVIGATION
     QApplication::setNavigationMode(Qt::NavigationModeCursorAuto);

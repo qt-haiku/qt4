@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -65,6 +65,7 @@ TabDialog::TabDialog(const QString &fileName, QWidget *parent)
 
 //! [4]
     QVBoxLayout *mainLayout = new QVBoxLayout;
+    mainLayout->setSizeConstraint(QLayout::SetNoConstraint);
     mainLayout->addWidget(tabWidget);
     mainLayout->addWidget(buttonBox);
     setLayout(mainLayout);

@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -661,7 +661,7 @@ void tst_QMdiArea::changeWindowTitle()
 #else
     widget->setWindowState(Qt::WindowMaximized);
 #endif
-#if !defined(Q_WS_MAC) && !defined(Q_OS_WINCE)
+#if !defined(Q_WS_MAC) && !defined(Q_OS_WINCE) && !defined(Q_OS_SYMBIAN)
     QTRY_COMPARE( mw->windowTitle(), QString::fromLatin1("%1 - [%2]").arg(mwc).arg(wc) );
 #endif
 
@@ -671,7 +671,7 @@ void tst_QMdiArea::changeWindowTitle()
     qApp->processEvents();
     QTest::qWaitForWindowShown(mw);
 
-#if !defined(Q_WS_MAC) && !defined(Q_OS_WINCE)
+#if !defined(Q_WS_MAC) && !defined(Q_OS_WINCE) && !defined(Q_OS_SYMBIAN)
     QTRY_COMPARE( mw->windowTitle(), QString::fromLatin1("%1 - [%2]").arg(mwc).arg(wc) );
 #endif
 
@@ -689,7 +689,7 @@ void tst_QMdiArea::changeWindowTitle()
     widget->setWindowState(Qt::WindowMaximized);
 #endif
     qApp->processEvents();
-#if !defined(Q_WS_MAC) && !defined(Q_OS_WINCE)
+#if !defined(Q_WS_MAC) && !defined(Q_OS_WINCE) && !defined(Q_OS_SYMBIAN)
     QTRY_COMPARE( mw->windowTitle(), QString::fromLatin1("%1 - [%2]").arg(mwc).arg(wc) );
     widget->setWindowTitle( wc2 );
     QCOMPARE( mw->windowTitle(), QString::fromLatin1("%1 - [%2]").arg(mwc).arg(wc2) );
@@ -707,7 +707,7 @@ void tst_QMdiArea::changeWindowTitle()
 #endif
 
     qApp->processEvents();
-#if !defined(Q_WS_MAC) && !defined(Q_OS_WINCE)
+#if !defined(Q_WS_MAC) && !defined(Q_OS_WINCE) && !defined(Q_OS_SYMBIAN)
     QCOMPARE( mw->windowTitle(), QString::fromLatin1("%1 - [%2]").arg(mwc2).arg(wc2) );
 #endif
 #ifdef USE_SHOW
@@ -716,7 +716,7 @@ void tst_QMdiArea::changeWindowTitle()
     widget->setWindowState(Qt::WindowNoState);
 #endif
     qApp->processEvents();
-#if defined(Q_WS_MAC) || defined(Q_OS_WINCE)
+#if defined(Q_WS_MAC) || defined(Q_OS_WINCE) || defined(Q_OS_SYMBIAN)
     QCOMPARE(mw->windowTitle(), mwc);
 #else
     QCOMPARE( mw->windowTitle(), mwc2 );
@@ -728,7 +728,7 @@ void tst_QMdiArea::changeWindowTitle()
     widget->setWindowState(Qt::WindowMaximized);
 #endif
     qApp->processEvents();
-#if !defined(Q_WS_MAC) && !defined(Q_OS_WINCE)
+#if !defined(Q_WS_MAC) && !defined(Q_OS_WINCE) && !defined(Q_OS_SYMBIAN)
     QCOMPARE( mw->windowTitle(), QString::fromLatin1("%1 - [%2]").arg(mwc2).arg(wc2) );
 #endif
 
@@ -777,7 +777,7 @@ void tst_QMdiArea::changeModified()
     QCOMPARE( mw->isWindowModified(), false);
     QCOMPARE( widget->isWindowModified(), true);
     widget->setWindowState(Qt::WindowMaximized);
-#if !defined(Q_WS_MAC) && !defined(Q_OS_WINCE)
+#if !defined(Q_WS_MAC) && !defined(Q_OS_WINCE) && !defined(Q_OS_SYMBIAN)
     QCOMPARE( mw->isWindowModified(), true);
 #endif
     QCOMPARE( widget->isWindowModified(), true);
@@ -787,7 +787,7 @@ void tst_QMdiArea::changeModified()
     QCOMPARE( widget->isWindowModified(), true);
 
     widget->setWindowState(Qt::WindowMaximized);
-#if !defined(Q_WS_MAC) && !defined(Q_OS_WINCE)
+#if !defined(Q_WS_MAC) && !defined(Q_OS_WINCE) && !defined(Q_OS_SYMBIAN)
     QCOMPARE( mw->isWindowModified(), true);
 #endif
     QCOMPARE( widget->isWindowModified(), true);
@@ -797,7 +797,7 @@ void tst_QMdiArea::changeModified()
     QCOMPARE( widget->isWindowModified(), false);
 
     widget->setWindowModified(true);
-#if !defined(Q_WS_MAC) && !defined(Q_OS_WINCE)
+#if !defined(Q_WS_MAC) && !defined(Q_OS_WINCE) && !defined(Q_OS_SYMBIAN)
     QCOMPARE( mw->isWindowModified(), true);
 #endif
     QCOMPARE( widget->isWindowModified(), true);
@@ -2046,7 +2046,7 @@ void tst_QMdiArea::delayedPlacement()
 
 void tst_QMdiArea::iconGeometryInMenuBar()
 {
-#if !defined (Q_WS_MAC) && !defined(Q_OS_WINCE)
+#if !defined (Q_WS_MAC) && !defined(Q_OS_WINCE) && !defined(Q_OS_SYMBIAN)
     QMainWindow mainWindow;
     QMenuBar *menuBar = mainWindow.menuBar();
     QMdiArea *mdiArea = new QMdiArea;

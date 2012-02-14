@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -41,7 +41,11 @@
 #ifndef HTTPWINDOW_H
 #define HTTPWINDOW_H
 
+#ifdef Q_WS_MAEMO_5
+#include <QWidget>
+#else
 #include <QDialog>
+#endif
 #include <QNetworkAccessManager>
 #include <QUrl>
 
@@ -59,7 +63,11 @@ class QNetworkReply;
 
 QT_END_NAMESPACE
 
+#ifdef Q_WS_MAEMO_5
+class HttpWindow : public QWidget
+#else
 class HttpWindow : public QDialog
+#endif
 {
     Q_OBJECT
 
@@ -84,7 +92,9 @@ private:
     QLabel *statusLabel;
     QLabel *urlLabel;
     QLineEdit *urlLineEdit;
+#ifndef Q_WS_MAEMO_5
     QProgressDialog *progressDialog;
+#endif
     QPushButton *downloadButton;
     QPushButton *quitButton;
     QDialogButtonBox *buttonBox;

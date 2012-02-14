@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -1157,7 +1157,6 @@ void QGraphicsItemPrivate::setParentItemHelper(QGraphicsItem *newParent, const Q
             if (q_ptr == fsi || q_ptr->isAncestorOf(fsi)) {
                 parentFocusScopeItem = fsi;
                 p->d_ptr->focusScopeItem = 0;
-                fsi->d_ptr->focusScopeItemChange(false);
             }
             break;
         }
@@ -1171,24 +1170,26 @@ void QGraphicsItemPrivate::setParentItemHelper(QGraphicsItem *newParent, const Q
     // Update focus scope item ptr in new scope.
     QGraphicsItem *newFocusScopeItem = subFocusItem ? subFocusItem : parentFocusScopeItem;
     if (newFocusScopeItem && newParent) {
-        if (subFocusItem) {
-            // Find the subFocusItem's topmost focus scope.
-            QGraphicsItem *ancestorScope = 0;
-            QGraphicsItem *p = subFocusItem->d_ptr->parent;
-            while (p) {
-                if (p->d_ptr->flags & QGraphicsItem::ItemIsFocusScope)
-                    ancestorScope = p;
-                if (p->d_ptr->flags & QGraphicsItem::ItemIsPanel)
-                    break;
-                p = p->d_ptr->parent;
-            }
-            if (ancestorScope)
-                newFocusScopeItem = ancestorScope;
-        }
-
         QGraphicsItem *p = newParent;
         while (p) {
             if (p->d_ptr->flags & QGraphicsItem::ItemIsFocusScope) {
+                if (subFocusItem && subFocusItem != q_ptr) {
+                    // Find the subFocusItem's topmost focus scope within the new parent's focusscope
+                    QGraphicsItem *ancestorScope = 0;
+                    QGraphicsItem *p2 = subFocusItem->d_ptr->parent;
+                    while (p2 && p2 != p) {
+                        if (p2->d_ptr->flags & QGraphicsItem::ItemIsFocusScope)
+                            ancestorScope = p2;
+                        if (p2->d_ptr->flags & QGraphicsItem::ItemIsPanel)
+                            break;
+                        if (p2 == q_ptr)
+                            break;
+                        p2 = p2->d_ptr->parent;
+                    }
+                    if (ancestorScope)
+                        newFocusScopeItem = ancestorScope;
+                }
+
                 p->d_ptr->focusScopeItem = newFocusScopeItem;
                 newFocusScopeItem->d_ptr->focusScopeItemChange(true);
                 // Ensure the new item is no longer the subFocusItem. The
@@ -1258,6 +1259,10 @@ void QGraphicsItemPrivate::setParentItemHelper(QGraphicsItem *newParent, const Q
     dirtySceneTransform = 1;
     if (!inDestructor && (transformData || (newParent && newParent->d_ptr->transformData)))
         transformChanged();
+
+    // Reparenting is finished, now safe to notify the previous focusScopeItem about changes
+    if (parentFocusScopeItem)
+      parentFocusScopeItem->d_ptr->focusScopeItemChange(false);
 
     // Restore the sub focus chain.
     if (subFocusItem) {
@@ -2235,7 +2240,8 @@ bool QGraphicsItem::isVisible() const
     returned. \a parent can be 0, in which case this function will return
     whether the item is visible to the scene or not.
 
-    An item may not be visible to its ancestors even if isVisible() is true. If
+    An item may not be visible to its ancestors even if isVisible() is true. It
+    may also be visible to its ancestors even if isVisible() is false. If
     any ancestor is hidden, the item itself will be implicitly hidden, in which
     case this function will return false.
 
@@ -2243,15 +2249,16 @@ bool QGraphicsItem::isVisible() const
 */
 bool QGraphicsItem::isVisibleTo(const QGraphicsItem *parent) const
 {
-    if (!d_ptr->visible)
+    const QGraphicsItem *p = this;
+    if (d_ptr->explicitlyHidden)
         return false;
-    if (parent == this)
-        return true;
-    if (parentItem() && parentItem()->isVisibleTo(parent))
-        return true;
-    if (!parent && !parentItem())
-        return true;
-    return false;
+    do {
+        if (p == parent)
+            return true;
+        if (p->d_ptr->explicitlyHidden)
+            return false;
+    } while ((p = p->d_ptr->parent));
+    return parent == 0;
 }
 
 /*!
@@ -5376,11 +5383,9 @@ void QGraphicsItemPrivate::invalidateParentGraphicsEffectsRecursively()
 {
     QGraphicsItemPrivate *itemPrivate = this;
     do {
-        if (itemPrivate->graphicsEffect) {
+        if (itemPrivate->graphicsEffect && !itemPrivate->updateDueToGraphicsEffect) {
             itemPrivate->notifyInvalidated = 1;
-
-            if (!itemPrivate->updateDueToGraphicsEffect)
-                static_cast<QGraphicsItemEffectSourcePrivate *>(itemPrivate->graphicsEffect->d_func()->source->d_func())->invalidateCache();
+            static_cast<QGraphicsItemEffectSourcePrivate *>(itemPrivate->graphicsEffect->d_func()->source->d_func())->invalidateCache();
         }
     } while ((itemPrivate = itemPrivate->parent ? itemPrivate->parent->d_ptr.data() : 0));
 }
@@ -5688,21 +5693,27 @@ void QGraphicsItem::update(const QRectF &rect)
     d_ptr->invalidateParentGraphicsEffectsRecursively();
 #endif //QT_NO_GRAPHICSEFFECT
 
-    if (CacheMode(d_ptr->cacheMode) != NoCache) {
-        // Invalidate cache.
-        QGraphicsItemCache *cache = d_ptr->extraItemCache();
-        if (!cache->allExposed) {
-            if (rect.isNull()) {
-                cache->allExposed = true;
-                cache->exposed.clear();
-            } else {
-                cache->exposed.append(rect);
+#ifndef QT_NO_GRAPHICSEFFECT
+    if (!d_ptr->updateDueToGraphicsEffect) {
+#endif
+        if (CacheMode(d_ptr->cacheMode) != NoCache) {
+            // Invalidate cache.
+            QGraphicsItemCache *cache = d_ptr->extraItemCache();
+            if (!cache->allExposed) {
+                if (rect.isNull()) {
+                    cache->allExposed = true;
+                    cache->exposed.clear();
+                } else {
+                    cache->exposed.append(rect);
+                }
             }
+            // Only invalidate cache; item is already dirty.
+            if (d_ptr->fullUpdatePending)
+                return;
         }
-        // Only invalidate cache; item is already dirty.
-        if (d_ptr->fullUpdatePending)
-            return;
+#ifndef QT_NO_GRAPHICSEFFECT
     }
+#endif
 
     if (d_ptr->scene)
         d_ptr->scene->d_func()->markDirty(this, rect);
@@ -7395,15 +7406,19 @@ void QGraphicsItem::updateMicroFocus()
     if (QWidget *fw = QApplication::focusWidget()) {
         if (scene()) {
             for (int i = 0 ; i < scene()->views().count() ; ++i) {
-                if (scene()->views().at(i) == fw)
-                    if (QInputContext *inputContext = fw->inputContext())
+                if (scene()->views().at(i) == fw) {
+                    if (QInputContext *inputContext = fw->inputContext()) {
                         inputContext->update();
+#ifndef QT_NO_ACCESSIBILITY
+                        // ##### is this correct
+                        if (toGraphicsObject())
+                            QAccessible::updateAccessibility(toGraphicsObject(), 0, QAccessible::StateChanged);
+#endif
+                        break;
+                    }
+                }
             }
         }
-#ifndef QT_NO_ACCESSIBILITY
-        // ##### is this correct
-        QAccessible::updateAccessibility(fw, 0, QAccessible::StateChanged);
-#endif
     }
 #endif
 }
@@ -8858,7 +8873,7 @@ QPainterPath QGraphicsEllipseItem::shape() const
         return path;
     if (d->spanAngle != 360 * 16) {
         path.moveTo(d->rect.center());
-        path.arcTo(d->rect, d->startAngle / 16.0, d->spanAngle / 16.0);
+        path.arcTo(d->rect, d->startAngle / qreal(16.0), d->spanAngle / qreal(16.0));
     } else {
         path.addEllipse(d->rect);
     }
@@ -9494,7 +9509,7 @@ QVariant QGraphicsLineItem::extension(const QVariant &variant) const
     QPixmap::createHeuristicMask().  The performance and memory consumption
     is similar to MaskShape.
 */
-extern QPainterPath qt_regionToPath(const QRegion &region);
+extern Q_AUTOTEST_EXPORT QPainterPath qt_regionToPath(const QRegion &region);
 
 class QGraphicsPixmapItemPrivate : public QGraphicsItemPrivate
 {
@@ -11053,9 +11068,9 @@ QGraphicsItemGroup::~QGraphicsItemGroup()
 }
 
 /*!
-    Adds the given \a item to this item group. The item will be
-    reparented to this group, but its position and transformation
-    relative to the scene will stay intact.
+    Adds the given \a item and item's child items to this item group.
+    The item and child items will be reparented to this group, but its
+    position and transformation relative to the scene will stay intact.
 
     \sa removeFromGroup(), QGraphicsScene::createItemGroup()
 */

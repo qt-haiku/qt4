@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -159,7 +159,7 @@ bool Qt::mightBeRichText(const QString& text)
 QString Qt::escape(const QString& plain)
 {
     QString rich;
-    rich.reserve(int(plain.length() * 1.1));
+    rich.reserve(int(plain.length() * qreal(1.1)));
     for (int i = 0; i < plain.length(); ++i) {
         if (plain.at(i) == QLatin1Char('<'))
             rich += QLatin1String("&lt;");
@@ -583,6 +583,29 @@ void QTextDocument::setDefaultTextOption(const QTextOption &option)
     d->defaultTextOption = option;
     if (d->lout)
         d->lout->documentChanged(0, 0, d->length());
+}
+
+/*!
+    \since 4.8
+
+    The default cursor movement style is used by all QTextCursor objects
+    created from the document. The default is Qt::LogicalMoveStyle.
+*/
+Qt::CursorMoveStyle QTextDocument::defaultCursorMoveStyle() const
+{
+    Q_D(const QTextDocument);
+    return d->defaultCursorMoveStyle;
+}
+
+/*!
+    \since 4.8
+
+    Sets the default cursor movement style to the given \a style.
+*/
+void QTextDocument::setDefaultCursorMoveStyle(Qt::CursorMoveStyle style)
+{
+    Q_D(QTextDocument);
+    d->defaultCursorMoveStyle = style;
 }
 
 /*!
@@ -2076,6 +2099,10 @@ QString QTextHtmlExporter::toHtml(const QByteArray &encoding, ExportMode mode)
             html += QLatin1String(" font-size:");
             html += QString::number(defaultCharFormat.fontPointSize());
             html += QLatin1String("pt;");
+        } else if (defaultCharFormat.hasProperty(QTextFormat::FontPixelSize)) {
+            html += QLatin1String(" font-size:");
+            html += QString::number(defaultCharFormat.intProperty(QTextFormat::FontPixelSize));
+            html += QLatin1String("px;");
         }
 
         html += QLatin1String(" font-weight:");
@@ -2156,6 +2183,10 @@ bool QTextHtmlExporter::emitCharFormatStyle(const QTextCharFormat &format)
             html += QLatin1Char(';');
             attributesEmitted = true;
         }
+    } else if (format.hasProperty(QTextFormat::FontPixelSize)) {
+        html += QLatin1String(" font-size:");
+        html += QString::number(format.intProperty(QTextFormat::FontPixelSize));
+        html += QLatin1String("px;");
     }
 
     if (format.hasProperty(QTextFormat::FontWeight)
@@ -2678,6 +2709,8 @@ void QTextHtmlExporter::emitBlock(const QTextBlock &block)
     emitBlockAttributes(block);
 
     html += QLatin1Char('>');
+    if (block.begin().atEnd())
+        html += QLatin1String("<br />");
 
     QTextBlock::Iterator it = block.begin();
     if (fragmentMarkers && !it.atEnd() && block == doc->begin())

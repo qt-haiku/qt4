@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -162,27 +162,27 @@ inline void QBezier::coefficients(qreal t, qreal &a, qreal &b, qreal &c, qreal &
 
 inline QPointF QBezier::pointAt(qreal t) const
 {
-#if 1
-    qreal a, b, c, d;
-    coefficients(t, a, b, c, d);
-    return QPointF(a*x1 + b*x2 + c*x3 + d*x4, a*y1 + b*y2 + c*y3 + d*y4);
-#else
     // numerically more stable:
+    qreal x, y;
+
     qreal m_t = 1. - t;
-    qreal a = x1*m_t + x2*t;
-    qreal b = x2*m_t + x3*t;
-    qreal c = x3*m_t + x4*t;
-    a = a*m_t + b*t;
-    b = b*m_t + c*t;
-    qreal x = a*m_t + b*t;
-    qreal a = y1*m_t + y2*t;
-    qreal b = y2*m_t + y3*t;
-    qreal c = y3*m_t + y4*t;
-    a = a*m_t + b*t;
-    b = b*m_t + c*t;
-    qreal y = a*m_t + b*t;
+    {
+        qreal a = x1*m_t + x2*t;
+        qreal b = x2*m_t + x3*t;
+        qreal c = x3*m_t + x4*t;
+        a = a*m_t + b*t;
+        b = b*m_t + c*t;
+        x = a*m_t + b*t;
+    }
+    {
+        qreal a = y1*m_t + y2*t;
+        qreal b = y2*m_t + y3*t;
+        qreal c = y3*m_t + y4*t;
+        a = a*m_t + b*t;
+        b = b*m_t + c*t;
+        y = a*m_t + b*t;
+    }
     return QPointF(x, y);
-#endif
 }
 
 inline QPointF QBezier::normalVector(qreal t) const

@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -48,6 +48,16 @@
 #include <QXmlStreamReader>
 #include <QUrl>
 
+#ifdef Q_OS_SYMBIAN
+// Bearer
+#include <QNetworkConfigurationManager>
+#include <QNetworkSession>
+#include <QPointer>
+
+// QtMobility namespace
+QTM_USE_NAMESPACE
+#endif
+
 QT_BEGIN_NAMESPACE
 class QLineEdit;
 class QTreeWidget;
@@ -84,6 +94,11 @@ private:
     QLineEdit *lineEdit;
     QTreeWidget *treeWidget;
     QPushButton *fetchButton;
+
+#ifdef Q_OS_SYMBIAN
+    // for bearer management
+    QPointer<QNetworkSession> m_session;
+#endif
 };
 
 #endif

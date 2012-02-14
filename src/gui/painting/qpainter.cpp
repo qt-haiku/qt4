@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -62,7 +62,7 @@
 #include "qthread.h"
 #include "qvarlengtharray.h"
 #include "qstatictext.h"
-#include "qglyphs.h"
+#include "qglyphrun.h"
 
 #include <private/qfontengine_p.h>
 #include <private/qpaintengine_p.h>
@@ -73,7 +73,7 @@
 #include <private/qpaintengine_raster_p.h>
 #include <private/qmath_p.h>
 #include <private/qstatictext_p.h>
-#include <private/qglyphs_p.h>
+#include <private/qglyphrun_p.h>
 #include <private/qstylehelper_p.h>
 #include <private/qrawfont_p.h>
 
@@ -150,13 +150,6 @@ static inline uint line_emulation(uint emulation)
                         | QGradient_StretchToDevice
                         | QPaintEngine::ObjectBoundingModeGradients
                         | QPaintEngine_OpaqueBackground);
-}
-
-static bool qt_paintengine_supports_transformations(QPaintEngine::Type type)
-{
-    return type == QPaintEngine::OpenGL2
-            || type == QPaintEngine::OpenVG
-            || type == QPaintEngine::OpenGL;
 }
 
 #ifndef QT_NO_DEBUG
@@ -410,8 +403,8 @@ void QPainterPrivate::draw_helper(const QPainterPath &originalPath, DrawOperatio
                 QPainterPath stroke = stroker.createStroke(originalPath);
                 strokeBounds = (stroke * state->matrix).boundingRect();
             } else {
-                strokeOffsetX = qAbs(penWidth * state->matrix.m11() / 2.0);
-                strokeOffsetY = qAbs(penWidth * state->matrix.m22() / 2.0);
+                strokeOffsetX = qAbs(penWidth * state->matrix.m11() / qreal(2.0));
+                strokeOffsetY = qAbs(penWidth * state->matrix.m22() / qreal(2.0));
             }
         }
     }
@@ -503,8 +496,12 @@ void QPainterPrivate::draw_helper(const QPainterPath &originalPath, DrawOperatio
 
     q->save();
     state->matrix = QTransform();
-    state->dirtyFlags |= QPaintEngine::DirtyTransform;
-    updateState(state);
+    if (extended) {
+        extended->transformChanged();
+    } else {
+        state->dirtyFlags |= QPaintEngine::DirtyTransform;
+        updateState(state);
+    }
     engine->drawImage(absPathRect,
                  image,
                  QRectF(0, 0, absPathRect.width(), absPathRect.height()),
@@ -687,11 +684,14 @@ void QPainterPrivate::updateInvMatrix()
     invMatrix = state->matrix.inverted();
 }
 
+Q_GUI_EXPORT bool qt_isExtendedRadialGradient(const QBrush &brush);
+
 void QPainterPrivate::updateEmulationSpecifier(QPainterState *s)
 {
     bool alpha = false;
     bool linearGradient = false;
     bool radialGradient = false;
+    bool extendedRadialGradient = false;
     bool conicalGradient = false;
     bool patternBrush = false;
     bool xform = false;
@@ -723,6 +723,7 @@ void QPainterPrivate::updateEmulationSpecifier(QPainterState *s)
                            (brushStyle == Qt::LinearGradientPattern));
         radialGradient = ((penBrushStyle == Qt::RadialGradientPattern) ||
                            (brushStyle == Qt::RadialGradientPattern));
+        extendedRadialGradient = radialGradient && (qt_isExtendedRadialGradient(penBrush) || qt_isExtendedRadialGradient(s->brush));
         conicalGradient = ((penBrushStyle == Qt::ConicalGradientPattern) ||
                             (brushStyle == Qt::ConicalGradientPattern));
         patternBrush = (((penBrushStyle > Qt::SolidPattern
@@ -806,7 +807,7 @@ void QPainterPrivate::updateEmulationSpecifier(QPainterState *s)
         s->emulationSpecifier &= ~QPaintEngine::LinearGradientFill;
 
     // Radial gradient emulation
-    if (radialGradient && !engine->hasFeature(QPaintEngine::RadialGradientFill))
+    if (extendedRadialGradient || (radialGradient && !engine->hasFeature(QPaintEngine::RadialGradientFill)))
         s->emulationSpecifier |= QPaintEngine::RadialGradientFill;
     else
         s->emulationSpecifier &= ~QPaintEngine::RadialGradientFill;
@@ -2662,7 +2663,7 @@ QRegion QPainter::clipRegion() const
     return region;
 }
 
-extern QPainterPath qt_regionToPath(const QRegion &region);
+extern Q_AUTOTEST_EXPORT QPainterPath qt_regionToPath(const QRegion &region);
 
 /*!
     Returns the currently clip as a path. Note that the clip path is
@@ -2736,7 +2737,7 @@ QRectF QPainter::clipBoundingRect() const
     }
 
     // Accumulate the bounding box in device space. This is not 100%
-    // precise, but it fits within the guarantee and it is resonably
+    // precise, but it fits within the guarantee and it is reasonably
     // fast.
     QRectF bounds;
     for (int i=0; i<d->state->clipInfo.size(); ++i) {
@@ -2859,6 +2860,9 @@ void QPainter::setClipRect(const QRect &rect, Qt::ClipOperation op)
         return;
     }
 
+    if (d->state->clipOperation == Qt::NoClip && op == Qt::IntersectClip)
+        op = Qt::ReplaceClip;
+
     d->state->clipRegion = rect;
     d->state->clipOperation = op;
     if (op == Qt::NoClip || op == Qt::ReplaceClip)
@@ -2913,6 +2917,9 @@ void QPainter::setClipRegion(const QRegion &r, Qt::ClipOperation op)
         d->state->clipOperation = op;
         return;
     }
+
+    if (d->state->clipOperation == Qt::NoClip && op == Qt::IntersectClip)
+        op = Qt::ReplaceClip;
 
     d->state->clipRegion = r;
     d->state->clipOperation = op;
@@ -3318,6 +3325,9 @@ void QPainter::setClipPath(const QPainterPath &path, Qt::ClipOperation op)
         d->state->clipOperation = op;
         return;
     }
+
+    if (d->state->clipOperation == Qt::NoClip && op == Qt::IntersectClip)
+        op = Qt::ReplaceClip;
 
     d->state->clipPath = path;
     d->state->clipOperation = op;
@@ -4450,8 +4460,8 @@ void QPainter::drawArc(const QRectF &r, int a, int alen)
     QRectF rect = r.normalized();
 
     QPainterPath path;
-    path.arcMoveTo(rect, a/16.0);
-    path.arcTo(rect, a/16.0, alen/16.0);
+    path.arcMoveTo(rect, a/qreal(16.0));
+    path.arcTo(rect, a/qreal(16.0), alen/qreal(16.0));
     strokePath(path, d->state->pen);
 }
 
@@ -4521,7 +4531,7 @@ void QPainter::drawPie(const QRectF &r, int a, int alen)
 
     QPainterPath path;
     path.moveTo(rect.center());
-    path.arcTo(rect.x(), rect.y(), rect.width(), rect.height(), a/16.0, alen/16.0);
+    path.arcTo(rect.x(), rect.y(), rect.width(), rect.height(), a/qreal(16.0), alen/qreal(16.0));
     path.closeSubpath();
     drawPath(path);
 
@@ -4582,8 +4592,8 @@ void QPainter::drawChord(const QRectF &r, int a, int alen)
     QRectF rect = r.normalized();
 
     QPainterPath path;
-    path.arcMoveTo(rect, a/16.0);
-    path.arcTo(rect, a/16.0, alen/16.0);
+    path.arcMoveTo(rect, a/qreal(16.0));
+    path.arcTo(rect, a/qreal(16.0), alen/qreal(16.0));
     path.closeSubpath();
     drawPath(path);
 }
@@ -5782,46 +5792,58 @@ void QPainter::drawImage(const QRectF &targetRect, const QImage &image, const QR
     d->engine->drawImage(QRectF(x, y, w, h), image, QRectF(sx, sy, sw, sh), flags);
 }
 
+#if !defined(QT_NO_RAWFONT)
 /*!
-    Draws the glyphs represented by \a glyphs at \a position. The \a position gives the
-    edge of the baseline for the string of glyphs. The glyphs will be retrieved from the font
-    selected on \a glyphs and at offsets given by the positions in \a glyphs.
+    \fn void QPainter::drawGlyphRun(const QPointF &position, const QGlyphRun &glyphs)
+
+    Draws the specified \a glyphs at the given \a position.
+    The \a position gives the edge of the baseline for the string of glyphs.
+    The glyphs will be retrieved from the font selected by \a glyphs and at
+    offsets given by the positions in \a glyphs.
 
     \since 4.8
 
-    \sa QGlyphs::setFont(), QGlyphs::setPositions(), QGlyphs::setGlyphIndexes()
+    \sa QGlyphRun::setRawFont(), QGlyphRun::setPositions(), QGlyphRun::setGlyphIndexes()
 */
-#if !defined(QT_NO_RAWFONT)
-void QPainter::drawGlyphs(const QPointF &position, const QGlyphs &glyphs)
+void QPainter::drawGlyphRun(const QPointF &position, const QGlyphRun &glyphRun)
 {
     Q_D(QPainter);
 
-    QRawFont font = glyphs.font();
+    QRawFont font = glyphRun.rawFont();
     if (!font.isValid())
         return;
 
-    QVector<quint32> glyphIndexes = glyphs.glyphIndexes();
-    QVector<QPointF> glyphPositions = glyphs.positions();
+    QGlyphRunPrivate *glyphRun_d = QGlyphRunPrivate::get(glyphRun);
 
-    int count = qMin(glyphIndexes.size(), glyphPositions.size());
+    const quint32 *glyphIndexes = glyphRun_d->glyphIndexData;
+    const QPointF *glyphPositions = glyphRun_d->glyphPositionData;
+
+    int count = qMin(glyphRun_d->glyphIndexDataSize, glyphRun_d->glyphPositionDataSize);
     QVarLengthArray<QFixedPoint, 128> fixedPointPositions(count);
 
-    bool paintEngineSupportsTransformations =
-            d->extended != 0
-            ? qt_paintengine_supports_transformations(d->extended->type())
-            : false;
+    QRawFontPrivate *fontD = QRawFontPrivate::get(font);
+    bool supportsTransformations;
+    if (d->extended != 0) {
+        supportsTransformations = d->extended->supportsTransformations(fontD->fontEngine->fontDef.pixelSize,
+                                                                       d->state->matrix);
+    } else {
+        supportsTransformations = d->engine->type() == QPaintEngine::CoreGraphics
+                                  || d->state->matrix.isAffine();
+    }
+
     for (int i=0; i<count; ++i) {
-        QPointF processedPosition = position + glyphPositions.at(i);
-        if (!paintEngineSupportsTransformations)
+        QPointF processedPosition = position + glyphPositions[i];
+        if (!supportsTransformations)
             processedPosition = d->state->transform().map(processedPosition);
         fixedPointPositions[i] = QFixedPoint::fromPointF(processedPosition);
     }
 
-    d->drawGlyphs(glyphIndexes.data(), fixedPointPositions.data(), count, font, glyphs.overline(),
-                  glyphs.underline(), glyphs.strikeOut());
+    d->drawGlyphs(glyphIndexes, fixedPointPositions.data(), count, font, glyphRun.overline(),
+                  glyphRun.underline(), glyphRun.strikeOut());
 }
 
-void QPainterPrivate::drawGlyphs(quint32 *glyphArray, QFixedPoint *positions, int glyphCount,
+void QPainterPrivate::drawGlyphs(const quint32 *glyphArray, QFixedPoint *positions,
+                                 int glyphCount,
                                  const QRawFont &font, bool overline, bool underline,
                                  bool strikeOut)
 {
@@ -5853,7 +5875,7 @@ void QPainterPrivate::drawGlyphs(quint32 *glyphArray, QFixedPoint *positions, in
 
     QFixed width = rightMost - leftMost;
 
-    if (extended != 0) {
+    if (extended != 0 && state->matrix.isAffine()) {
         QStaticTextItem staticTextItem;
         staticTextItem.color = state->pen.color();
         staticTextItem.font = state->font;
@@ -5988,11 +6010,12 @@ void QPainter::drawStaticText(const QPointF &topLeftPosition, const QStaticText 
         return;
     }
 
-    bool paintEngineSupportsTransformations = qt_paintengine_supports_transformations(d->extended->type());
-    if (paintEngineSupportsTransformations && !staticText_d->untransformedCoordinates) {
+    bool supportsTransformations = d->extended->supportsTransformations(staticText_d->font.pixelSize(),
+                                                                        d->state->matrix);
+    if (supportsTransformations && !staticText_d->untransformedCoordinates) {
         staticText_d->untransformedCoordinates = true;
         staticText_d->needsRelayout = true;
-    } else if (!paintEngineSupportsTransformations && staticText_d->untransformedCoordinates) {
+    } else if (!supportsTransformations && staticText_d->untransformedCoordinates) {
         staticText_d->untransformedCoordinates = false;
         staticText_d->needsRelayout = true;
     }
@@ -6449,11 +6472,16 @@ static void drawTextItemDecoration(QPainter *painter, const QPointF &pos, const 
 
     QLineF line(pos.x(), pos.y(), pos.x() + qFloor(width), pos.y());
 
-    const qreal underlineOffset = fe->underlinePosition().toReal();
+    qreal underlineOffset = fe->underlinePosition().toReal();
+    qreal y = pos.y();
+    // compensate for different rounding rule in Core Graphics paint engine,
+    // ideally code like this should be moved to respective engines.
+    if (painter->paintEngine()->type() == QPaintEngine::CoreGraphics) {
+        y = qCeil(y);
+    }
     // deliberately ceil the offset to avoid the underline coming too close to
     // the text above it.
-    const qreal aliasedCoordinateDelta = 0.5 - 0.015625;
-    const qreal underlinePos = pos.y() + qCeil(underlineOffset) - aliasedCoordinateDelta;
+    const qreal underlinePos = y + qCeil(underlineOffset);
 
     if (underlineStyle == QTextCharFormat::SpellCheckUnderline) {
         underlineStyle = QTextCharFormat::UnderlineStyle(QApplication::style()->styleHint(QStyle::SH_SpellCheckUnderlineStyle));
@@ -6627,6 +6655,10 @@ void QPainter::drawTextItem(const QPointF &p, const QTextItem &_ti)
         qreal x = p.x();
         qreal y = p.y();
 
+        bool rtl = ti.flags & QTextItem::RightToLeft;
+        if (rtl)
+            x += ti.width.toReal();
+
         int start = 0;
         int end, i;
         for (end = 0; end < ti.glyphs.numGlyphs; ++end) {
@@ -6643,14 +6675,19 @@ void QPainter::drawTextItem(const QPointF &p, const QTextItem &_ti)
                 ti2.width += ti.glyphs.effectiveAdvance(i);
             }
 
+            if (rtl)
+                x -= ti2.width.toReal();
+
             d->engine->drawTextItem(QPointF(x, y), ti2);
+
+            if (!rtl)
+                x += ti2.width.toReal();
 
             // reset the high byte for all glyphs and advance to the next sub-string
             const int hi = which << 24;
             for (i = start; i < end; ++i) {
                 glyphs.glyphs[i] = hi | glyphs.glyphs[i];
             }
-            x += ti2.width.toReal();
 
             // change engine
             start = end;
@@ -6664,6 +6701,9 @@ void QPainter::drawTextItem(const QPointF &p, const QTextItem &_ti)
             glyphs.glyphs[i] = glyphs.glyphs[i] & 0xffffff;
             ti2.width += ti.glyphs.effectiveAdvance(i);
         }
+
+        if (rtl)
+            x -= ti2.width.toReal();
 
         if (d->extended)
             d->extended->drawTextItem(QPointF(x, y), ti2);
@@ -9202,11 +9242,57 @@ void QPainter::drawPixmapFragments(const PixmapFragment *fragments, int fragment
             qreal h = fragments[i].scaleY * fragments[i].height;
             QRectF sourceRect(fragments[i].sourceLeft, fragments[i].sourceTop,
                               fragments[i].width, fragments[i].height);
-            drawPixmap(QRectF(-0.5 * w + xOffset, -0.5 * h + yOffset, w, h), pixmap, sourceRect);
+            drawPixmap(QRectF(qreal(-0.5) * w + xOffset, qreal(-0.5) * h + yOffset, w, h), pixmap, sourceRect);
         }
 
         setOpacity(oldOpacity);
         setTransform(oldTransform);
+    }
+}
+
+/*!
+    \since 4.8
+
+    This function is used to draw the same \a pixmap with multiple target
+    and source rectangles specified by \a targetRects. If \a sourceRects is 0,
+    the whole pixmap will be rendered at each of the target rectangles.
+    The \a hints parameter can be used to pass in drawing hints.
+
+    This function is potentially faster than multiple calls to drawPixmap(),
+    since the backend can optimize state changes.
+
+    \sa QPainter::PixmapFragmentHint
+*/
+
+void QPainter::drawPixmapFragments(const QRectF *targetRects, const QRectF *sourceRects, int fragmentCount,
+                                   const QPixmap &pixmap, PixmapFragmentHints hints)
+{
+    Q_D(QPainter);
+
+    if (!d->engine || pixmap.isNull())
+        return;
+
+#ifndef QT_NO_DEBUG
+    if (sourceRects) {
+        for (int i = 0; i < fragmentCount; ++i) {
+            QRectF sourceRect = sourceRects[i];
+            if (!(QRectF(pixmap.rect()).contains(sourceRect)))
+                qWarning("QPainter::drawPixmapFragments - the source rect is not contained by the pixmap's rectangle");
+        }
+    }
+#endif
+
+    if (d->engine->isExtended()) {
+        d->extended->drawPixmapFragments(targetRects, sourceRects, fragmentCount, pixmap, hints);
+    } else {
+        if (sourceRects) {
+            for (int i = 0; i < fragmentCount; ++i)
+                drawPixmap(targetRects[i], pixmap, sourceRects[i]);
+        } else {
+            QRectF sourceRect = pixmap.rect();
+            for (int i = 0; i < fragmentCount; ++i)
+                drawPixmap(targetRects[i], pixmap, sourceRect);
+        }
     }
 }
 
@@ -9423,7 +9509,7 @@ void qt_draw_helper(QPainterPrivate *p, const QPainterPath &path, QPainterPrivat
     \oldcode
         void *visual = QPaintDevice::x11AppVisual(screen);
     \newcode
-        void *visual = qApp->x11Info(screen).visual();
+        void *visual = widget->x11Info().appVisual(screen);
     \endcode
 
     \sa QWidget::x11Info(), QPixmap::x11Info()
@@ -9435,7 +9521,7 @@ void qt_draw_helper(QPainterPrivate *p, const QPainterPath &path, QPainterPrivat
     \oldcode
         unsigned long colormap = QPaintDevice::x11AppColormap(screen);
     \newcode
-        unsigned long colormap = qApp->x11Info(screen).colormap();
+        unsigned long colormap = widget->x11Info().appColormap(screen);
     \endcode
 
     \sa QWidget::x11Info(), QPixmap::x11Info()
@@ -9447,7 +9533,7 @@ void qt_draw_helper(QPainterPrivate *p, const QPainterPath &path, QPainterPrivat
     \oldcode
         Display *display = QPaintDevice::x11AppDisplay();
     \newcode
-        Display *display = qApp->x11Info().display();
+        Display *display = widget->x11Info().display();
     \endcode
 
     \sa QWidget::x11Info(), QPixmap::x11Info()
@@ -9459,7 +9545,7 @@ void qt_draw_helper(QPainterPrivate *p, const QPainterPath &path, QPainterPrivat
     \oldcode
         int screen = QPaintDevice::x11AppScreen();
     \newcode
-        int screen = qApp->x11Info().screen();
+        int screen = widget->x11Info().appScreen();
     \endcode
 
     \sa QWidget::x11Info(), QPixmap::x11Info()
@@ -9471,7 +9557,7 @@ void qt_draw_helper(QPainterPrivate *p, const QPainterPath &path, QPainterPrivat
     \oldcode
         int depth = QPaintDevice::x11AppDepth(screen);
     \newcode
-        int depth = qApp->x11Info(screen).depth();
+        int depth = widget->x11Info().appDepth(screen);
     \endcode
 
     \sa QWidget::x11Info(), QPixmap::x11Info()
@@ -9483,7 +9569,7 @@ void qt_draw_helper(QPainterPrivate *p, const QPainterPath &path, QPainterPrivat
     \oldcode
         int cells = QPaintDevice::x11AppCells(screen);
     \newcode
-        int cells = qApp->x11Info(screen).cells();
+        int cells = widget->x11Info().appCells(screen);
     \endcode
 
     \sa QWidget::x11Info(), QPixmap::x11Info()
@@ -9495,7 +9581,7 @@ void qt_draw_helper(QPainterPrivate *p, const QPainterPath &path, QPainterPrivat
     \oldcode
         unsigned long window = QPaintDevice::x11AppRootWindow(screen);
     \newcode
-        unsigned long window = qApp->x11Info(screen).appRootWindow();
+        unsigned long window = widget->x11Info().appRootWindow(screen);
     \endcode
 
     \sa QWidget::x11Info(), QPixmap::x11Info()
@@ -9507,7 +9593,7 @@ void qt_draw_helper(QPainterPrivate *p, const QPainterPath &path, QPainterPrivat
     \oldcode
         bool isDefault = QPaintDevice::x11AppDefaultColormap(screen);
     \newcode
-        bool isDefault = qApp->x11Info(screen).defaultColormap();
+        bool isDefault = widget->x11Info().appDefaultColormap(screen);
     \endcode
 
     \sa QWidget::x11Info(), QPixmap::x11Info()
@@ -9519,7 +9605,7 @@ void qt_draw_helper(QPainterPrivate *p, const QPainterPath &path, QPainterPrivat
     \oldcode
         bool isDefault = QPaintDevice::x11AppDefaultVisual(screen);
     \newcode
-        bool isDefault = qApp->x11Info(screen).defaultVisual();
+        bool isDefault = widget->x11Info().appDefaultVisual(screen);
     \endcode
 
     \sa QWidget::x11Info(), QPixmap::x11Info()
@@ -9539,7 +9625,7 @@ void qt_draw_helper(QPainterPrivate *p, const QPainterPath &path, QPainterPrivat
     \oldcode
         bool isDefault = QPaintDevice::x11AppDpiX(screen);
     \newcode
-        bool isDefault = qApp->x11Info(screen).appDpiX();
+        bool isDefault = widget->x11Info().appDpiX(screen);
     \endcode
 
     \sa QWidget::x11Info(), QPixmap::x11Info()
@@ -9551,7 +9637,7 @@ void qt_draw_helper(QPainterPrivate *p, const QPainterPath &path, QPainterPrivat
     \oldcode
         bool isDefault = QPaintDevice::x11AppDpiY(screen);
     \newcode
-        bool isDefault = qApp->x11Info(screen).appDpiY();
+        bool isDefault = widget->x11Info().appDpiY(screen);
     \endcode
 
     \sa QWidget::x11Info(), QPixmap::x11Info()

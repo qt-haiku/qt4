@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -302,10 +302,15 @@ QDataStream &operator>>(QDataStream &stream, QLine &line)
 
 #endif // QT_NO_DATASTREAM
 
+inline static qreal q_deg2rad(qreal x)
+{
+    return x * qreal(0.01745329251994329576923690768489);    /* pi/180 */
+}
 
-#ifndef M_2PI
-#define M_2PI 6.28318530717958647692528676655900576
-#endif
+inline static qreal q_rad2deg(qreal x)
+{
+    return x * qreal(57.295779513082320876798154814105);    /* 180/pi */
+}
 
 /*!
     \class QLineF
@@ -483,7 +488,8 @@ bool QLineF::isNull() const
 /*!
     \fn qreal QLineF::dx() const
 
-    Returns the horizontal component of the line's vector.
+    Returns the horizontal component of the line's vector. 
+	Return value is positive if x2() >= x1() and negative if x2() < x1().
 
     \sa dy(), pointAt()
 */
@@ -492,6 +498,7 @@ bool QLineF::isNull() const
     \fn qreal QLineF::dy() const
 
     Returns the vertical component of the line's vector.
+	Return value is positive if y2() >= y1() and negative if y2() < y1().
 
     \sa dx(), pointAt()
 */
@@ -501,7 +508,8 @@ bool QLineF::isNull() const
 
     Sets the length of the line to the given \a length. QLineF will
     move the end point - p2() - of the line to give the line its new length.
-    
+    If the given \a length is negative the angle() is also changed.
+	
     If the line is a null line, the length will remain zero regardless
     of the length specified. 
 
@@ -564,8 +572,9 @@ qreal QLineF::length() const
 
     Returns the angle of the line in degrees.
 
-    Positive values for the angles mean counter-clockwise while negative values
-    mean the clockwise direction. Zero degrees is at the 3 o'clock position.
+    The return value will be in the range of values from 0.0 up to but not
+    including 360.0. The angles are measured counter-clockwise from a point
+    on the x-axis to the right of the origin (x > 0).
 
     \sa setAngle()
 */
@@ -574,7 +583,7 @@ qreal QLineF::angle() const
     const qreal dx = pt2.x() - pt1.x();
     const qreal dy = pt2.y() - pt1.y();
 
-    const qreal theta = qAtan2(-dy, dx) * 360.0 / M_2PI;
+    const qreal theta = q_rad2deg(qAtan2(-dy, dx));
 
     const qreal theta_normalized = theta < 0 ? theta + 360 : theta;
 
@@ -598,7 +607,7 @@ qreal QLineF::angle() const
 */
 void QLineF::setAngle(qreal angle)
 {
-    const qreal angleR = angle * M_2PI / 360.0;
+    const qreal angleR = q_deg2rad(angle);
     const qreal l = length();
 
     const qreal dx = qCos(angleR) * l;
@@ -620,7 +629,7 @@ void QLineF::setAngle(qreal angle)
 */
 QLineF QLineF::fromPolar(qreal length, qreal angle)
 {
-    const qreal angleR = angle * M_2PI / 360.0;
+    const qreal angleR = q_deg2rad(angle);
     return QLineF(0, 0, qCos(angleR) * length, -qSin(angleR) * length);
 }
 
@@ -756,7 +765,7 @@ QLineF::IntersectType QLineF::intersect(const QLineF &l, QPointF *intersectionPo
 
   \since 4.4
 
-  Returns the angle (in degrees) from this line to the given \a
+  Returns the angle (in positive degrees) from this line to the given \a
   line, taking the direction of the lines into account. If the lines
   do not intersect within their range, it is the intersection point of
   the extended lines that serves as origin (see
@@ -814,8 +823,8 @@ qreal QLineF::angle(const QLineF &l) const
     qreal cos_line = (dx()*l.dx() + dy()*l.dy()) / (length()*l.length());
     qreal rad = 0;
     // only accept cos_line in the range [-1,1], if it is outside, use 0 (we return 0 rather than PI for those cases)
-    if (cos_line >= -1.0 && cos_line <= 1.0) rad = qAcos( cos_line );
-    return rad * 360 / M_2PI;
+    if (cos_line >= qreal(-1.0) && cos_line <= qreal(1.0)) rad = qAcos( cos_line );
+    return q_rad2deg(rad);
 }
 
 

@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -40,14 +40,15 @@
 ****************************************************************************/
 
 #include "qrawfont_p.h"
+
+#if !defined(QT_NO_RAWFONT)
+
 #include <private/qsystemlibrary_p.h>
 
 #if !defined(QT_NO_DIRECTWRITE)
 #  include "qfontenginedirectwrite_p.h"
 #  include <dwrite.h>
 #endif
-
-#if !defined(QT_NO_RAWFONT)
 
 QT_BEGIN_NAMESPACE
 
@@ -61,18 +62,16 @@ namespace {
         operator T() const
         {
             T littleEndian = 0;
-            for (int i=0; i<sizeof(T); ++i) {
+            for (int i = 0; i < int(sizeof(T)); ++i)
                 littleEndian |= data[i] << ((sizeof(T) - i - 1) * 8);
-            }
 
             return littleEndian;
         }
 
         BigEndian<T> &operator=(const T &t)
         {
-            for (int i=0; i<sizeof(T); ++i) {
+            for (int i = 0; i < int(sizeof(T)); ++i)
                 data[i] = ((t >> (sizeof(T) - i - 1) * 8) & 0xff);
-            }
 
             return *this;
         }
@@ -157,7 +156,7 @@ namespace {
     class EmbeddedFont
     {
     public:
-        EmbeddedFont(const QByteArray &fontData);
+        EmbeddedFont(const QByteArray &fontData) : m_fontData(fontData) {}
 
         QString changeFamilyName(const QString &newFamilyName);
         QByteArray data() const { return m_fontData; }
@@ -167,10 +166,6 @@ namespace {
     private:
         QByteArray m_fontData;
     };
-
-    EmbeddedFont::EmbeddedFont(const QByteArray &fontData) : m_fontData(fontData)
-    {
-    }
 
     TableDirectory *EmbeddedFont::tableDirectoryEntry(const QByteArray &tagName)
     {
@@ -214,9 +209,9 @@ namespace {
                                                         + nameRecord->offset;
 
                     const BigEndian<quint16> *s = reinterpret_cast<const BigEndian<quint16> *>(ptr);
-                    for (int j=0; j<nameRecord->length / sizeof(quint16); ++j)
-                        name += QChar(s[j]);
-
+                    const BigEndian<quint16> *e = s + nameRecord->length / sizeof(quint16);
+                    while (s != e)
+                        name += QChar(*s++);
                     break;
                 }
             }
@@ -525,41 +520,49 @@ extern QFontEngine *qt_load_font_engine_win(const QFontDef &request);
 // From qfontdatabase.cpp
 extern QFont::Weight weightFromInteger(int weight);
 
-void QRawFontPrivate::platformCleanUp()
+typedef HANDLE (WINAPI *PtrAddFontMemResourceEx)(PVOID, DWORD, PVOID, DWORD *);
+static PtrAddFontMemResourceEx ptrAddFontMemResourceEx = 0;
+typedef BOOL (WINAPI *PtrRemoveFontMemResourceEx)(HANDLE);
+static PtrRemoveFontMemResourceEx ptrRemoveFontMemResourceEx = 0;
+
+static void resolveGdi32()
 {
-    if (fontHandle != NULL) {
-        if (ptrRemoveFontMemResourceEx == NULL) {
-            void *func = QSystemLibrary::resolve(QLatin1String("gdi32"), "RemoveFontMemResourceEx");
-            ptrRemoveFontMemResourceEx =
-                    reinterpret_cast<QRawFontPrivate::PtrRemoveFontMemResourceEx>(func);
+    static bool triedResolve = false;
+    if (!triedResolve) {
+        QSystemLibrary gdi32(QLatin1String("gdi32"));
+        if (gdi32.load()) {
+            ptrAddFontMemResourceEx = (PtrAddFontMemResourceEx)gdi32.resolve("AddFontMemResourceEx");
+            ptrRemoveFontMemResourceEx = (PtrRemoveFontMemResourceEx)gdi32.resolve("RemoveFontMemResourceEx");
         }
 
-        if (ptrRemoveFontMemResourceEx == NULL) {
-            qWarning("QRawFont::platformCleanUp: Can't find RemoveFontMemResourceEx in gdi32");
-            fontHandle = NULL;
-        } else {
-            ptrRemoveFontMemResourceEx(fontHandle);
-            fontHandle = NULL;
-        }
+        triedResolve = true;
     }
 }
 
-void QRawFontPrivate::platformLoadFromData(const QByteArray &_fontData,
-                                           int pixelSize,
+void QRawFontPrivate::platformCleanUp()
+{
+    if (fontHandle != NULL) {
+        if (ptrRemoveFontMemResourceEx)
+            ptrRemoveFontMemResourceEx(fontHandle);
+        fontHandle = NULL;
+    }
+}
+
+void QRawFontPrivate::platformLoadFromData(const QByteArray &fontData,
+                                           qreal pixelSize,
                                            QFont::HintingPreference hintingPreference)
 {
-    QByteArray fontData(_fontData);
     EmbeddedFont font(fontData);
 
 #if !defined(QT_NO_DIRECTWRITE)
     if (hintingPreference == QFont::PreferDefaultHinting
-     || hintingPreference == QFont::PreferFullHinting)
+        || hintingPreference == QFont::PreferFullHinting)
 #endif
     {
         GUID guid;
         CoCreateGuid(&guid);
 
-        uniqueFamilyName = QString::fromLatin1("f")
+        QString uniqueFamilyName = QLatin1Char('f')
                 + QString::number(guid.Data1, 36) + QLatin1Char('-')
                 + QString::number(guid.Data2, 36) + QLatin1Char('-')
                 + QString::number(guid.Data3, 36) + QLatin1Char('-')
@@ -571,22 +574,13 @@ void QRawFontPrivate::platformLoadFromData(const QByteArray &_fontData,
             return;
         }
 
-        if (ptrAddFontMemResourceEx == NULL || ptrRemoveFontMemResourceEx == NULL) {
-            void *func = QSystemLibrary::resolve(QLatin1String("gdi32"), "RemoveFontMemResourceEx");
-            ptrRemoveFontMemResourceEx =
-                    reinterpret_cast<QRawFontPrivate::PtrRemoveFontMemResourceEx>(func);
-
-            func = QSystemLibrary::resolve(QLatin1String("gdi32"), "AddFontMemResourceEx");
-            ptrAddFontMemResourceEx =
-                    reinterpret_cast<QRawFontPrivate::PtrAddFontMemResourceEx>(func);
-        }
-
         Q_ASSERT(fontHandle == NULL);
-        if (ptrAddFontMemResourceEx != NULL && ptrRemoveFontMemResourceEx != NULL) {
+        resolveGdi32();
+        if (ptrAddFontMemResourceEx && ptrRemoveFontMemResourceEx) {
             DWORD count = 0;
-            fontData = font.data();
-            fontHandle = ptrAddFontMemResourceEx(fontData.data(), fontData.size(), 0, &count);
-
+            QByteArray newFontData = font.data();
+            fontHandle = ptrAddFontMemResourceEx((void *)newFontData.constData(), newFontData.size(),
+                                                 0, &count);
             if (count == 0 && fontHandle != NULL) {
                 ptrRemoveFontMemResourceEx(fontHandle);
                 fontHandle = NULL;
@@ -613,6 +607,7 @@ void QRawFontPrivate::platformLoadFromData(const QByteArray &_fontData,
                 Q_ASSERT(fontEngine->cache_count == 0 && fontEngine->ref == 0);
 
                 // Override the generated font name
+                static_cast<QFontEngineWin *>(fontEngine)->uniqueFamilyName = uniqueFamilyName;
                 fontEngine->fontDef.family = actualFontName;
                 fontEngine->ref.ref();
             }
@@ -699,50 +694,6 @@ void QRawFontPrivate::platformLoadFromData(const QByteArray &_fontData,
             fontEngine->fontDef.weight = weightFromInteger(os2Table->weightClass);
         }
     }
-}
-
-void QRawFontPrivate::platformSetPixelSize(int pixelSize)
-{
-    if (fontEngine == NULL)
-        return;
-
-    QFontEngine *oldFontEngine = fontEngine;
-
-#if !defined(QT_NO_DIRECTWRITE)
-    if (fontEngine->type() == QFontEngine::Win)
-#endif
-
-    {
-        QFontDef request = fontEngine->fontDef;
-        QString actualFontName = request.family;
-        if (!uniqueFamilyName.isEmpty())
-            request.family = uniqueFamilyName;
-        request.pixelSize = pixelSize;
-
-        fontEngine = qt_load_font_engine_win(request);
-        if (fontEngine != NULL) {
-            fontEngine->fontDef.family = actualFontName;
-            fontEngine->ref.ref();
-        }
-    }
-
-#if !defined(QT_NO_DIRECTWRITE)
-    else {
-        QFontEngineDirectWrite *dWriteFE = static_cast<QFontEngineDirectWrite *>(fontEngine);
-        fontEngine = new QFontEngineDirectWrite(dWriteFE->m_directWriteFactory,
-                                                dWriteFE->m_directWriteFontFace,
-                                                pixelSize);
-
-        fontEngine->fontDef = dWriteFE->fontDef;
-        fontEngine->fontDef.pixelSize = pixelSize;
-        fontEngine->ref.ref();
-    }
-#endif
-
-    Q_ASSERT(fontEngine != oldFontEngine);
-    oldFontEngine->ref.deref();
-    if (oldFontEngine->cache_count == 0 && oldFontEngine->ref == 0)
-        delete oldFontEngine;
 }
 
 QT_END_NAMESPACE

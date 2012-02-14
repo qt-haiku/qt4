@@ -1,26 +1,26 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the documentation of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:FDL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Free Documentation License
 ** Alternatively, this file may be used under the terms of the GNU Free
 ** Documentation License version 1.3 as published by the Free Software
-** Foundation and appearing in the file included in the packaging of this
-** file.
+** Foundation and appearing in the file included in the packaging of
+** this file.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms
+** and conditions contained in a signed written agreement between you
+** and Nokia.
+**
+**
+**
+**
 ** $QT_END_LICENSE$
 **
 ****************************************************************************/
@@ -622,7 +622,7 @@
             \i \bold{Editing Properties}
 
         The property editor uses standard Qt input widgets to manage the
-        properties of jbects on the form. Textual properties are shown in line
+        properties of objects on the form. Textual properties are shown in line
         edits, integer properties are displayed in spinboxes, boolean
         properties are displayed in check boxes, and compound properties such
         as colors and sizes are presented in drop-down lists of input widgets.
@@ -694,8 +694,10 @@
         the object's name with the in-place editor.
 
         Since Qt 4.5, the \gui{Object Inspector} displays the layout state of
-        the containers. The broken layout icon ###ICON is displayed if there is
-        something wrong with the layouts.
+        the containers. The broken layout icon \inlineimage editbreaklayout.png
+        is displayed if there is something wrong (e.g. layout missing from the
+        container) with the layouts.
+		
 
     \endtable
 */
@@ -1560,7 +1562,7 @@
     \section1 Dock Widgets
 
     Since dock widgets are \l{Using Containers in Qt Designer}
-    {container widgets}, they can be added to a form in the usuasl way. Once
+    {container widgets}, they can be added to a form in the usual way. Once
     added to a form, dock widgets are not placed in any particular dock area by
     default; you need to set the \gui{docked} property to true for each widget
     and choose an appropriate value for its \gui{dockWidgetArea} property.
@@ -1877,7 +1879,8 @@ pixmap property in the property editor.
     \snippet examples/designer/calculatorform/calculatorform.cpp 0
 
     We can connect signals and slots in user interface widgets in the usual
-    way, taking care to prefix the \c ui object to each widget used.
+    way by adding the on_<object name> - prefix. For more information,
+    see \l{widgets-and-dialogs-with-auto-connect}.
 
     The advantages of this approach are its simple use of inheritance to
     provide a QWidget-based interface, and its encapsulation of the user
@@ -2818,7 +2821,7 @@ pixmap property in the property editor.
     Designer source code.
 
     \legalese
-    Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies). \BR
+    Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies). \BR
     Copyright (C) 2005 Bjoern Bergstroem
 
     Permission is hereby granted, free of charge, to any person obtaining

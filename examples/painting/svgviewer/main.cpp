@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -57,6 +57,10 @@ int main(int argc, char **argv)
         window.openFile(argv[1]);
     else
         window.openFile(":/files/bubbles.svg");
+#if defined(Q_OS_SYMBIAN)
+    window.showMaximized();
+#else
     window.show();
+#endif
     return app.exec();
 }

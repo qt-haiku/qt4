@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -1063,7 +1063,7 @@ bool qt_mac_buttonIsRenderedFlat(const QPushButton *pushButton, const QStyleOpti
 {
     QMacStyle *macStyle = qobject_cast<QMacStyle *>(pushButton->style());
     if (!macStyle)
-        return false;
+        return true;    // revert to 'flat' behavior if not Mac style
     HIThemeButtonDrawInfo bdi;
     macStyle->d->initHIThemePushButton(option, pushButton, kThemeStateActive, &bdi);
     return bdi.kind == kThemeBevelButton;
@@ -1195,15 +1195,15 @@ QRect QMacStylePrivate::comboboxEditBounds(const QRect &outerBounds, const HIThe
     QRect ret = outerBounds;
     switch (bdi.kind){
     case kThemeComboBox:
-        ret.adjust(5, 8, -21, -4);
+        ret.adjust(5, 8, -22, -4);
         break;
     case kThemeComboBoxSmall:
-        ret.adjust(4, 5, -18, 0);
-        ret.setHeight(16);
+        ret.adjust(4, 6, -20, 0);
+        ret.setHeight(14);
         break;
     case kThemeComboBoxMini:
-        ret.adjust(4, 5, -16, 0);
-        ret.setHeight(13);
+        ret.adjust(4, 5, -18, -1);
+        ret.setHeight(12);
         break;
     case kThemePopupButton:
         ret.adjust(10, 3, -23, -3);
@@ -2920,10 +2920,14 @@ void QMacStyle::drawPrimitive(PrimitiveElement pe, const QStyleOption *opt, QPai
         QVector<QLineF> a(2);
         a << QLineF(x1, y1, x2, y2);
         a << QLineF(x2, y2, x3, y3);
-        if (opt->palette.currentColorGroup() == QPalette::Active)
-            p->setPen(QPen(Qt::white, 3));
-        else
+        if (opt->palette.currentColorGroup() == QPalette::Active) {
+            if (opt->state & State_On)
+                p->setPen(QPen(opt->palette.highlightedText().color(), 3));
+            else
+                p->setPen(QPen(opt->palette.text().color(), 3));
+        } else {
             p->setPen(QPen(QColor(100, 100, 100), 3));
+        }
         p->save();
         p->setRenderHint(QPainter::Antialiasing);
         p->drawLines(a);
@@ -3681,9 +3685,27 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
                     proxy()->drawItemText(p, nr, alignment, np, tab->state & State_Enabled,
                                                tab->text, QPalette::WindowText);
                     p->restore();
-                }
+                    QCommonStyle::drawControl(ce, &myTab, p, w);
+                } else if (qMacVersion() >= QSysInfo::MV_10_7 && (tab->state & State_Selected)) {
+                    p->save();
+                    rotateTabPainter(p, myTab.shape, myTab.rect);
 
-                QCommonStyle::drawControl(ce, &myTab, p, w);
+                    QPalette np = tab->palette;
+                    np.setColor(QPalette::WindowText, QColor(0, 0, 0, 75));
+                    QRect nr = subElementRect(SE_TabBarTabText, opt, w);
+                    nr.moveTop(-1);
+                    int alignment = Qt::AlignCenter | Qt::TextShowMnemonic | Qt::TextHideMnemonic;
+                    proxy()->drawItemText(p, nr, alignment, np, tab->state & State_Enabled,
+                                               tab->text, QPalette::WindowText);
+
+                    np.setColor(QPalette::WindowText, QColor(255, 255, 255, 255));
+                    nr.moveTop(-2);
+                    proxy()->drawItemText(p, nr, alignment, np, tab->state & State_Enabled,
+                                               tab->text, QPalette::WindowText);
+                    p->restore();
+                } else {
+                    QCommonStyle::drawControl(ce, &myTab, p, w);
+                }
             } else {
                 p->save();
                 CGContextSetShouldAntialias(cg, true);
@@ -4530,6 +4552,107 @@ QRect QMacStyle::subElementRect(SubElement sr, const QStyleOption *opt,
                 rect.setTop(rect.top() + SIZE(6 /* AHIG */, 3 /* guess */, 2 /* AHIG */));
         }
         break;
+#ifndef QT_NO_DOCKWIDGET
+        case SE_DockWidgetCloseButton:
+        case SE_DockWidgetFloatButton:
+        case SE_DockWidgetTitleBarText:
+        case SE_DockWidgetIcon: {
+            int iconSize = proxy()->pixelMetric(PM_SmallIconSize, opt, widget);
+            int buttonMargin = proxy()->pixelMetric(PM_DockWidgetTitleBarButtonMargin, opt, widget);
+            QRect srect = opt->rect;
+
+            const QStyleOptionDockWidget *dwOpt
+                = qstyleoption_cast<const QStyleOptionDockWidget*>(opt);
+            bool canClose = dwOpt == 0 ? true : dwOpt->closable;
+            bool canFloat = dwOpt == 0 ? false : dwOpt->floatable;
+            const QStyleOptionDockWidgetV2 *v2
+                = qstyleoption_cast<const QStyleOptionDockWidgetV2*>(opt);
+            bool verticalTitleBar = v2 == 0 ? false : v2->verticalTitleBar;
+
+            // If this is a vertical titlebar, we transpose and work as if it was
+            // horizontal, then transpose again.
+            if (verticalTitleBar) {
+                QSize size = srect.size();
+                size.transpose();
+                srect.setSize(size);
+            }
+
+            do {
+                int right = srect.right();
+                int left = srect.left();
+
+                QRect closeRect;
+                if (canClose) {
+                    QSize sz = standardIcon(QStyle::SP_TitleBarCloseButton,
+                                            opt, widget).actualSize(QSize(iconSize, iconSize));
+                    sz += QSize(buttonMargin, buttonMargin);
+                    if (verticalTitleBar)
+                        sz.transpose();
+                    closeRect = QRect(left,
+                                      srect.center().y() - sz.height()/2,
+                                      sz.width(), sz.height());
+                    left = closeRect.right() + 1;
+                }
+                if (sr == SE_DockWidgetCloseButton) {
+                    rect = closeRect;
+                    break;
+                }
+
+                QRect floatRect;
+                if (canFloat) {
+                    QSize sz = standardIcon(QStyle::SP_TitleBarNormalButton,
+                                            opt, widget).actualSize(QSize(iconSize, iconSize));
+                    sz += QSize(buttonMargin, buttonMargin);
+                    if (verticalTitleBar)
+                        sz.transpose();
+                    floatRect = QRect(left,
+                                      srect.center().y() - sz.height()/2,
+                                      sz.width(), sz.height());
+                    left = floatRect.right() + 1;
+                }
+                if (sr == SE_DockWidgetFloatButton) {
+                    rect = floatRect;
+                    break;
+                }
+
+                QRect iconRect;
+                if (const QDockWidget *dw = qobject_cast<const QDockWidget*>(widget)) {
+                    QIcon icon;
+                    if (dw->isFloating())
+                        icon = dw->windowIcon();
+                    if (!icon.isNull()
+                        && icon.cacheKey() != QApplication::windowIcon().cacheKey()) {
+                        QSize sz = icon.actualSize(QSize(rect.height(), rect.height()));
+                        if (verticalTitleBar)
+                            sz.transpose();
+                        iconRect = QRect(right - sz.width(), srect.center().y() - sz.height()/2,
+                                         sz.width(), sz.height());
+                        right = iconRect.left() - 1;
+                    }
+                }
+                if (sr == SE_DockWidgetIcon) {
+                    rect = iconRect;
+                    break;
+                }
+
+                QRect textRect = QRect(left, srect.top(),
+                                       right - left, srect.height());
+                if (sr == SE_DockWidgetTitleBarText) {
+                    rect = textRect;
+                    break;
+                }
+            } while (false);
+
+            if (verticalTitleBar) {
+                rect = QRect(srect.left() + rect.top() - srect.top(),
+                          srect.top() + srect.right() - rect.right(),
+                          rect.height(), rect.width());
+            } else {
+                rect = visualRect(opt->direction, srect, rect);
+            }
+            break;
+        }
+#endif
     default:
         rect = QWindowsStyle::subElementRect(sr, opt, widget);
         break;
@@ -4707,7 +4830,7 @@ void QMacStyle::drawComplexControl(ComplexControl cc, const QStyleOptionComplex 
 
                 HIThemeFrameDrawInfo fdi;
                 fdi.version = qt_mac_hitheme_version;
-                fdi.state = kThemeStateInactive;
+                fdi.state = ((sb->state & State_ReadOnly) || !(sb->state & State_Enabled)) ? kThemeStateInactive : kThemeStateActive;
                 fdi.kind = kHIThemeFrameTextFieldSquare;
                 fdi.isFocused = false;
                 HIRect hirect = qt_hirectForQRect(lineeditRect);

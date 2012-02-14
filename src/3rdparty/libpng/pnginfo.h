@@ -53,6 +53,7 @@
 #ifndef PNGINFO_H
 #define PNGINFO_H
 
+namespace PrivatePng {
 struct png_info_def
 {
    /* the following are necessary for every PNG file */
@@ -138,7 +139,6 @@ defined(PNG_READ_BACKGROUND_SUPPORTED)
     * single color specified that should be treated as fully transparent.
     * Data is valid if (valid & PNG_INFO_tRNS) is non-zero.
     */
-   png_bytep trans;    /* alpha values for paletted image */
    png_bytep trans_alpha;    /* alpha values for paletted image */
    png_color_16 trans_color; /* transparent color for non-palette image */
 #endif
@@ -267,4 +267,6 @@ defined(PNG_READ_BACKGROUND_SUPPORTED)
 #endif
 
 };
+
+} // namespace PrivatePng
 #endif /* PNGINFO_H */

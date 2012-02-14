@@ -1,35 +1,35 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** No Commercial Usage
-** This file contains pre-release code and may not be distributed.
-** You may use this file in accordance with the terms and conditions
-** contained in the Technology Preview License Agreement accompanying
-** this package.
-**
 ** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** This file may be used under the terms of the GNU Lesser General Public
+** License version 2.1 as published by the Free Software Foundation and
+** appearing in the file LICENSE.LGPL included in the packaging of this
+** file. Please review the following information to ensure the GNU Lesser
+** General Public License version 2.1 requirements will be met:
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Nokia gives you certain additional
-** rights.  These rights are described in the Nokia Qt LGPL Exception
+** rights. These rights are described in the Nokia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
-** If you have questions regarding the use of this file, please contact
-** Nokia at qt-info@nokia.com.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU General
+** Public License version 3.0 as published by the Free Software Foundation
+** and appearing in the file LICENSE.GPL included in the packaging of this
+** file. Please review the following information to ensure the GNU General
+** Public License version 3.0 requirements will be met:
+** http://www.gnu.org/copyleft/gpl.html.
 **
-**
-**
+** Other Usage
+** Alternatively, this file may be used in accordance with the terms and
+** conditions contained in a signed written agreement between you and Nokia.
 **
 **
 **
@@ -127,6 +127,9 @@ private slots:
     void textWithSurrogates_qtbug15679();
     void textWidthWithStackedTextEngine();
     void textWidthWithLineSeparator();
+    void cursorInLigatureWithMultipleLines();
+    void xToCursorForLigatures();
+    void cursorInNonStopChars();
 
 private:
     QFont testFont;
@@ -171,7 +174,7 @@ void tst_QTextLayout::getSetCheck()
 }
 
 QT_BEGIN_NAMESPACE
-extern void qt_setQtEnableTestFont(bool value);
+extern Q_AUTOTEST_EXPORT void qt_setQtEnableTestFont(bool value);
 QT_END_NAMESPACE
 
 tst_QTextLayout::tst_QTextLayout()
@@ -1106,7 +1109,7 @@ void tst_QTextLayout::tabsForRtl()
 }
 
 QT_BEGIN_NAMESPACE
-extern int qt_defaultDpiY();
+extern Q_GUI_EXPORT int qt_defaultDpiY();
 QT_END_NAMESPACE
 
 void tst_QTextLayout::testTabDPIScale()
@@ -1458,6 +1461,60 @@ void tst_QTextLayout::textWidthWithLineSeparator()
     line1.setLineWidth(0x1000);
     line2.setLineWidth(0x1000);
     QCOMPARE(line1.naturalTextWidth(), line2.naturalTextWidth());
+}
+
+void tst_QTextLayout::cursorInLigatureWithMultipleLines()
+{
+#if !defined(Q_WS_MAC)
+    QSKIP("This test can only be run on Mac", SkipAll);
+#endif
+    QTextLayout layout("first line finish", QFont("Times", 20));
+    layout.beginLayout();
+    QTextLine line = layout.createLine();
+    line.setLineWidth(70);
+    line = layout.createLine();
+    layout.endLayout();
+
+    // The second line will be "finish", with "fi" as a ligature
+    QVERIFY(line.cursorToX(0) != line.cursorToX(1));
+}
+
+void tst_QTextLayout::xToCursorForLigatures()
+{
+#if !defined(Q_WS_MAC)
+    QSKIP("This test can only be run on Mac", SkipAll);
+#endif
+    QTextLayout layout("fi", QFont("Times", 20));
+    layout.beginLayout();
+    QTextLine line = layout.createLine();
+    layout.endLayout();
+
+    QVERIFY(line.xToCursor(0) != line.xToCursor(line.naturalTextWidth() / 2));
+
+    // U+0061 U+0308
+    QTextLayout layout2(QString::fromUtf8("\x61\xCC\x88"), QFont("Times", 20));
+
+    layout2.beginLayout();
+    line = layout2.createLine();
+    layout2.endLayout();
+
+    qreal width = line.naturalTextWidth();
+    QVERIFY(line.xToCursor(0) == line.xToCursor(width / 2) ||
+            line.xToCursor(width) == line.xToCursor(width / 2));
+}
+
+void tst_QTextLayout::cursorInNonStopChars()
+{
+#if defined(Q_WS_MAC)
+    QSKIP("This test can not be run on Mac", SkipAll);
+#endif
+    QTextLayout layout(QString::fromUtf8("\xE0\xA4\xA4\xE0\xA5\x8D\xE0\xA4\xA8"));
+    layout.beginLayout();
+    QTextLine line = layout.createLine();
+    layout.endLayout();
+
+    QVERIFY(line.cursorToX(1) == line.cursorToX(3));
+    QVERIFY(line.cursorToX(2) == line.cursorToX(3));
 }
 
 QTEST_MAIN(tst_QTextLayout)

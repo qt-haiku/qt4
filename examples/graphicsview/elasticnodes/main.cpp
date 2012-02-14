@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
+** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
@@ -47,7 +47,18 @@ int main(int argc, char **argv)
     QApplication app(argc, argv);
     qsrand(QTime(0,0,0).secsTo(QTime::currentTime()));
 
-    GraphWidget widget;
-    widget.show();
+    GraphWidget *widget = new GraphWidget;
+
+    QMainWindow mainWindow;
+    mainWindow.setCentralWidget(widget);
+
+#if defined(Q_OS_SYMBIAN) || defined(Q_WS_MAEMO_5)
+    mainWindow.menuBar()->addAction("Shuffle", widget, SLOT(shuffle()));
+    mainWindow.menuBar()->addAction("Zoom In", widget, SLOT(zoomIn()));
+    mainWindow.menuBar()->addAction("Zoom Out", widget, SLOT(zoomOut()));
+    mainWindow.showMaximized();
+#else
+    mainWindow.show();
+#endif
     return app.exec();
 }
