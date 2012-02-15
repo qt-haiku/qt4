@@ -160,7 +160,7 @@ static void initializeDb()
 	               family->writingSystems[cached.systems.at(i)] = QtFontFamily::Supported;
 		 		
 		 		QtFontFoundry *foundry = family->foundry(foundryName, true);
-		 		QtFontStyle *style = foundry->style(cached.styleKey, true);
+		 		QtFontStyle *style = foundry->style(cached.styleKey, QString(), true);
 	
 		 		style->antialiased = true;
 	

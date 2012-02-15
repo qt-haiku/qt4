@@ -194,7 +194,11 @@ static bool createFileFromTemplate(NativeFileHandle &file,
         }
 #else // POSIX
         file = QT_OPEN(path.constData(),
-                QT_OPEN_CREAT | O_EXCL | QT_OPEN_RDWR | QT_OPEN_LARGEFILE,
+                QT_OPEN_CREAT | O_EXCL | QT_OPEN_RDWR
+                #ifndef Q_OS_HAIKU
+                 | QT_OPEN_LARGEFILE
+                #endif 
+                 ,
                 0600);
 
         if (file != -1)
