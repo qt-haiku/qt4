@@ -57,12 +57,12 @@ symbian {
         DEFINES += USE_SCHEMEHANDLER
     }
 
+    LIBS += -ldirectorylocalizer
+}
+
 haiku {
 		HEADERS += \
 				util/qsystemtrayicon_haiku.h
 		SOURCES += \
 				util/qsystemtrayicon_haiku.cpp
     }
-
-    LIBS += -ldirectorylocalizer
-}
