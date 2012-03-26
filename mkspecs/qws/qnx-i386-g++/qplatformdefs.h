@@ -4,7 +4,7 @@
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
-** This file is part of the Symbian application wrapper of the Qt Toolkit.
+** This file is part of the qmake spec of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** GNU Lesser General Public License Usage
@@ -38,21 +38,5 @@
 ** $QT_END_LICENSE$
 **
 ****************************************************************************/
-#include <e32std.h>
-#include <qglobal.h>
 
-struct SStdEpocThreadCreateInfo;
-
-Q_CORE_EXPORT TInt qt_symbian_SetupThreadHeap(TBool aNotFirst, SStdEpocThreadCreateInfo& aInfo);
-
-
-/* \internal
- *
- * Uses link-time symbol preemption to capture a call from the application
- * startup. On return, there is some kind of heap allocator installed on the
- * thread.
-*/ 
-TInt UserHeap::SetupThreadHeap(TBool aNotFirst, SStdEpocThreadCreateInfo& aInfo)
-{
-    return qt_symbian_SetupThreadHeap(aNotFirst, aInfo);
-}
+#include "../../common/qnx/qplatformdefs.h"

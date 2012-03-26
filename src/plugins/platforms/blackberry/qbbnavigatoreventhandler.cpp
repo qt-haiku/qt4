@@ -37,18 +37,20 @@
 **
 ****************************************************************************/
 
-//#define QBBNAVIGATORTHREAD_DEBUG
+//#define QBBNAVIGATOREVENTHANDLER_DEBUG
 
 
-#include "qbbnavigatorthread.h"
+#include "qbbnavigatoreventhandler.h"
 #include "qbbscreen.h"
 
+#include <QtCore/private/qcore_unix_p.h>
 #include <QtGui/QApplication>
 #include <QtGui/QWidget>
 #include <QtGui/QWindowSystemInterface>
 #include <QByteArray>
 #include <QList>
 #include <QDebug>
+#include <QSocketNotifier>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -59,23 +61,29 @@
 #define NAV_CONTROL_PATH    "/pps/services/navigator/control"
 #define PPS_BUFFER_SIZE     4096
 
-QBBNavigatorThread::QBBNavigatorThread(QBBScreen& primaryScreen)
+QBBNavigatorEventHandler::QBBNavigatorEventHandler(QBBScreen& primaryScreen)
     : mPrimaryScreen(primaryScreen),
       mFd(-1),
-      mQuit(false)
+      mReadNotifier(0)
 {
 }
 
-QBBNavigatorThread::~QBBNavigatorThread()
+QBBNavigatorEventHandler::~QBBNavigatorEventHandler()
 {
-    // block until thread terminates
-    shutdown();
+    delete mReadNotifier;
+
+    if (mFd != -1)
+        close(mFd);
+
+#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
+    qDebug() << "QBB: navigator event handler stopped";
+#endif
 }
 
-void QBBNavigatorThread::run()
+void QBBNavigatorEventHandler::start()
 {
-#if defined(QBBNAVIGATORTHREAD_DEBUG)
-    qDebug() << "QBB: navigator thread started";
+#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
+    qDebug() << "QBB: navigator event handler started";
 #endif
 
     // open connection to navigator
@@ -86,66 +94,13 @@ void QBBNavigatorThread::run()
         return;
     }
 
-    // allocate buffer for pps data
-    char buffer[PPS_BUFFER_SIZE];
-
-    // loop indefinitely
-    while (!mQuit) {
-
-        // attempt to read pps data
-        errno = 0;
-        int bytes = read(mFd, buffer, PPS_BUFFER_SIZE - 1);
-        if (bytes == -1) {
-            qFatal("QBB: failed to read navigator pps, errno=%d", errno);
-        }
-
-        // check if pps data was received
-        if (bytes > 0) {
-
-            // ensure data is null terminated
-            buffer[bytes] = '\0';
-
-            // process received message
-            QByteArray ppsData(buffer);
-            QByteArray msg;
-            QByteArray dat;
-            QByteArray id;
-            parsePPS(ppsData, msg, dat, id);
-            handleMessage(msg, dat, id);
-        }
-
-        // yield
-        msleep(5);
-    }
-
-    // close connection to navigator
-    close(mFd);
-
-#if defined(QBBNAVIGATORTHREAD_DEBUG)
-    qDebug() << "QBB: navigator thread stopped";
-#endif
+    mReadNotifier = new QSocketNotifier(mFd, QSocketNotifier::Read);
+    connect(mReadNotifier, SIGNAL(activated(int)), this, SLOT(readData()));
 }
 
-void QBBNavigatorThread::shutdown()
+void QBBNavigatorEventHandler::parsePPS(const QByteArray &ppsData, QByteArray &msg, QByteArray &dat, QByteArray &id)
 {
-    // signal thread to terminate
-    mQuit = true;
-
-#if defined(QBBNAVIGATORTHREAD_DEBUG)
-    qDebug() << "QBB: navigator thread shutdown begin";
-#endif
-
-    // block until thread terminates
-    wait();
-
-#if defined(QBBNAVIGATORTHREAD_DEBUG)
-    qDebug() << "QBB: navigator thread shutdown end";
-#endif
-}
-
-void QBBNavigatorThread::parsePPS(const QByteArray &ppsData, QByteArray &msg, QByteArray &dat, QByteArray &id)
-{
-#if defined(QBBNAVIGATORTHREAD_DEBUG)
+#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
     qDebug() << "PPS: data=" << ppsData;
 #endif
 
@@ -163,7 +118,7 @@ void QBBNavigatorThread::parsePPS(const QByteArray &ppsData, QByteArray &msg, QB
         // tokenize current attribute
         const QByteArray &attr = lines.at(i);
 
-#if defined(QBBNAVIGATORTHREAD_DEBUG)
+#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
         qDebug() << "PPS: attr=" << attr;
 #endif
 
@@ -182,7 +137,7 @@ void QBBNavigatorThread::parsePPS(const QByteArray &ppsData, QByteArray &msg, QB
         QByteArray key = attr.left(firstColon);
         QByteArray value = attr.mid(secondColon + 1);
 
-#if defined(QBBNAVIGATORTHREAD_DEBUG)
+#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
         qDebug() << "PPS: key=" << key;
         qDebug() << "PPS: val=" << value;
 #endif
@@ -200,7 +155,7 @@ void QBBNavigatorThread::parsePPS(const QByteArray &ppsData, QByteArray &msg, QB
     }
 }
 
-void QBBNavigatorThread::replyPPS(const QByteArray &res, const QByteArray &id, const QByteArray &dat)
+void QBBNavigatorEventHandler::replyPPS(const QByteArray &res, const QByteArray &id, const QByteArray &dat)
 {
     // construct pps message
     QByteArray ppsData = "res::";
@@ -213,7 +168,7 @@ void QBBNavigatorThread::replyPPS(const QByteArray &res, const QByteArray &id, c
     }
     ppsData += "\n";
 
-#if defined(QBBNAVIGATORTHREAD_DEBUG)
+#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
     qDebug() << "PPS reply=" << ppsData;
 #endif
 
@@ -225,9 +180,9 @@ void QBBNavigatorThread::replyPPS(const QByteArray &res, const QByteArray &id, c
     }
 }
 
-void QBBNavigatorThread::handleMessage(const QByteArray &msg, const QByteArray &dat, const QByteArray &id)
+void QBBNavigatorEventHandler::handleMessage(const QByteArray &msg, const QByteArray &dat, const QByteArray &id)
 {
-#if defined(QBBNAVIGATORTHREAD_DEBUG)
+#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
     qDebug() << "PPS: msg=" << msg << ", dat=" << dat << ", id=" << id;
 #endif
 
@@ -235,7 +190,7 @@ void QBBNavigatorThread::handleMessage(const QByteArray &msg, const QByteArray &
     if (msg == "orientationCheck") {
 
         // reply to navigator that (any) orientation is acceptable
-#if defined(QBBNAVIGATORTHREAD_DEBUG)
+#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
         qDebug() << "PPS: orientation check, o=" << dat;
 #endif
         replyPPS(msg, id, "true");
@@ -243,7 +198,7 @@ void QBBNavigatorThread::handleMessage(const QByteArray &msg, const QByteArray &
     } else if (msg == "orientation") {
 
         // update screen geometry and reply to navigator that we're ready
-#if defined(QBBNAVIGATORTHREAD_DEBUG)
+#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
         qDebug() << "PPS: orientation, o=" << dat;
 #endif
         mPrimaryScreen.setRotation( dat.toInt() );
@@ -253,7 +208,7 @@ void QBBNavigatorThread::handleMessage(const QByteArray &msg, const QByteArray &
     } else if (msg == "SWIPE_DOWN") {
 
         // simulate menu key press
-#if defined(QBBNAVIGATORTHREAD_DEBUG)
+#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
         qDebug() << "PPS: menu";
 #endif
         QWidget *w = QApplication::activeWindow();
@@ -263,9 +218,42 @@ void QBBNavigatorThread::handleMessage(const QByteArray &msg, const QByteArray &
     } else if (msg == "exit") {
 
         // shutdown everything
-#if defined(QBBNAVIGATORTHREAD_DEBUG)
+#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
         qDebug() << "PPS: exit";
 #endif
         QApplication::quit();
     }
+}
+
+void QBBNavigatorEventHandler::readData()
+{
+#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
+    qDebug() << "QBB: reading navigator data";
+#endif
+
+    // allocate buffer for pps data
+    char buffer[PPS_BUFFER_SIZE];
+
+    // attempt to read pps data
+    errno = 0;
+    int bytes = qt_safe_read(mFd, buffer, PPS_BUFFER_SIZE - 1);
+    if (bytes == -1) {
+        qFatal("QBB: failed to read navigator pps, errno=%d", errno);
+    }
+
+    // check if pps data was received
+    if (bytes > 0) {
+
+        // ensure data is null terminated
+        buffer[bytes] = '\0';
+
+        // process received message
+        QByteArray ppsData(buffer);
+        QByteArray msg;
+        QByteArray dat;
+        QByteArray id;
+        parsePPS(ppsData, msg, dat, id);
+        handleMessage(msg, dat, id);
+    }
+
 }

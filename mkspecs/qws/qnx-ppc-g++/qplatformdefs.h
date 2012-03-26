@@ -4,7 +4,7 @@
 ** All rights reserved.
 ** Contact: Nokia Corporation (qt-info@nokia.com)
 **
-** This file is part of the QtCore module of the Qt Toolkit.
+** This file is part of the qmake spec of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** GNU Lesser General Public License Usage
@@ -39,30 +39,4 @@
 **
 ****************************************************************************/
 
-#ifndef __KERNEL_MODE__ 
-
-const int MAXSMALLPAGEBITS = 68<<3;
-#define MINPAGEPOWER	PAGESHIFT+2
-
-struct paged_bitmap
-{
-	public:
-		inline paged_bitmap() : iBase(0), iNbits(0) {}
-		void Init(unsigned char* p, unsigned size, unsigned bit);
-//
-		inline unsigned char* Addr() const;
-		inline unsigned Size() const;
-//
-		inline void Set(unsigned ix, unsigned bit);
-		inline unsigned operator[](unsigned ix) const;
-		bool Is(unsigned ix, unsigned len, unsigned bit) const;
-		void Set(unsigned ix, unsigned len, unsigned val);
-		void Setn(unsigned ix, unsigned len, unsigned bit);
-		unsigned Bits(unsigned ix, unsigned len) const;	// little endian
-		int Find(unsigned start, unsigned bit) const;
-	private:
-		unsigned char* iBase;
-		unsigned iNbits;
-};
-
-#endif  // __KERNEL_MODE__
+#include "../../common/qnx/qplatformdefs.h"
