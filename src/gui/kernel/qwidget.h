@@ -107,7 +107,7 @@ class QUnifiedToolbarSurface;
 #if defined(Q_WS_X11)
 class QX11Info;
 #endif
-#if defined(Q_WS_HAIKU) && !defined(BUILD_WEBKIT)
+#if defined(Q_WS_HAIKU) && !defined(BUILDING_WEBKIT)
 #include "qwidget_haiku.h"
 #endif
 

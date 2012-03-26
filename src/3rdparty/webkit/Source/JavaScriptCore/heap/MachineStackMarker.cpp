@@ -382,6 +382,8 @@ static size_t getPlatformThreadRegisters(const PlatformThread& platformThread, P
 #if HAVE(PTHREAD_NP_H) || OS(NETBSD)
     // e.g. on FreeBSD 5.4, neundorf@kde.org
     pthread_attr_get_np(platformThread, &regs);
+#elif OS(HAIKU)
+	//!!!!!
 #else
     // FIXME: this function is non-portable; other POSIX systems may have different np alternatives
     pthread_getattr_np(platformThread, &regs);
@@ -429,6 +431,9 @@ static inline void* otherThreadStackPointer(const PlatformThreadRegisters& regs)
     return reinterpret_cast<void*>((uintptr_t) regs.Esp);
 #elif CPU(X86_64) && OS(WINDOWS)
     return reinterpret_cast<void*>((uintptr_t) regs.Rsp);
+#elif OS(HAIKU)
+	//!!!!!
+
 #elif USE(PTHREADS)
     void* stackBase = 0;
     size_t stackSize = 0;

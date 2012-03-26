@@ -51,7 +51,7 @@ QT_BEGIN_NAMESPACE
 QT_MODULE(Gui)
 
 QT_END_NAMESPACE
-#ifndef BUILD_WEBKIT
+#ifndef BUILDING_WEBKIT
 #include <interface/Point.h>
 #include <interface/Size.h>
 #include <interface/Rect.h>
