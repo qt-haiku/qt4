@@ -432,8 +432,9 @@ static inline void* otherThreadStackPointer(const PlatformThreadRegisters& regs)
 #elif CPU(X86_64) && OS(WINDOWS)
     return reinterpret_cast<void*>((uintptr_t) regs.Rsp);
 #elif OS(HAIKU)
-	//!!!!!
-
+    thread_info threadInfo;
+    get_thread_info(find_thread(NULL), &threadInfo);
+    return threadInfo.stack_end;
 #elif USE(PTHREADS)
     void* stackBase = 0;
     size_t stackSize = 0;
