@@ -3604,7 +3604,7 @@ if [ -z "$QT_INSTALL_PREFIX" ]; then
             QT_INSTALL_LIBS="$EPOCROOT/epoc32/release/armv5/lib/"
         fi
     elif [ "$PLATFORM_HAIKU" = "yes" ]; then
-   	    QT_INSTALL_PREFIX="/boot/common"
+   	    QT_INSTALL_PREFIX="/boot/apps/Qt-${QT_VERSION}"
     else
         QT_INSTALL_PREFIX="/usr/local/Trolltech/Qt-${QT_VERSION}" # the default install prefix is /usr/local/Trolltech/Qt-$QT_VERSION
     fi
@@ -3645,7 +3645,7 @@ else
 	        QT_INSTALL_DOCS="/Developer/Documentation/Qt"
 		elif [ "$PLATFORM_HAIKU" = "yes" ]; then
 		    QT_INSTALL_DOCS="/boot/common/share/Qt/doc"
-            fi
+        fi
         fi
         [ -z "$QT_INSTALL_DOCS" ] && QT_INSTALL_DOCS="$QT_INSTALL_PREFIX/doc" #fallback
 
@@ -3659,7 +3659,9 @@ else
 	        if [ "$CFG_FRAMEWORK" = "yes" ]; then
 		    QT_INSTALL_HEADERS=
                 fi
-            fi
+		elif [ "$PLATFORM_HAIKU" = "yes" ]; then
+		    QT_INSTALL_HEADERS="/boot/common/include"
+        fi
         fi
         [ -z "$QT_INSTALL_HEADERS" ] && QT_INSTALL_HEADERS="$QT_INSTALL_PREFIX/include"
 
@@ -3673,7 +3675,9 @@ else
 	        if [ "$CFG_FRAMEWORK" = "yes" ]; then
 		    QT_INSTALL_LIBS="/Libraries/Frameworks"
                 fi
-            fi
+		elif [ "$PLATFORM_HAIKU" = "yes" ]; then
+		    QT_INSTALL_LIBS="/boot/common/lib"
+        fi
         fi
         [ -z "$QT_INSTALL_LIBS" ] && QT_INSTALL_LIBS="$QT_INSTALL_PREFIX/lib" #fallback
     fi
@@ -3684,7 +3688,9 @@ else
         if [ "$CFG_PREFIX_INSTALL" = "no" ]; then
 	    if [ "$PLATFORM_MAC" = "yes" ]; then
 	        QT_INSTALL_BINS="/Developer/Applications/Qt"
-            fi
+		elif [ "$PLATFORM_HAIKU" = "yes" ]; then
+		    QT_INSTALL_BINS="/boot/common/bin"
+        fi
         fi
         [ -z "$QT_INSTALL_BINS" ] && QT_INSTALL_BINS="$QT_INSTALL_PREFIX/bin" #fallback
 
@@ -3698,7 +3704,7 @@ else
 	        QT_INSTALL_PLUGINS="/Developer/Applications/Qt/plugins"
 		elif [ "$PLATFORM_HAIKU" = "yes" ]; then
 		    QT_INSTALL_PLUGINS="/boot/common/add-ons/Qt/plugins"
-            fi
+        fi
         fi
         [ -z "$QT_INSTALL_PLUGINS" ] && QT_INSTALL_PLUGINS="$QT_INSTALL_PREFIX/plugins" #fallback
     fi
@@ -3711,7 +3717,7 @@ else
 	        QT_INSTALL_IMPORTS="/Developer/Applications/Qt/imports"
 		elif [ "$PLATFORM_HAIKU" = "yes" ]; then
 		    QT_INSTALL_IMPORTS="/boot/common/add-ons/Qt/imports"
-            fi
+        fi
         fi
         [ -z "$QT_INSTALL_IMPORTS" ] && QT_INSTALL_IMPORTS="$QT_INSTALL_PREFIX/imports" #fallback
     fi
@@ -3740,11 +3746,11 @@ else
     #settings
     if [ -z "$QT_INSTALL_SETTINGS" ]; then #default
         if [ "$PLATFORM_MAC" = "yes" ]; then
-	    QT_INSTALL_SETTINGS=/Library/Preferences/Qt
+	    	QT_INSTALL_SETTINGS=/Library/Preferences/Qt
 		elif [ "$PLATFORM_HAIKU" = "yes" ] && [ "$CFG_PREFIX_INSTALL" = "no" ]; then
-		QT_INSTALL_SETTINGS="/boot/common/share/Qt/settings"
+			QT_INSTALL_SETTINGS="/boot/common/share/Qt/settings"
         else
-	    QT_INSTALL_SETTINGS=/etc/xdg
+		    QT_INSTALL_SETTINGS=/etc/xdg
         fi
     fi
     QT_INSTALL_SETTINGS=`"$relpath/config.tests/unix/makeabs" "$QT_INSTALL_SETTINGS"`
@@ -3756,7 +3762,7 @@ else
 	        QT_INSTALL_EXAMPLES="/Developer/Examples/Qt"
 		elif [ "$PLATFORM_HAIKU" = "yes" ]; then
 		    QT_INSTALL_EXAMPLES="/boot/common/share/Qt/Examples"
-            fi
+        fi
         fi
         [ -z "$QT_INSTALL_EXAMPLES" ] && QT_INSTALL_EXAMPLES="$QT_INSTALL_PREFIX/examples" #fallback
     fi
@@ -3769,7 +3775,7 @@ else
 	        QT_INSTALL_DEMOS="/Developer/Examples/Qt/Demos"
 		elif [ "$PLATFORM_HAIKU" = "yes" ]; then
 		    QT_INSTALL_DEMOS="/boot/common/share/Qt/Demos"
-            fi
+        fi
         fi
         [ -z "$QT_INSTALL_DEMOS" ] && QT_INSTALL_DEMOS="$QT_INSTALL_PREFIX/demos"
     fi
@@ -5919,7 +5925,7 @@ if [ "$PLATFORM_X11" = "yes" -a "$CFG_GUI" != "no" ]; then
 fi
 
 # X11/MINGW/SYMBIAN OpenGL
-if [ "$PLATFORM_X11" = "yes" -o "$XPLATFORM_MINGW" = "yes" -o "$XPLATFORM_SYMBIAN" = "yes" ]; then
+if [ "$PLATFORM_X11" = "yes" -o "$XPLATFORM_MINGW" = "yes" -o "$XPLATFORM_SYMBIAN" = "yes" -o "$PLATFORM_HAIKU" = "yes"  ]; then
     # auto-detect OpenGL support (es1 = OpenGL ES 1.x Common, es2 = OpenGL ES 2.x)
     if [ "$CFG_GUI" = "no" ]; then
         if [ "$CFG_OPENGL" = "auto" ]; then
