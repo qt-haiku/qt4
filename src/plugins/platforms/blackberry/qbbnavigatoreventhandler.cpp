@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2011 - 2012 Research In Motion
+** Copyright (C) 2012 Research In Motion
 **
 ** Contact: Research In Motion <blackberry-qt@qnx.com>
 ** Contact: Klarälvdalens Datakonsult AB <info@kdab.com>
@@ -39,221 +39,63 @@
 
 //#define QBBNAVIGATOREVENTHANDLER_DEBUG
 
-
 #include "qbbnavigatoreventhandler.h"
-#include "qbbscreen.h"
 
-#include <QtCore/private/qcore_unix_p.h>
-#include <QtGui/QApplication>
-#include <QtGui/QWidget>
-#include <QtGui/QWindowSystemInterface>
-#include <QByteArray>
-#include <QList>
+#include <QApplication>
 #include <QDebug>
-#include <QSocketNotifier>
+#include <QWidget>
+#include <QWindowSystemInterface>
 
-#include <errno.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
+QT_BEGIN_NAMESPACE
 
-#define NAV_CONTROL_PATH    "/pps/services/navigator/control"
-#define PPS_BUFFER_SIZE     4096
-
-QBBNavigatorEventHandler::QBBNavigatorEventHandler(QBBScreen& primaryScreen)
-    : mPrimaryScreen(primaryScreen),
-      mFd(-1),
-      mReadNotifier(0)
+QBBNavigatorEventHandler::QBBNavigatorEventHandler(QObject *parent)
+    : QObject(parent)
 {
 }
 
-QBBNavigatorEventHandler::~QBBNavigatorEventHandler()
-{
-    delete mReadNotifier;
-
-    if (mFd != -1)
-        close(mFd);
-
-#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
-    qDebug() << "QBB: navigator event handler stopped";
-#endif
-}
-
-void QBBNavigatorEventHandler::start()
+bool QBBNavigatorEventHandler::handleOrientationCheck(int angle)
 {
 #if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
-    qDebug() << "QBB: navigator event handler started";
+    qDebug() << Q_FUNC_INFO << "angle=" << angle;
+#else
+    Q_UNUSED(angle);
 #endif
 
-    // open connection to navigator
-    errno = 0;
-    mFd = open(NAV_CONTROL_PATH, O_RDWR);
-    if (mFd == -1) {
-        qWarning("QBB: failed to open navigator pps, errno=%d", errno);
-        return;
-    }
-
-    mReadNotifier = new QSocketNotifier(mFd, QSocketNotifier::Read);
-    connect(mReadNotifier, SIGNAL(activated(int)), this, SLOT(readData()));
+    // reply to navigator that (any) orientation is acceptable
+    // TODO: check if top window flags prohibit orientation change
+    return true;
 }
 
-void QBBNavigatorEventHandler::parsePPS(const QByteArray &ppsData, QByteArray &msg, QByteArray &dat, QByteArray &id)
+void QBBNavigatorEventHandler::handleOrientationChange(int angle)
 {
+    // update screen geometry and reply to navigator that we're ready
 #if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
-    qDebug() << "PPS: data=" << ppsData;
+    qDebug() << Q_FUNC_INFO << "angle=" << angle;
 #endif
 
-    // tokenize pps data into lines
-    QList<QByteArray> lines = ppsData.split('\n');
-
-    // validate pps object
-    if (lines.size() == 0 || lines.at(0) != "@control") {
-        qFatal("QBB: unrecognized pps object, data=%s", ppsData.constData());
-    }
-
-    // parse pps object attributes and extract values
-    for (int i = 1; i < lines.size(); i++) {
-
-        // tokenize current attribute
-        const QByteArray &attr = lines.at(i);
-
-#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
-        qDebug() << "PPS: attr=" << attr;
-#endif
-
-        int firstColon = attr.indexOf(':');
-        if (firstColon == -1) {
-            // abort - malformed attribute
-            continue;
-        }
-
-        int secondColon = attr.indexOf(':', firstColon + 1);
-        if (secondColon == -1) {
-            // abort - malformed attribute
-            continue;
-        }
-
-        QByteArray key = attr.left(firstColon);
-        QByteArray value = attr.mid(secondColon + 1);
-
-#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
-        qDebug() << "PPS: key=" << key;
-        qDebug() << "PPS: val=" << value;
-#endif
-
-        // save attribute value
-        if (key == "msg") {
-            msg = value;
-        } else if (key == "dat") {
-            dat = value;
-        } else if (key == "id") {
-            id = value;
-        } else {
-            qFatal("QBB: unrecognized pps attribute, attr=%s", key.constData());
-        }
-    }
+    emit rotationChanged(angle);
 }
 
-void QBBNavigatorEventHandler::replyPPS(const QByteArray &res, const QByteArray &id, const QByteArray &dat)
+void QBBNavigatorEventHandler::handleSwipeDown()
 {
-    // construct pps message
-    QByteArray ppsData = "res::";
-    ppsData += res;
-    ppsData += "\nid::";
-    ppsData += id;
-    if (!dat.isEmpty()) {
-        ppsData += "\ndat::";
-        ppsData += dat;
-    }
-    ppsData += "\n";
-
+    // simulate menu key press
 #if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
-    qDebug() << "PPS reply=" << ppsData;
+    qDebug() << Q_FUNC_INFO;
 #endif
 
-    // send pps message to navigator
-    errno = 0;
-    int bytes = write(mFd, ppsData.constData(), ppsData.size());
-    if (bytes == -1) {
-        qFatal("QBB: failed to write navigator pps, errno=%d", errno);
-    }
+    QWidget *w = QApplication::activeWindow();
+    QWindowSystemInterface::handleKeyEvent(w, QEvent::KeyPress, Qt::Key_Menu, Qt::NoModifier);
+    QWindowSystemInterface::handleKeyEvent(w, QEvent::KeyRelease, Qt::Key_Menu, Qt::NoModifier);
 }
 
-void QBBNavigatorEventHandler::handleMessage(const QByteArray &msg, const QByteArray &dat, const QByteArray &id)
+void QBBNavigatorEventHandler::handleExit()
 {
+    // shutdown everything
 #if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
-    qDebug() << "PPS: msg=" << msg << ", dat=" << dat << ", id=" << id;
+    qDebug() << Q_FUNC_INFO;
 #endif
 
-    // check message type
-    if (msg == "orientationCheck") {
-
-        // reply to navigator that (any) orientation is acceptable
-#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
-        qDebug() << "PPS: orientation check, o=" << dat;
-#endif
-        replyPPS(msg, id, "true");
-
-    } else if (msg == "orientation") {
-
-        // update screen geometry and reply to navigator that we're ready
-#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
-        qDebug() << "PPS: orientation, o=" << dat;
-#endif
-        mPrimaryScreen.setRotation( dat.toInt() );
-        QWindowSystemInterface::handleScreenGeometryChange(0);
-        replyPPS(msg, id, "");
-
-    } else if (msg == "SWIPE_DOWN") {
-
-        // simulate menu key press
-#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
-        qDebug() << "PPS: menu";
-#endif
-        QWidget *w = QApplication::activeWindow();
-        QWindowSystemInterface::handleKeyEvent(w, QEvent::KeyPress, Qt::Key_Menu, Qt::NoModifier);
-        QWindowSystemInterface::handleKeyEvent(w, QEvent::KeyRelease, Qt::Key_Menu, Qt::NoModifier);
-
-    } else if (msg == "exit") {
-
-        // shutdown everything
-#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
-        qDebug() << "PPS: exit";
-#endif
-        QApplication::quit();
-    }
+    QApplication::quit();
 }
 
-void QBBNavigatorEventHandler::readData()
-{
-#if defined(QBBNAVIGATOREVENTHANDLER_DEBUG)
-    qDebug() << "QBB: reading navigator data";
-#endif
-
-    // allocate buffer for pps data
-    char buffer[PPS_BUFFER_SIZE];
-
-    // attempt to read pps data
-    errno = 0;
-    int bytes = qt_safe_read(mFd, buffer, PPS_BUFFER_SIZE - 1);
-    if (bytes == -1) {
-        qFatal("QBB: failed to read navigator pps, errno=%d", errno);
-    }
-
-    // check if pps data was received
-    if (bytes > 0) {
-
-        // ensure data is null terminated
-        buffer[bytes] = '\0';
-
-        // process received message
-        QByteArray ppsData(buffer);
-        QByteArray msg;
-        QByteArray dat;
-        QByteArray id;
-        parsePPS(ppsData, msg, dat, id);
-        handleMessage(msg, dat, id);
-    }
-
-}
+QT_END_NAMESPACE
