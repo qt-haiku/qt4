@@ -1,38 +1,38 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
-** All rights reserved.
-** Contact: Nokia Corporation (qt-info@nokia.com)
+** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtNetwork module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** GNU Lesser General Public License Usage
-** This file may be used under the terms of the GNU Lesser General Public
-** License version 2.1 as published by the Free Software Foundation and
-** appearing in the file LICENSE.LGPL included in the packaging of this
-** file. Please review the following information to ensure the GNU Lesser
-** General Public License version 2.1 requirements will be met:
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** Commercial License Usage
+** Licensees holding valid commercial Qt licenses may use this file in
+** accordance with the commercial license agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
-** In addition, as a special exception, Nokia gives you certain additional
-** rights. These rights are described in the Nokia Qt LGPL Exception
+** GNU Lesser General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU Lesser
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+**
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU General
-** Public License version 3.0 as published by the Free Software Foundation
-** and appearing in the file LICENSE.GPL included in the packaging of this
-** file. Please review the following information to ensure the GNU General
-** Public License version 3.0 requirements will be met:
-** http://www.gnu.org/copyleft/gpl.html.
-**
-** Other Usage
-** Alternatively, this file may be used in accordance with the terms and
-** conditions contained in a signed written agreement between you and Nokia.
-**
-**
-**
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3.0 as published by the Free Software
+** Foundation and appearing in the file LICENSE.GPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU General Public License version 3.0 requirements will be
+** met: http://www.gnu.org/copyleft/gpl.html.
 **
 **
 ** $QT_END_LICENSE$
@@ -47,11 +47,13 @@
 #include <qstringlist.h>
 #include <qregexp.h>
 #include <qurl.h>
+#include <qnetworkinterface.h>
 
 #include <string.h>
 #include <qt_windows.h>
 #include <wininet.h>
 #include <private/qsystemlibrary_p.h>
+#include "qnetworkfunctions_wince.h"
 
 /*
  * Information on the WinHTTP DLL:
@@ -190,10 +192,26 @@ static bool isBypassed(const QString &host, const QStringList &bypassList)
     QHostAddress ipAddress;
     bool isIpAddress = ipAddress.setAddress(host);
 
+    // always exclude loopback
+    if (isIpAddress && (ipAddress == QHostAddress::LocalHost || ipAddress == QHostAddress::LocalHostIPv6))
+        return true;
+
     // does it match the list of exclusions?
     foreach (const QString &entry, bypassList) {
-        if (isSimple && entry == QLatin1String("<local>"))
-            return true;
+        if (entry == QLatin1String("<local>")) {
+            if (isSimple)
+                return true;
+            if (isIpAddress) {
+                //exclude all local subnets
+                foreach (const QNetworkInterface &iface, QNetworkInterface::allInterfaces()) {
+                    foreach (const QNetworkAddressEntry netaddr, iface.addressEntries()) {
+                        if (ipAddress.isInSubnet(netaddr.ip(), netaddr.prefixLength())) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
         if (isIpAddress && ipAddress.isInSubnet(QHostAddress::parseSubnet(entry))) {
             return true;        // excluded
         } else {

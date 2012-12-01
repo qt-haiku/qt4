@@ -1,38 +1,38 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
-** All rights reserved.
-** Contact: Nokia Corporation (qt-info@nokia.com)
+** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** GNU Lesser General Public License Usage
-** This file may be used under the terms of the GNU Lesser General Public
-** License version 2.1 as published by the Free Software Foundation and
-** appearing in the file LICENSE.LGPL included in the packaging of this
-** file. Please review the following information to ensure the GNU Lesser
-** General Public License version 2.1 requirements will be met:
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** Commercial License Usage
+** Licensees holding valid commercial Qt licenses may use this file in
+** accordance with the commercial license agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
-** In addition, as a special exception, Nokia gives you certain additional
-** rights. These rights are described in the Nokia Qt LGPL Exception
+** GNU Lesser General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU Lesser
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+**
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU General
-** Public License version 3.0 as published by the Free Software Foundation
-** and appearing in the file LICENSE.GPL included in the packaging of this
-** file. Please review the following information to ensure the GNU General
-** Public License version 3.0 requirements will be met:
-** http://www.gnu.org/copyleft/gpl.html.
-**
-** Other Usage
-** Alternatively, this file may be used in accordance with the terms and
-** conditions contained in a signed written agreement between you and Nokia.
-**
-**
-**
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3.0 as published by the Free Software
+** Foundation and appearing in the file LICENSE.GPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU General Public License version 3.0 requirements will be
+** met: http://www.gnu.org/copyleft/gpl.html.
 **
 **
 ** $QT_END_LICENSE$
@@ -217,6 +217,8 @@ private slots:
 
     void compatibility_Qt3();
     void compatibility_Qt2();
+
+    void floatingPointNaN();
 
 private:
     void writebool(QDataStream *s);
@@ -3492,6 +3494,48 @@ void tst_QDataStream::compatibility_Qt2()
     QVERIFY(in_brush.style() == Qt::NoBrush);
     QVERIFY(in_palette.brush(QPalette::Button).style() == Qt::NoBrush);
     QVERIFY(in_palette.color(QPalette::Light) == Qt::green);
+}
+
+void tst_QDataStream::floatingPointNaN()
+{
+    QDataStream::ByteOrder bo = QSysInfo::ByteOrder == QSysInfo::BigEndian
+                                ? QDataStream::LittleEndian
+                                : QDataStream::BigEndian;
+
+    // Test and verify that values that become (s)nan's after swapping endianness
+    // don't change in the process.
+    // When compiling with e.g., MSVC (32bit) and when the fpu is used (fp:precise)
+    // all snan's will be converted to qnan's (default behavior).
+    // IF we get a snan after swapping endianness we can not copy the value to another
+    // float as this will cause the value to differ from the original value.
+    QByteArray ba;
+
+    union {
+       float f;
+       quint32 i;
+    } xs[2];
+
+    xs[0].i = qbswap<quint32>(0xff800001);
+    xs[1].i = qbswap<quint32>(0x7f800001);
+
+    {
+        QDataStream stream(&ba, QIODevice::WriteOnly);
+        stream.setByteOrder(bo);
+        stream.setFloatingPointPrecision(QDataStream::SinglePrecision);
+        stream << xs[0].f;
+        stream << xs[1].f;
+    }
+
+    {
+        QDataStream stream(ba);
+        stream.setByteOrder(bo);
+        stream.setFloatingPointPrecision(QDataStream::SinglePrecision);
+        float fr = 0.0f;
+        stream >> fr;
+        QCOMPARE(fr, xs[0].f);
+        stream >> fr;
+        QCOMPARE(fr, xs[1].f);
+    }
 }
 
 void tst_QDataStream::floatingPointPrecision()

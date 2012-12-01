@@ -1,38 +1,38 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
-** All rights reserved.
-** Contact: Nokia Corporation (qt-info@nokia.com)
+** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** GNU Lesser General Public License Usage
-** This file may be used under the terms of the GNU Lesser General Public
-** License version 2.1 as published by the Free Software Foundation and
-** appearing in the file LICENSE.LGPL included in the packaging of this
-** file. Please review the following information to ensure the GNU Lesser
-** General Public License version 2.1 requirements will be met:
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** Commercial License Usage
+** Licensees holding valid commercial Qt licenses may use this file in
+** accordance with the commercial license agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
-** In addition, as a special exception, Nokia gives you certain additional
-** rights. These rights are described in the Nokia Qt LGPL Exception
+** GNU Lesser General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU Lesser
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+**
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU General
-** Public License version 3.0 as published by the Free Software Foundation
-** and appearing in the file LICENSE.GPL included in the packaging of this
-** file. Please review the following information to ensure the GNU General
-** Public License version 3.0 requirements will be met:
-** http://www.gnu.org/copyleft/gpl.html.
-**
-** Other Usage
-** Alternatively, this file may be used in accordance with the terms and
-** conditions contained in a signed written agreement between you and Nokia.
-**
-**
-**
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3.0 as published by the Free Software
+** Foundation and appearing in the file LICENSE.GPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU General Public License version 3.0 requirements will be
+** met: http://www.gnu.org/copyleft/gpl.html.
 **
 **
 ** $QT_END_LICENSE$
@@ -47,12 +47,82 @@
 #include "qvariant.h"
 
 #if defined(Q_OS_QNX)
+#include <QtCore/private/qcore_unix_p.h>
+#include <QCoreApplication>
+
 #include <unistd.h>
+#include <errno.h>
+#include <sys/pps.h>
 #endif
 
 QT_BEGIN_NAMESPACE
 
-static const char *getSystemLocale()
+#if defined(Q_OS_QNX)
+static const char ppsServicePath[] = "/pps/services/locale/uom";
+static const size_t ppsBufferSize = 256;
+
+QBBLocaleData::QBBLocaleData()
+    :ppsNotifier(0)
+    ,ppsFd(-1)
+{
+    readPPSLocale();
+}
+
+QBBLocaleData::~QBBLocaleData()
+{
+    if (ppsFd != -1)
+        qt_safe_close(ppsFd);
+}
+
+void QBBLocaleData::updateMesurementSystem()
+{
+    char buffer[ppsBufferSize];
+
+    errno = 0;
+    int bytes = qt_safe_read(ppsFd, buffer, ppsBufferSize - 1);
+    if (bytes == -1) {
+        qWarning("Failed to read Locale pps, errno=%d", errno);
+        return;
+    }
+    // ensure data is null terminated
+    buffer[bytes] = '\0';
+
+    pps_decoder_t ppsDecoder;
+    pps_decoder_initialize(&ppsDecoder, 0);
+    if (pps_decoder_parse_pps_str(&ppsDecoder, buffer) == PPS_DECODER_OK) {
+        pps_decoder_push(&ppsDecoder, 0);
+        const char *measurementBuff;
+        if (pps_decoder_get_string(&ppsDecoder, "uom", &measurementBuff) == PPS_DECODER_OK) {
+            if (qstrcmp(measurementBuff, "imperial") == 0) {
+                pps_decoder_cleanup(&ppsDecoder);
+                ppsMeasurement = QLocale::ImperialSystem;
+                return;
+            }
+        }
+    }
+
+    pps_decoder_cleanup(&ppsDecoder);
+    ppsMeasurement = QLocale::MetricSystem;
+}
+
+void QBBLocaleData::readPPSLocale()
+{
+    errno = 0;
+    ppsFd = qt_safe_open(ppsServicePath, O_RDONLY);
+    if (ppsFd == -1) {
+        qWarning("Failed to open Locale pps, errno=%d", errno);
+        return;
+    }
+
+    updateMesurementSystem();
+    if (QCoreApplication::instance()) {
+        ppsNotifier = new QSocketNotifier(ppsFd, QSocketNotifier::Read, this);
+        QObject::connect(ppsNotifier, SIGNAL(activated(int)), this, SLOT(updateMesurementSystem()));
+    }
+}
+#endif
+
+static QByteArray getSystemLocale()
 {
 #if defined(Q_OS_QNX)
     static char buff[257];
@@ -118,6 +188,10 @@ struct QSystemLocaleData
 Q_GLOBAL_STATIC(QSystemLocaleData, qSystemLocaleData)
 #endif
 
+#if defined(Q_OS_QNX)
+    Q_GLOBAL_STATIC(QBBLocaleData, qbbLocaleData)
+#endif
+
 #ifndef QT_NO_SYSTEMLOCALE
 QLocale QSystemLocale::fallbackLocale() const
 {
@@ -134,6 +208,9 @@ QLocale QSystemLocale::fallbackLocale() const
 QVariant QSystemLocale::query(QueryType type, QVariant in) const
 {
     QSystemLocaleData *d = qSystemLocaleData();
+#if defined(Q_OS_QNX)
+    QBBLocaleData *bbd = qbbLocaleData();
+#endif
     const QLocale &lc_numeric = d->lc_numeric;
     const QLocale &lc_time = d->lc_time;
     const QLocale &lc_monetary = d->lc_monetary;
@@ -213,6 +290,9 @@ QVariant QSystemLocale::query(QueryType type, QVariant in) const
             return QLocale::MetricSystem;
         if (meas_locale.compare(QLatin1String("Other"), Qt::CaseInsensitive) == 0)
             return QLocale::MetricSystem;
+#if defined(Q_OS_QNX)
+        return bbd->ppsMeasurement;
+#endif
         return QVariant((int)QLocale(meas_locale).measurementSystem());
     }
     case UILanguages: {

@@ -1,38 +1,38 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
-** All rights reserved.
-** Contact: Nokia Corporation (qt-info@nokia.com)
+** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtDeclarative module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** GNU Lesser General Public License Usage
-** This file may be used under the terms of the GNU Lesser General Public
-** License version 2.1 as published by the Free Software Foundation and
-** appearing in the file LICENSE.LGPL included in the packaging of this
-** file. Please review the following information to ensure the GNU Lesser
-** General Public License version 2.1 requirements will be met:
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** Commercial License Usage
+** Licensees holding valid commercial Qt licenses may use this file in
+** accordance with the commercial license agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
-** In addition, as a special exception, Nokia gives you certain additional
-** rights. These rights are described in the Nokia Qt LGPL Exception
+** GNU Lesser General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU Lesser
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+**
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU General
-** Public License version 3.0 as published by the Free Software Foundation
-** and appearing in the file LICENSE.GPL included in the packaging of this
-** file. Please review the following information to ensure the GNU General
-** Public License version 3.0 requirements will be met:
-** http://www.gnu.org/copyleft/gpl.html.
-**
-** Other Usage
-** Alternatively, this file may be used in accordance with the terms and
-** conditions contained in a signed written agreement between you and Nokia.
-**
-**
-**
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3.0 as published by the Free Software
+** Foundation and appearing in the file LICENSE.GPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU General Public License version 3.0 requirements will be
+** met: http://www.gnu.org/copyleft/gpl.html.
 **
 **
 ** $QT_END_LICENSE$
@@ -61,7 +61,7 @@ is responsible for deleting the returned data.
 */
 static QSet<QString> *qmlFilesInDirectory(const QString &path)
 {
-    QDirIterator dir(path, QDir::Files);
+    QDirIterator dir(path, QDir::Files | QDir::NoDotAndDotDot);
     if (!dir.hasNext())
         return 0;
     QSet<QString> *files = new QSet<QString>;
@@ -552,21 +552,28 @@ void QDeclarativeDataLoader::load(QDeclarativeDataBlob *blob)
 
         blob->m_manager = this;
         QNetworkReply *reply = m_engine->networkAccessManager()->get(QNetworkRequest(blob->m_url));
-        QObject::connect(reply, SIGNAL(downloadProgress(qint64,qint64)), 
-                         this, SLOT(networkReplyProgress(qint64,qint64)));
-        QObject::connect(reply, SIGNAL(finished()), 
-                         this, SLOT(networkReplyFinished()));
-        m_networkReplies.insert(reply, blob);
 
+        m_networkReplies.insert(reply, blob);
         blob->addref();
+
+        if (reply->isFinished()) {
+            // Short-circuit synchronous replies.
+            qint64 size = reply->size();
+            networkReplyProgress(reply, size, size);
+            networkReplyFinished(reply);
+        } else {
+            QObject::connect(reply, SIGNAL(downloadProgress(qint64,qint64)),
+                             this, SLOT(networkReplyProgress(qint64,qint64)));
+            QObject::connect(reply, SIGNAL(finished()),
+                             this, SLOT(networkReplyFinished()));
+        }
     }
 }
 
 #define DATALOADER_MAXIMUM_REDIRECT_RECURSION 16
 
-void QDeclarativeDataLoader::networkReplyFinished()
+void QDeclarativeDataLoader::networkReplyFinished(QNetworkReply *reply)
 {
-    QNetworkReply *reply = static_cast<QNetworkReply *>(sender());
     reply->deleteLater();
 
     QDeclarativeDataBlob *blob = m_networkReplies.take(reply);
@@ -598,9 +605,14 @@ void QDeclarativeDataLoader::networkReplyFinished()
     blob->release();
 }
 
-void QDeclarativeDataLoader::networkReplyProgress(qint64 bytesReceived, qint64 bytesTotal)
+void QDeclarativeDataLoader::networkReplyFinished()
 {
     QNetworkReply *reply = static_cast<QNetworkReply *>(sender());
+    networkReplyFinished(reply);
+}
+
+void QDeclarativeDataLoader::networkReplyProgress(QNetworkReply *reply, qint64 bytesReceived, qint64 bytesTotal)
+{
     QDeclarativeDataBlob *blob = m_networkReplies.value(reply);
 
     Q_ASSERT(blob);
@@ -609,6 +621,12 @@ void QDeclarativeDataLoader::networkReplyProgress(qint64 bytesReceived, qint64 b
         blob->m_progress = bytesReceived / bytesTotal;
         blob->downloadProgressChanged(blob->m_progress);
     }
+}
+
+void QDeclarativeDataLoader::networkReplyProgress(qint64 bytesReceived, qint64 bytesTotal)
+{
+    QNetworkReply *reply = static_cast<QNetworkReply *>(sender());
+    networkReplyProgress(reply, bytesReceived, bytesTotal);
 }
 
 /*!

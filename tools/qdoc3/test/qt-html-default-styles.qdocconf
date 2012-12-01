@@ -13,7 +13,7 @@ HTML.scripts     =
 # directory prefixes.
 
 extraimages.HTML        = qt-logo.png \
-                          arrow.png \
+                          arrow_bc.png \
                           arrow_down.png \
                           bgrContent.png \
                           breadcrumb.png \
@@ -36,7 +36,7 @@ extraimages.HTML        = qt-logo.png \
 HTML.headerstyles = \
     "  <link rel=\"stylesheet\" type=\"text/css\" href=\"style/offline.css\" />\n"
 
-HTML.headerscripts = 
+HTML.headerscripts =
 
 HTML.endheader = \
     "</head>\n" \

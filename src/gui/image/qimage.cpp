@@ -1,38 +1,38 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Nokia Corporation and/or its subsidiary(-ies).
-** All rights reserved.
-** Contact: Nokia Corporation (qt-info@nokia.com)
+** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
-** GNU Lesser General Public License Usage
-** This file may be used under the terms of the GNU Lesser General Public
-** License version 2.1 as published by the Free Software Foundation and
-** appearing in the file LICENSE.LGPL included in the packaging of this
-** file. Please review the following information to ensure the GNU Lesser
-** General Public License version 2.1 requirements will be met:
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** Commercial License Usage
+** Licensees holding valid commercial Qt licenses may use this file in
+** accordance with the commercial license agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
-** In addition, as a special exception, Nokia gives you certain additional
-** rights. These rights are described in the Nokia Qt LGPL Exception
+** GNU Lesser General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU Lesser
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+**
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU General
-** Public License version 3.0 as published by the Free Software Foundation
-** and appearing in the file LICENSE.GPL included in the packaging of this
-** file. Please review the following information to ensure the GNU General
-** Public License version 3.0 requirements will be met:
-** http://www.gnu.org/copyleft/gpl.html.
-**
-** Other Usage
-** Alternatively, this file may be used in accordance with the terms and
-** conditions contained in a signed written agreement between you and Nokia.
-**
-**
-**
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3.0 as published by the Free Software
+** Foundation and appearing in the file LICENSE.GPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU General Public License version 3.0 requirements will be
+** met: http://www.gnu.org/copyleft/gpl.html.
 **
 **
 ** $QT_END_LICENSE$
@@ -1400,7 +1400,7 @@ QImage QImage::copy(const QRect& r) const
         // Qt for Embedded Linux can create images with non-default bpl
         // make sure we don't crash.
         if (image.d->nbytes != d->nbytes) {
-            int bpl = image.bytesPerLine();
+            int bpl = qMin(bytesPerLine(), image.bytesPerLine());
             for (int i = 0; i < height(); i++)
                 memcpy(image.scanLine(i), scanLine(i), bpl);
         } else
@@ -3942,6 +3942,7 @@ static inline int closestMatch(QRgb pixel, const QVector<QRgb> &clut) {
 static QImage convertWithPalette(const QImage &src, QImage::Format format,
                                  const QVector<QRgb> &clut) {
     QImage dest(src.size(), format);
+    QIMAGE_SANITYCHECK_MEMORY(dest);
     dest.setColorTable(clut);
 
 #if !defined(QT_NO_IMAGE_TEXT)
@@ -4294,6 +4295,7 @@ QImage QImage::convertBitOrder(Endian bitOrder) const
         return *this;
 
     QImage image(d->width, d->height, d->format == Format_Mono ? Format_MonoLSB : Format_Mono);
+    QIMAGE_SANITYCHECK_MEMORY(image);
 
     const uchar *data = d->data;
     const uchar *end = data + d->nbytes;
@@ -4921,6 +4923,7 @@ QImage QImage::rgbSwapped() const
     case Format_MonoLSB:
     case Format_Indexed8:
         res = copy();
+        QIMAGE_SANITYCHECK_MEMORY(res);
         for (int i = 0; i < res.d->colortable.size(); i++) {
             QRgb c = res.d->colortable.at(i);
             res.d->colortable[i] = QRgb(((c << 16) & 0xff0000) | ((c >> 16) & 0xff) | (c & 0xff00ff00));
@@ -6176,6 +6179,10 @@ void QImage::setAlphaChannel(const QImage &alphaChannel)
 
     } else {
         const QImage sourceImage = alphaChannel.convertToFormat(QImage::Format_RGB32);
+        if (sourceImage.isNull()) {
+            qWarning("QImage::setAlphaChannel: out of memory");
+            return;
+        }
         const uchar *src_data = sourceImage.d->data;
         const uchar *dest_data = d->data;
         for (int y=0; y<h; ++y) {
@@ -6228,6 +6235,7 @@ QImage QImage::alphaChannel() const
     int h = d->height;
 
     QImage image(w, h, Format_Indexed8);
+    QIMAGE_SANITYCHECK_MEMORY(image);
     image.setColorCount(256);
 
     // set up gray scale table.
@@ -6257,6 +6265,7 @@ QImage QImage::alphaChannel() const
         QImage alpha32 = *this;
         if (d->format != Format_ARGB32 && d->format != Format_ARGB32_Premultiplied)
             alpha32 = convertToFormat(Format_ARGB32);
+        QIMAGE_SANITYCHECK_MEMORY(alpha32);
 
         const uchar *src_data = alpha32.d->data;
         uchar *dest_data = image.d->data;
@@ -6400,6 +6409,7 @@ static QImage smoothScaled(const QImage &source, int w, int h) {
 
 static QImage rotated90(const QImage &image) {
     QImage out(image.height(), image.width(), image.format());
+    QIMAGE_SANITYCHECK_MEMORY(out);
     if (image.colorCount() > 0)
         out.setColorTable(image.colorTable());
     int w = image.width();
@@ -6459,6 +6469,7 @@ static QImage rotated180(const QImage &image) {
 
 static QImage rotated270(const QImage &image) {
     QImage out(image.height(), image.width(), image.format());
+    QIMAGE_SANITYCHECK_MEMORY(out);
     if (image.colorCount() > 0)
         out.setColorTable(image.colorTable());
     int w = image.width();
