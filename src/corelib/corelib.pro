@@ -50,5 +50,5 @@ symbian: {
 }
 
 haiku: {
-	LIBS_PRIVATE += -llocale -lbe
+	LIBS_PRIVATE += -lbe
 }

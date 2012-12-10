@@ -1,6 +1,6 @@
 #!/bin/sh
 
-QTROOT=../qtbuild
+QTROOT=../qt4.8-build
 QTROOT=`readlink -f $QTROOT`
 
 ######################################################################
