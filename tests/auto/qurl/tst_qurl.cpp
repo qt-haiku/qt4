@@ -189,6 +189,8 @@ private slots:
     void toEncoded();
     void setAuthority_data();
     void setAuthority();
+    void setEmptyAuthority_data();
+    void setEmptyAuthority();
     void errorString();
     void clear();
     void resolvedWithAbsoluteSchemes() const;
@@ -3776,6 +3778,28 @@ void tst_QUrl::setAuthority()
     QCOMPARE(u.toString(), url);
 }
 
+void tst_QUrl::setEmptyAuthority_data()
+{
+    QTest::addColumn<QString>("host");
+    QTest::addColumn<QString>("authority");
+    QTest::addColumn<QString>("expectedUrlString");
+
+    QTest::newRow("null host and authority") << QString() << QString() << QString("");
+    QTest::newRow("empty host and authority") << QString("") << QString("") << QString("//");
+}
+
+void tst_QUrl::setEmptyAuthority()
+{
+    QFETCH(QString, host);
+    QFETCH(QString, authority);
+    QFETCH(QString, expectedUrlString);
+    QUrl u;
+    u.setHost(host);
+    QCOMPARE(u.toString(), expectedUrlString);
+    u.setAuthority(authority);
+    QCOMPARE(u.toString(), expectedUrlString);
+}
+
 void tst_QUrl::errorString()
 {
     QUrl u = QUrl::fromEncoded("http://strange<username>@bad_hostname/", QUrl::StrictMode);
@@ -4018,10 +4042,16 @@ void tst_QUrl::taskQTBUG_8701()
     QString foo_triple_bar("foo:///bar"), foo_uni_bar("foo:/bar");
 
     QCOMPARE(foo_triple_bar, QUrl(foo_triple_bar).toString());
+    QCOMPARE(foo_triple_bar, QString::fromUtf8(QUrl(foo_triple_bar).toEncoded()));
+
     QCOMPARE(foo_uni_bar, QUrl(foo_uni_bar).toString());
+    QCOMPARE(foo_uni_bar, QString::fromUtf8(QUrl(foo_uni_bar).toEncoded()));
 
     QCOMPARE(foo_triple_bar, QUrl(foo_triple_bar, QUrl::StrictMode).toString()); // fails
+    QCOMPARE(foo_triple_bar, QString::fromUtf8(QUrl(foo_triple_bar, QUrl::StrictMode).toEncoded())); // fails
+
     QCOMPARE(foo_uni_bar, QUrl(foo_uni_bar, QUrl::StrictMode).toString());
+    QCOMPARE(foo_uni_bar, QString::fromUtf8(QUrl(foo_uni_bar, QUrl::StrictMode).toEncoded()));
 }
 
 void tst_QUrl::effectiveTLDs_data()
