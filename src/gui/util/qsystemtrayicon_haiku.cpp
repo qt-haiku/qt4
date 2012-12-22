@@ -63,6 +63,7 @@ QT_BEGIN_NAMESPACE
 #include <Resources.h>
 #include <Bitmap.h>
 #include <Looper.h>
+#include <Notification.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -71,15 +72,17 @@ QT_BEGIN_NAMESPACE
 #define TRAY_MOUSEDOWN 	1
 #define TRAY_MOUSEUP	2
 
-#define NF_NONE		0
-#define NF_QT		1
-#define NF_NATIVE	2
+enum notify_mode {
+		NM_NONE,
+		NM_QT,
+		NM_NATIVE
+};
 
 #define maxTipLength 	128
 
 #define DBAR_SIGNATURE 	"application/x-vnd.Be-TSKB"
 
-static 	int32 notifyMode = NF_NONE;
+static 	notify_mode notifyMode = NM_NATIVE;
 
 QSystemTrayIconLooper::QSystemTrayIconLooper() : QObject(), BLooper("traylooper")
 {	
@@ -350,7 +353,6 @@ QSystemTrayIconSys::DeskBarLoadIcon(void)
 
 void QSystemTrayIconPrivate::install_sys()
 {
-	fprintf(stderr, "Reimplemented: QSystemTrayIconPrivate::install_sys \n");
     Q_Q(QSystemTrayIcon);
     if (!sys) {
         sys = new QSystemTrayIconSys(q);		
@@ -361,9 +363,7 @@ void QSystemTrayIconPrivate::install_sys()
 
 void QSystemTrayIconPrivate::showMessage_sys(const QString &title,  const QString &message, QSystemTrayIcon::MessageIcon type, int timeOut)
 {
-	fprintf(stderr, "Reimplemented:  QSystemTrayIconPrivate::showMessage_sys()\n");	
-		
-	if(notifyMode == NF_QT) {
+	if(notifyMode == NM_QT) {
 		QPoint point(sys->shelfRect.x(),sys->shelfRect.y());
 				
 		BDeskbar deskbar;
@@ -399,39 +399,29 @@ void QSystemTrayIconPrivate::showMessage_sys(const QString &title,  const QStrin
 		}
 	    QBalloonTip::showBalloon(type, title, message, sys->q, point, timeOut, false);
 	}
-	if(notifyMode == NF_NATIVE) {
-		QString cmd;
-		QString stitle(title);
-		stitle.replace(L'"',"''");
-		stitle.remove(L'\r');
-		stitle.remove(L'\n');
+	if(notifyMode == NM_NATIVE) {	
+		BString stitle((const char *)(title.toUtf8()));
+		BString smessage((const char *)(message.toUtf8()));
+		BString smessageId((const char *)(QFileInfo(QApplication::applicationFilePath()).fileName().toUtf8()));
 		
-		QString smessage(message);
-		smessage.replace(L'"',"''");
-		smessage.remove(L'\r');
-		smessage.remove(L'\n');
-		
-		cmd = QString("notify --app \"%1\" --type %2 --title \"%3\" --timeout %4 \"%5\"")
-					.arg(QFileInfo(QApplication::applicationFilePath()).fileName())
-					.arg(type==QSystemTrayIcon::Warning?"important":type==QSystemTrayIcon::Critical?"error":"information")
-					.arg(stitle)
-					.arg(timeOut/1000)
-					.arg(smessage);
-					
-		const char *str = (const char *)(cmd.toUtf8());		
-		system(str);
+		notification_type ntype = type==QSystemTrayIcon::Warning?B_IMPORTANT_NOTIFICATION:
+								   type==QSystemTrayIcon::Critical?B_ERROR_NOTIFICATION:B_INFORMATION_NOTIFICATION;
+		BNotification notification(ntype);
+		//notification.SetGroup("");
+		notification.SetTitle(stitle);
+		notification.SetMessageID(smessageId);
+		notification.SetContent(smessage);
+		notification.Send(timeOut/1000);
 	}
 }
 
 QRect QSystemTrayIconPrivate::geometry_sys() const
 {
-	fprintf(stderr, "Reimplemented: QSystemTrayIconPrivate::geometry_sys \n");
 	return sys->shelfRect;
 }
 
 void QSystemTrayIconPrivate::remove_sys()
 {
-	fprintf(stderr, "Reimplemented: QSystemTrayIconPrivate::remove_sys \n");
 	if(sys) {    
     	delete sys;
     	sys = NULL;
@@ -440,7 +430,6 @@ void QSystemTrayIconPrivate::remove_sys()
 
 void QSystemTrayIconPrivate::updateIcon_sys()
 {
-	fprintf(stderr, "Reimplemented:  QSystemTrayIconPrivate::updateIcon_sys\n");	
     if (sys) {
 	    sys->UpdateIcon();
     }
@@ -448,12 +437,11 @@ void QSystemTrayIconPrivate::updateIcon_sys()
 
 void QSystemTrayIconPrivate::updateMenu_sys()
 {
-	fprintf(stderr, "Unimplemented:  QSystemTrayIconPrivate::updateMenu_sys\n");
+	fprintf(stderr, "Unimplemented:  QSystemTrayIconPrivate::updateMenu_sys\n");	
 }
 
 void QSystemTrayIconPrivate::updateToolTip_sys()
 {
-	fprintf(stderr, "Reimplemented:  QSystemTrayIconPrivate::updateToolTip_sys\n");
 	if (sys) {
 		sys->UpdateTooltip();
 	}
@@ -461,20 +449,13 @@ void QSystemTrayIconPrivate::updateToolTip_sys()
 
 bool QSystemTrayIconPrivate::isSystemTrayAvailable_sys()
 {	
-	supportsMessages_sys();	
 	QFileInfo qsystrayfile("/boot/common/bin/qsystray");	
 	return qsystrayfile.exists();
 }
 
 bool QSystemTrayIconPrivate::supportsMessages_sys()
 {
-	QFileInfo notifyfile("/bin/notify");
-	if(notifyfile.exists()) {
-		notifyMode = NF_NATIVE;
-	} else {
-		notifyMode = NF_QT;
-	}	
-	return true;
+	return notifyMode != NM_NONE;
 }
 
 QT_END_NAMESPACE
