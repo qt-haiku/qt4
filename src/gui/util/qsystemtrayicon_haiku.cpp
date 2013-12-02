@@ -411,7 +411,7 @@ void QSystemTrayIconPrivate::showMessage_sys(const QString &title,  const QStrin
 		notification.SetTitle(stitle);
 		notification.SetMessageID(smessageId);
 		notification.SetContent(smessage);
-		notification.Send(timeOut/1000);
+		notification.Send(timeOut*1000);
 	}
 }
 
