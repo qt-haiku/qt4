@@ -448,9 +448,9 @@ void QSystemTrayIconPrivate::updateToolTip_sys()
 }
 
 bool QSystemTrayIconPrivate::isSystemTrayAvailable_sys()
-{	
-	QFileInfo qsystrayfile("/boot/common/bin/qsystray");	
-	return qsystrayfile.exists();
+{
+	// We assume the qsystray executable will always be available
+	return true;
 }
 
 bool QSystemTrayIconPrivate::supportsMessages_sys()
