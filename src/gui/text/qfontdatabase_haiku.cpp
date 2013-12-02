@@ -50,13 +50,14 @@ static void initializeDb()
     FT_Library lib = qt_getFreetype();
 
 	directory_which FontDirs[] = {
-		B_BEOS_FONTS_DIRECTORY,
-		B_COMMON_FONTS_DIRECTORY,
-		B_USER_FONTS_DIRECTORY
+		B_SYSTEM_FONTS_DIRECTORY,
+		B_SYSTEM_NONPACKAGED_FONTS_DIRECTORY,
+		B_USER_FONTS_DIRECTORY,
+		B_USER_NONPACKAGED_FONTS_DIRECTORY
 	};
 	
 	
-	for(int nfont=0;nfont<3;nfont++)
+	for(int nfont=0;nfont<4;nfont++)
 	{	
 		BPath fontDir;
 		find_directory(FontDirs[nfont],&fontDir);
