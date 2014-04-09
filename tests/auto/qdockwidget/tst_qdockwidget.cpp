@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -770,7 +770,7 @@ void tst_QDockWidget::task169808_setFloating()
         QSize sizeHint() const
         {
             const QRect& deskRect = qApp->desktop()->availableGeometry();
-            return QSize(qMin(300, deskRect.width()), 300);
+            return QSize(qMin(300, deskRect.width() / 2), qMin(300, deskRect.height() / 2));
         }
 
         QSize minimumSizeHint() const

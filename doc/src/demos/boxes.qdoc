@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the documentation of the Qt Toolkit.
@@ -29,7 +29,7 @@
     \example demos/boxes
     \title Boxes
 
-    \brief The Boxes demo shows Qt's ability to combine advanced OpenGL rendering with the
+    \brief The Boxes demo shows Qt's ability to combine advanced OpenGL rendering with
     the \l{Graphics View Framework}.
 
     \image boxes-demo.png

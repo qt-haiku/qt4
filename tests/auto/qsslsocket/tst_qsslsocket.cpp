@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -1996,7 +1996,8 @@ void tst_QSslSocket::writeBigChunk()
         QFAIL("Error while writing! Check if the OpenSSL BIO size is limited?!");
     }
     // also check the error string. If another error (than UnknownError) occurred, it should be different than before
-    QVERIFY(errorBefore == errorAfter);
+    QVERIFY2(errorBefore == errorAfter || socket->error() == QAbstractSocket::RemoteHostClosedError,
+             QByteArray("unexpected error: ").append(qPrintable(errorAfter)));
 
     // check that everything has been written to OpenSSL
     QVERIFY(socket->bytesToWrite() == 0);

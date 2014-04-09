@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
@@ -326,16 +326,18 @@ void QProcessManager::unlock()
     mutex.unlock();
 }
 
-static void qt_create_pipe(int *pipe)
+static int qt_create_pipe(int *pipe)
 {
     if (pipe[0] != -1)
         qt_safe_close(pipe[0]);
     if (pipe[1] != -1)
         qt_safe_close(pipe[1]);
-    if (qt_safe_pipe(pipe) != 0) {
+    int pipe_ret = qt_safe_pipe(pipe);
+    if (pipe_ret != 0) {
         qWarning("QProcessPrivate::createPipe: Cannot create pipe %p: %s",
                  pipe, qPrintable(qt_error_string(errno)));
     }
+    return pipe_ret;
 }
 
 void QProcessPrivate::destroyPipe(int *pipe)
@@ -367,7 +369,8 @@ bool QProcessPrivate::createChannel(Channel &channel)
 
     if (channel.type == Channel::Normal) {
         // we're piping this channel to our own process
-        qt_create_pipe(channel.pipe);
+        if (qt_create_pipe(channel.pipe) != 0)
+            return false;
 
         // create the socket notifiers
         if (threadData->eventDispatcher) {
@@ -451,7 +454,8 @@ bool QProcessPrivate::createChannel(Channel &channel)
             Q_ASSERT(sink->pipe[0] == INVALID_Q_PIPE && sink->pipe[1] == INVALID_Q_PIPE);
 
             Q_PIPE pipe[2] = { -1, -1 };
-            qt_create_pipe(pipe);
+            if (qt_create_pipe(pipe) != 0)
+                return false;
             sink->pipe[0] = pipe[0];
             source->pipe[1] = pipe[1];
 
@@ -545,10 +549,15 @@ void QProcessPrivate::startProcess()
     // Initialize pipes
     if (!createChannel(stdinChannel) ||
         !createChannel(stdoutChannel) ||
-        !createChannel(stderrChannel))
+        !createChannel(stderrChannel) ||
+        qt_create_pipe(childStartedPipe) != 0 ||
+        qt_create_pipe(deathPipe) != 0) {
+        processError = QProcess::FailedToStart;
+        q->setErrorString(qt_error_string(errno));
+        emit q->error(processError);
+        cleanup();
         return;
-    qt_create_pipe(childStartedPipe);
-    qt_create_pipe(deathPipe);
+    }
 
     if (threadData->eventDispatcher) {
         startupSocketNotifier = new QSocketNotifier(childStartedPipe[0],
@@ -966,23 +975,9 @@ qint64 QProcessPrivate::readFromStderr(char *data, qint64 maxlen)
     return bytesRead;
 }
 
-static void qt_ignore_sigpipe()
-{
-    // Set to ignore SIGPIPE once only.
-    static QBasicAtomicInt atom = Q_BASIC_ATOMIC_INITIALIZER(0);
-    if (atom.testAndSetRelaxed(0, 1)) {
-        struct sigaction noaction;
-        memset(&noaction, 0, sizeof(noaction));
-        noaction.sa_handler = SIG_IGN;
-        ::sigaction(SIGPIPE, &noaction, 0);
-    }
-}
-
 qint64 QProcessPrivate::writeToStdin(const char *data, qint64 maxlen)
 {
-    qt_ignore_sigpipe();
-
-    qint64 written = qt_safe_write(stdinChannel.pipe[1], data, maxlen);
+    qint64 written = qt_safe_write_nosignal(stdinChannel.pipe[1], data, maxlen);
 #if defined QPROCESS_DEBUG
     qDebug("QProcessPrivate::writeToStdin(%p \"%s\", %lld) == %lld",
            data, qt_prettyDebug(data, maxlen, 16).constData(), maxlen, written);
@@ -1358,10 +1353,15 @@ bool QProcessPrivate::startDetached(const QString &program, const QStringList &a
 
     // To catch the startup of the child
     int startedPipe[2];
-    qt_safe_pipe(startedPipe);
+    if (qt_safe_pipe(startedPipe) != 0)
+        return false;
     // To communicate the pid of the child
     int pidPipe[2];
-    qt_safe_pipe(pidPipe);
+    if (qt_safe_pipe(pidPipe) != 0) {
+        qt_safe_close(startedPipe[0]);
+        qt_safe_close(startedPipe[1]);
+        return false;
+    }
 
     pid_t childPid = fork();
     if (childPid == 0) {

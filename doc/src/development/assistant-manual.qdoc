@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the documentation of the Qt Toolkit.
@@ -544,6 +544,9 @@
     \QA with this flag, the documentation will be added and \QA will
     exit right away displaying a message if the registration was successful
     or not.
+
+    The search indexing will only index your custom *.html, *.htm,
+    and *.txt files.
 
     \snippet doc/src/snippets/code/doc_src_assistant-manual.qdoc 6
 

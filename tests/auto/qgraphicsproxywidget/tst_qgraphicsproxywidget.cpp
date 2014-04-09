@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -962,6 +962,7 @@ void tst_QGraphicsProxyWidget::hoverEnterLeaveEvent()
 #if defined(Q_OS_WINCE) && (!defined(GWES_ICONCURS) || defined(QT_NO_CURSOR))
     QSKIP("hover events not supported on this platform", SkipAll);
 #endif
+    QSKIP("Unstable test - QTBUG-28829", SkipAll);
 
     // proxy should translate this into events that the widget would expect
 

@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtDeclarative module of the Qt Toolkit.
@@ -55,6 +55,11 @@
 
 #include <QtCore/qglobal.h>
 #include <QtCore/qvariant.h>
+#include <QtCore/qurl.h>
+#include <QtDeclarative/QDeclarativeListProperty>
+#include <QtDeclarative/QDeclarativeParserStatus>
+#include <QtDeclarative/QDeclarativePropertyValueSource>
+#include <QtDeclarative/QDeclarativePropertyValueInterceptor>
 
 QT_BEGIN_HEADER
 
@@ -233,13 +238,93 @@ namespace QDeclarativePrivate
         AutoParentFunction function;
     };
 
+    struct RegisterComponent {
+        const QUrl &url;
+        const char *uri;
+        const char *typeName;
+        int majorVersion;
+        int minorVersion;
+    };
+
     enum RegistrationType {
         TypeRegistration       = 0, 
         InterfaceRegistration  = 1,
-        AutoParentRegistration = 2
+        AutoParentRegistration = 2,
+        ComponentRegistration  = 3
     };
 
     int Q_DECLARATIVE_EXPORT qmlregister(RegistrationType, void *);
+
+
+    /*!
+      \internal
+      \fn int qmlRegisterType(const char *url, const char *uri, int versionMajor, int versionMinor, const char *qmlName);
+      \relates QDeclarativeEngine
+
+      This function registers a type in the QML system with the name \a qmlName, in the library imported from \a uri having the
+      version number composed from \a versionMajor and \a versionMinor. The type is defined by the QML file located at \a url.
+
+      Normally QML files can be loaded as types directly from other QML files, or using a qmldir file. This function allows
+      registration of files to types from a C++ module, such as when the type mapping needs to be procedurally determined at startup.
+
+      Returns non-zero if the registration was sucessful.
+
+      This function is added to QtQuick 1 in Qt 5, and is here as private API for developers needing compatibility.
+    */
+    inline int qmlRegisterType(const QUrl &url, const char *uri, int versionMajor, int versionMinor, const char *qmlName)
+    {
+        RegisterComponent type = {
+            url,
+            uri,
+            qmlName,
+            versionMajor,
+            versionMinor
+        };
+
+        return qmlregister(QDeclarativePrivate::ComponentRegistration, &type);
+    }
+    /*!
+      \internal
+      \fn int qmlRegisterUncreatableType(const char *url, const char *uri, int versionMajor, int versionMinor, const char *qmlName);
+      \relates QDeclarativeEngine
+
+      This overload is backported from Qt5, and allows uncreatable types to be versioned.
+  */
+    template<typename T, int metaObjectRevision>
+    int qmlRegisterUncreatableType(const char *uri, int versionMajor, int versionMinor, const char *qmlName, const QString& reason)
+    {
+        QByteArray name(T::staticMetaObject.className());
+
+        QByteArray pointerName(name + '*');
+        QByteArray listName("QDeclarativeListProperty<" + name + ">");
+
+        QDeclarativePrivate::RegisterType type = {
+            1,
+
+            qRegisterMetaType<T *>(pointerName.constData()),
+            qRegisterMetaType<QDeclarativeListProperty<T> >(listName.constData()),
+            0, 0,
+            reason,
+
+            uri, versionMajor, versionMinor, qmlName, &T::staticMetaObject,
+
+            QDeclarativePrivate::attachedPropertiesFunc<T>(),
+            QDeclarativePrivate::attachedPropertiesMetaObject<T>(),
+
+            QDeclarativePrivate::StaticCastSelector<T,QDeclarativeParserStatus>::cast(),
+            QDeclarativePrivate::StaticCastSelector<T,QDeclarativePropertyValueSource>::cast(),
+            QDeclarativePrivate::StaticCastSelector<T,QDeclarativePropertyValueInterceptor>::cast(),
+
+            0, 0,
+
+            0,
+            metaObjectRevision
+        };
+
+        return QDeclarativePrivate::qmlregister(QDeclarativePrivate::TypeRegistration, &type);
+    }
+
+
 }
 
 QT_END_NAMESPACE

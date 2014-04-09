@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtSql module of the Qt Toolkit.
@@ -793,9 +793,6 @@ void QSqlDatabasePrivate::init(const QString &type)
 
 /*!
     Destroys the object and frees any allocated resources.
-
-    If this is the last QSqlDatabase object that uses a certain
-    database connection, the database connection is automatically closed.
 
     \sa close()
 */

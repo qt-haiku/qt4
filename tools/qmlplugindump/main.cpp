@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the tools applications of the Qt Toolkit.
@@ -282,7 +282,7 @@ public:
 
         QSet<const QDeclarativeType *> qmlTypes = qmlTypesByCppName.value(meta->className());
         if (!qmlTypes.isEmpty()) {
-            QStringList exports;
+            QHash<QString, const QDeclarativeType *> exports;
 
             foreach (const QDeclarativeType *qmlTy, qmlTypes) {
                 QString qmlTyName = qmlTy->qmlTypeName();
@@ -295,17 +295,26 @@ public:
                 if (qmlTyName.startsWith("./")) {
                     qmlTyName.remove(0, 2);
                 }
-                exports += enquote(QString("%1 %2.%3").arg(
-                                       qmlTyName,
-                                       QString::number(qmlTy->majorVersion()),
-                                       QString::number(qmlTy->minorVersion())));
+                const QString exportString = enquote(
+                            QString("%1 %2.%3").arg(
+                                qmlTyName,
+                                QString::number(qmlTy->majorVersion()),
+                                QString::number(qmlTy->minorVersion())));
+                exports.insert(exportString, qmlTy);
             }
 
             // ensure exports are sorted and don't change order when the plugin is dumped again
-            exports.removeDuplicates();
-            qSort(exports);
+            QStringList exportStrings = exports.keys();
+            qSort(exportStrings);
+            qml->writeArrayBinding(QLatin1String("exports"), exportStrings);
 
-            qml->writeArrayBinding(QLatin1String("exports"), exports);
+            // write meta object revisions
+            QStringList metaObjectRevisions;
+            foreach (const QString &exportString, exportStrings) {
+                int metaObjectRevision = exports[exportString]->metaObjectRevision();
+                metaObjectRevisions += QString::number(metaObjectRevision);
+            }
+            qml->writeArrayBinding(QLatin1String("exportMetaObjectRevisions"), metaObjectRevisions);
 
             if (const QMetaObject *attachedType = (*qmlTypes.begin())->attachedPropertiesType()) {
                 // Can happen when a type is registered that returns itself as attachedPropertiesType()
@@ -473,7 +482,7 @@ void sigSegvHandler(int) {
 void printUsage(const QString &appName)
 {
     qWarning() << qPrintable(QString(
-                                 "Usage: %1 [-v] [-notrelocatable] module.uri version [module/import/path]\n"
+                                 "Usage: %1 [-v] [-[non]relocatable] module.uri version [module/import/path]\n"
                                  "       %1 [-v] -path path/to/qmldir/directory [version]\n"
                                  "       %1 [-v] -builtins\n"
                                  "Example: %1 Qt.labs.particles 4.7 /home/user/dev/qt-install/imports").arg(
@@ -520,8 +529,13 @@ int main(int argc, char *argv[])
             }
 
             if (arg == QLatin1String("--notrelocatable")
-                    || arg == QLatin1String("-notrelocatable")) {
+                    || arg == QLatin1String("-notrelocatable")
+                    || arg == QLatin1String("--nonrelocatable")
+                    || arg == QLatin1String("-nonrelocatable")) {
                 relocatable = false;
+            } else if (arg == QLatin1String("--relocatable")
+                        || arg == QLatin1String("-relocatable")) {
+                relocatable = true;
             } else if (arg == QLatin1String("--path")
                        || arg == QLatin1String("-path")) {
                 action = Path;

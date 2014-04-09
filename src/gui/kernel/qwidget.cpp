@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
@@ -424,28 +424,23 @@ void QWidgetPrivate::scrollChildren(int dx, int dy)
     }
 }
 
+#ifndef QT_NO_IM
 QInputContext *QWidgetPrivate::assignedInputContext() const
 {
-#ifndef QT_NO_IM
     const QWidget *widget = q_func();
     while (widget) {
         if (QInputContext *qic = widget->d_func()->ic)
             return qic;
         widget = widget->parentWidget();
     }
-#endif
     return 0;
 }
 
 QInputContext *QWidgetPrivate::inputContext() const
 {
-#ifndef QT_NO_IM
     if (QInputContext *qic = assignedInputContext())
         return qic;
     return qApp->inputContext();
-#else
-    return 0;
-#endif
 }
 
 /*!
@@ -480,7 +475,7 @@ void QWidget::setInputContext(QInputContext *context)
     Q_D(QWidget);
     if (!testAttribute(Qt::WA_InputMethodEnabled))
         return;
-#ifndef QT_NO_IM
+
     if (context == d->ic)
         return;
     if (d->ic)
@@ -488,9 +483,8 @@ void QWidget::setInputContext(QInputContext *context)
     d->ic = context;
     if (d->ic)
         d->ic->setParent(this);
-#endif
 }
-
+#endif // QT_NO_IM
 
 /*!
     \obsolete
@@ -9451,6 +9445,8 @@ void QWidget::setInputMethodHints(Qt::InputMethodHints hints)
 {
 #ifndef QT_NO_IM
     Q_D(QWidget);
+    if (d->imHints == hints)
+        return;
     d->imHints = hints;
     // Optimization to update input context only it has already been created.
     if (d->ic || qApp->d_func()->inputContext) {
@@ -10579,11 +10575,16 @@ void QWidget::update()
 */
 void QWidget::update(const QRect &rect)
 {
-    if (!isVisible() || !updatesEnabled() || rect.isEmpty())
+    if (!isVisible() || !updatesEnabled())
+        return;
+
+    QRect r = rect & QWidget::rect();
+
+    if (r.isEmpty())
         return;
 
     if (testAttribute(Qt::WA_WState_InPaintEvent)) {
-        QApplication::postEvent(this, new QUpdateLaterEvent(rect));
+        QApplication::postEvent(this, new QUpdateLaterEvent(r));
         return;
     }
 
@@ -10596,9 +10597,9 @@ void QWidget::update(const QRect &rect)
 #endif // QT_MAC_USE_COCOA
         QTLWExtra *tlwExtra = window()->d_func()->maybeTopData();
         if (tlwExtra && !tlwExtra->inTopLevelResize && tlwExtra->backingStore)
-            tlwExtra->backingStore->markDirty(rect, this);
+            tlwExtra->backingStore->markDirty(r, this);
     } else {
-        d_func()->repaint_sys(rect);
+        d_func()->repaint_sys(r);
     }
 }
 
@@ -10612,8 +10613,13 @@ void QWidget::update(const QRegion &rgn)
     if (!isVisible() || !updatesEnabled() || rgn.isEmpty())
         return;
 
+    QRegion r = rgn & QWidget::rect();
+
+    if (r.isEmpty())
+        return;
+
     if (testAttribute(Qt::WA_WState_InPaintEvent)) {
-        QApplication::postEvent(this, new QUpdateLaterEvent(rgn));
+        QApplication::postEvent(this, new QUpdateLaterEvent(r));
         return;
     }
 
@@ -10626,9 +10632,9 @@ void QWidget::update(const QRegion &rgn)
 #endif // QT_MAC_USE_COCOA
         QTLWExtra *tlwExtra = window()->d_func()->maybeTopData();
         if (tlwExtra && !tlwExtra->inTopLevelResize && tlwExtra->backingStore)
-            tlwExtra->backingStore->markDirty(rgn, this);
+            tlwExtra->backingStore->markDirty(r, this);
     } else {
-        d_func()->repaint_sys(rgn);
+        d_func()->repaint_sys(r);
     }
 }
 

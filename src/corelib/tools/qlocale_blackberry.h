@@ -1,9 +1,9 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtDeclarative module of the Qt Toolkit.
+** This file is part of the QtCore module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -39,41 +39,67 @@
 **
 ****************************************************************************/
 
-#ifndef QPERFORMANCETIMER_P_H
-#define QPERFORMANCETIMER_P_H
+#ifndef QLOCALE_BLACKBERRY_H
+#define QLOCALE_BLACKBERRY_H
 
-//
-//  W A R N I N G
-//  -------------
-//
-// This file is not part of the Qt API.  It exists for the convenience
-// of moc.  This header file may change from version to version without notice,
-// or even be removed.
-//
-// We mean it.
-//
-
-#include <QtCore/qglobal.h>
+#include "qsocketnotifier.h"
+#include "qreadwritelock.h"
+#include "qlocale.h"
 
 QT_BEGIN_HEADER
 
 QT_BEGIN_NAMESPACE
 
-QT_MODULE(Declarative)
+QT_MODULE(Core)
 
-class Q_DECLARATIVE_EXPORT QPerformanceTimer
+#ifndef QT_NO_SYSTEMLOCALE
+
+class QBBSystemLocaleData : public QObject
 {
+    Q_OBJECT
+
 public:
-    void start();
-    qint64 elapsed() const;
-    qint64 elapsedToAbsoluteTime(qint64 absoluteMonotonicTimeNs) const;
+    QBBSystemLocaleData();
+    virtual ~QBBSystemLocaleData();
+    uint measurementSystem();
+    QVariant timeFormat(QLocale::FormatType);
+    QVariant dateTimeFormat(QLocale::FormatType);
+    QLocale languageLocale();
+    QLocale regionLocale();
+
+    QReadWriteLock lock;
+
+public Q_SLOTS:
+    void installSocketNotifiers();
+    void readLangageLocale();
+    void readRegionLocale();
+    void readMeasurementSystem();
+    void readHourFormat();
+
 private:
-    qint64 t1;
-    qint64 t2;
+    QByteArray readPpsValue(const char *ppsObject, int ppsFd);
+    QString getCorrectFormat(const QString &baseFormat, QLocale::FormatType typeFormat);
+
+    QByteArray lc_langage;
+    QByteArray lc_region;
+    uint m_measurementSystem;
+    bool is24HourFormat;
+
+    QSocketNotifier *languageNotifier;
+    QSocketNotifier *regionNotifier;
+    QSocketNotifier *measurementNotifier;
+    QSocketNotifier *hourNotifier;
+
+    int languageFd;
+    int regionFd;
+    int measurementFd;
+    int hourFd;
 };
+#endif // QT_NO_SYSTEMLOCALE
 
 QT_END_NAMESPACE
 
 QT_END_HEADER
 
-#endif // QPERFORMANCETIMER_P_H
+#endif // QLOCALE_BLACKBERRY_H
+

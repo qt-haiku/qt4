@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -193,7 +193,7 @@ int tst_QSharedMemory::remove(const QString &key)
         return -3;
     }
 
-    int id = shmget(unix_key, 0, 0660);
+    int id = shmget(unix_key, 0, 0600);
     if (-1 == id) {
         qDebug() << "shmget failed";
         return -4;

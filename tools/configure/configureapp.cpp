@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the tools applications of the Qt Toolkit.
@@ -294,7 +294,7 @@ Configure::Configure(int& argc, char** argv)
     dictionary[ "QPA" ]             = "no";
     dictionary[ "NIS" ]             = "no";
     dictionary[ "NEON" ]            = "no";
-    dictionary[ "LARGE_FILE" ]      = "no";
+    dictionary[ "LARGE_FILE" ]      = "yes";
     dictionary[ "LITTLE_ENDIAN" ]   = "yes";
     dictionary[ "FONT_CONFIG" ]     = "no";
     dictionary[ "POSIX_IPC" ]       = "no";
@@ -1647,6 +1647,7 @@ void Configure::applySpecSpecifics()
         dictionary[ "WEBKIT" ]              = "no";
         dictionary[ "PHONON" ]              = "yes";
         dictionary[ "DIRECTSHOW" ]          = "no";
+        dictionary[ "LARGE_FILE" ]          = "no";
         // We only apply MMX/IWMMXT for mkspecs we know they work
         if (dictionary[ "XQMAKESPEC" ].startsWith("wincewm")) {
             dictionary[ "MMX" ]    = "yes";
@@ -3247,10 +3248,13 @@ void Configure::generateCachefile()
         QTextStream configStream(&configFile);
         configStream << "CONFIG+= ";
         configStream << dictionary[ "BUILD" ];
-        if (dictionary[ "SHARED" ] == "yes")
+        if (dictionary[ "SHARED" ] == "yes") {
             configStream << " shared";
-        else
+            qtConfig << "shared";
+        } else {
             configStream << " static";
+            qtConfig << "static";
+        }
 
         if (dictionary[ "LTCG" ] == "yes")
             configStream << " ltcg";

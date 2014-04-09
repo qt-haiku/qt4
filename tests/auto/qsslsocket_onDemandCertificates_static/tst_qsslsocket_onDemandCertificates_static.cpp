@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -196,7 +196,7 @@ void tst_QSslSocket_onDemandCertificates_static::proxyAuthenticationRequired(con
 
 void tst_QSslSocket_onDemandCertificates_static::onDemandRootCertLoadingStaticMethods()
 {
-    QString host("qt.nokia.com");
+    QString host("qt-project.org");
 
     // not using any root certs -> should not work
     QSslSocket::setDefaultCaCertificates(QList<QSslCertificate>());

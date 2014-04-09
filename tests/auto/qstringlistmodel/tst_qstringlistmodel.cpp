@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -169,8 +169,7 @@ void tst_QStringListModel::rowsAboutToBeRemoved_rowsRemoved_data()
 
     QStringList strings3;   strings3    << "One" << "Two" << "Three" << "Four" << "Five";
     QStringList aboutto3;   aboutto3    << "One" << "Two" << "Three" << "Four" << "Five";
-    QStringList res3;       res3        ;
-    QTest::newRow( "data3" )   << strings3 << 0 << 5 << aboutto3 << res3;
+    QTest::newRow( "data3" )   << strings3 << 0 << 5 << aboutto3 << QStringList();
 
     /* Not sure if this is a valid test */
     QStringList strings4;   strings4    << "One" << "Two" << "Three" << "Four" << "Five";

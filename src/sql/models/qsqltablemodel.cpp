@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtSql module of the Qt Toolkit.
@@ -909,7 +909,7 @@ void QSqlTableModel::revertRow(int row)
             d->editBuffer.clear();
             int oldIndex = d->editIndex;
             d->editIndex = -1;
-            emit dataChanged(createIndex(oldIndex, 0), createIndex(oldIndex, columnCount()));
+            emit dataChanged(createIndex(oldIndex, 0), createIndex(oldIndex, columnCount() - 1));
         } else if (d->insertIndex == row) {
             d->revertInsertedRow();
         }

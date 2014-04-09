@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtTest module of the Qt Toolkit.
@@ -84,6 +84,11 @@ public:
     {
         // this is a static assert in case QEvent changed in Qt
         QEventSizeOfChecker<sizeof(QSpontaneKeyEvent)> dummy;
+
+        // Fixing the warnings about unused variables
+        Q_UNUSED(posted);
+        Q_UNUSED(m_accept);
+        Q_UNUSED(reserved);
     }
 #endif
 

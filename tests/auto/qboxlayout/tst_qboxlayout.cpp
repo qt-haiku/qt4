@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -62,6 +62,7 @@ public slots:
 
 private slots:
     void insertSpacerItem();
+    void insertLayout();
     void sizeHint();
     void sizeConstraints();
     void setGeometry();
@@ -159,6 +160,26 @@ void tst_QBoxLayout::insertSpacerItem()
 
     window->show();
 }
+
+void tst_QBoxLayout::insertLayout()
+{
+    QWidget *window = new QWidget;
+    QVBoxLayout *vbox = new QVBoxLayout(window);
+    QVBoxLayout *dummyParentLayout = new QVBoxLayout;
+    QHBoxLayout *subLayout = new QHBoxLayout;
+    dummyParentLayout->addLayout(subLayout);
+    QCOMPARE(subLayout->parent(), dummyParentLayout);
+    QCOMPARE(dummyParentLayout->count(), 1);
+
+    // add subLayout to another layout
+    QTest::ignoreMessage(QtWarningMsg, "QLayout::addChildLayout: layout \"\" already has a parent");
+    vbox->addLayout(subLayout);
+    QCOMPARE((subLayout->parent() == vbox), (vbox->count() == 1));
+
+    delete dummyParentLayout;
+    delete window;
+}
+
 
 void tst_QBoxLayout::sizeHint()
 {

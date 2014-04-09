@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -2414,10 +2414,6 @@ void tst_QSqlDatabase::eventNotificationPSQL()
     QFETCH(QString, dbName);
     QSqlDatabase db = QSqlDatabase::database(dbName);
     CHECK_DATABASE(db);
-
-#if defined(Q_OS_LINUX)
-    QSKIP( "Event support doesn't work on linux", SkipAll );
-#endif
 
     QSqlQuery query(db);
     QString procedureName = qTableName("posteventProc", __FILE__);

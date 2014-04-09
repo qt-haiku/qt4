@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the plugins of the Qt Toolkit.
@@ -88,6 +88,14 @@ QT_BEGIN_NAMESPACE
 
 QT_END_NAMESPACE
 
+struct ObjectPathProperties
+{
+    QDBusObjectPath path;
+    QVariantMap properties;
+};
+typedef QList<ObjectPathProperties> PathPropertiesList;
+Q_DECLARE_METATYPE(ObjectPathProperties)
+Q_DECLARE_METATYPE (PathPropertiesList)
 
 QT_BEGIN_NAMESPACE
 

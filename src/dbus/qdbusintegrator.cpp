@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtDBus module of the Qt Toolkit.
@@ -2216,6 +2216,19 @@ QDBusConnectionPrivate::disconnectSignal(SignalHookHash::Iterator &it)
     return signalHooks.erase(it);
 }
 
+
+static void cleanupDeletedNodes(QDBusConnectionPrivate::ObjectTreeNode &parent)
+{
+    QMutableVectorIterator<QDBusConnectionPrivate::ObjectTreeNode> it(parent.children);
+    while (it.hasNext()) {
+        QDBusConnectionPrivate::ObjectTreeNode& node = it.next();
+        if (node.obj == 0 && node.children.isEmpty())
+            it.remove();
+        else
+            cleanupDeletedNodes(node);
+    }
+}
+
 void QDBusConnectionPrivate::registerObject(const ObjectTreeNode *node)
 {
     connect(node->obj, SIGNAL(destroyed(QObject*)), SLOT(objectDestroyed(QObject*)),
@@ -2239,6 +2252,10 @@ void QDBusConnectionPrivate::registerObject(const ObjectTreeNode *node)
                 this, SLOT(relaySignal(QObject*,const QMetaObject*,int,QVariantList)),
                 Qt::DirectConnection);
     }
+
+    static int counter = 0;
+    if ((++counter % 20) == 0)
+        cleanupDeletedNodes(rootNode);
 }
 
 void QDBusConnectionPrivate::connectRelay(const QString &service,

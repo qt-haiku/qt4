@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtSql module of the Qt Toolkit.
@@ -966,14 +966,8 @@ bool QODBCResult::reset (const QString& query)
         return false;
     }
 
-    if(r == SQL_NO_DATA) {
-        setSelect(false);
-        return true;
-    }
-
     SQLULEN isScrollable = 0;
-    SQLINTEGER bufferLength;
-    r = SQLGetStmtAttr(d->hStmt, SQL_ATTR_CURSOR_SCROLLABLE, &isScrollable, SQL_IS_INTEGER, &bufferLength);
+    r = SQLGetStmtAttr(d->hStmt, SQL_ATTR_CURSOR_SCROLLABLE, &isScrollable, SQL_IS_INTEGER, 0);
     if(r == SQL_SUCCESS || r == SQL_SUCCESS_WITH_INFO)
         QSqlResult::setForwardOnly(isScrollable==SQL_NONSCROLLABLE);
 
@@ -1119,7 +1113,7 @@ bool QODBCResult::fetchLast()
                 "Unable to fetch last"), QSqlError::ConnectionError, d));
         return false;
     }
-    SQLINTEGER currRow;
+    SQLULEN currRow = 0;
     r = SQLGetStmtAttr(d->hStmt,
                         SQL_ROW_NUMBER,
                         &currRow,
@@ -1413,7 +1407,7 @@ bool QODBCResult::exec()
 
                     // (How many leading digits do we want to keep?  With SQL Server 2005, this should be 3: 123000000)
                     int keep = (int)qPow(10.0, 9 - qMin(9, precision));
-                    dt->fraction /= keep * keep;
+                    dt->fraction = (dt->fraction / keep) * keep;
                 }
 
                 r = SQLBindParameter(d->hStmt,
@@ -1598,7 +1592,7 @@ bool QODBCResult::exec()
         }
     }
     r = SQLExecute(d->hStmt);
-    if (r != SQL_SUCCESS && r != SQL_SUCCESS_WITH_INFO) {
+    if (r != SQL_SUCCESS && r != SQL_SUCCESS_WITH_INFO && r != SQL_NO_DATA) {
         qWarning() << "QODBCResult::exec: Unable to execute statement:" << qODBCWarn(d);
         setLastError(qMakeError(QCoreApplication::translate("QODBCResult",
                      "Unable to execute statement"), QSqlError::StatementError, d));
@@ -1606,8 +1600,7 @@ bool QODBCResult::exec()
     }
 
     SQLULEN isScrollable = 0;
-    SQLINTEGER bufferLength;
-    r = SQLGetStmtAttr(d->hStmt, SQL_ATTR_CURSOR_SCROLLABLE, &isScrollable, SQL_IS_INTEGER, &bufferLength);
+    r = SQLGetStmtAttr(d->hStmt, SQL_ATTR_CURSOR_SCROLLABLE, &isScrollable, SQL_IS_INTEGER, 0);
     if(r == SQL_SUCCESS || r == SQL_SUCCESS_WITH_INFO)
         QSqlResult::setForwardOnly(isScrollable==SQL_NONSCROLLABLE);
 

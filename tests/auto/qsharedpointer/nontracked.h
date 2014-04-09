@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Intel Corporation.
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -39,62 +39,11 @@
 **
 ****************************************************************************/
 
-#include <private/qperformancetimer_p.h>
-#include <QObject>
-#include <qtest.h>
+#ifndef NONTRACKED_H
+#define NONTRACKED_H
 
-class tst_qperformancetimer : public QObject
-{
-    Q_OBJECT
-
-public:
-    tst_qperformancetimer() {}
-
-private slots:
-    void all();
-    void startElapsed();
-    void doubleElapsed();
-    void trace();
-};
-
-void tst_qperformancetimer::all()
-{
-    QBENCHMARK {
-        QPerformanceTimer t;
-        t.start();
-        t.elapsed();
-    }
+namespace NonTracked {
+void dynamicCastFailureNoLeak();
 }
 
-void tst_qperformancetimer::startElapsed()
-{
-    QPerformanceTimer t;
-    QBENCHMARK {
-        t.start();
-        t.elapsed();
-    }
-}
-
-void tst_qperformancetimer::doubleElapsed()
-{
-    QPerformanceTimer t;
-    t.start();
-    QBENCHMARK {
-        t.elapsed();
-        t.elapsed();
-    }
-}
-
-void tst_qperformancetimer::trace()
-{
-    QString s("A decent sized string of text here.");
-    QBENCHMARK {
-        QByteArray data;
-        QDataStream ds(&data, QIODevice::WriteOnly);
-        ds << (qint64)100 << (int)5 << (int)5 << s;
-    }
-}
-
-QTEST_MAIN(tst_qperformancetimer)
-
-#include "tst_qperformancetimer.moc"
+#endif // NONTRACKED_H

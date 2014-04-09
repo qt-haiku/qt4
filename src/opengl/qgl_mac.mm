@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtOpenGL module of the Qt Toolkit.
@@ -460,9 +460,6 @@ void *QGLContextPrivate::tryFormat(const QGLFormat &format)
         attribs[cnt++] = NSOpenGLPFASamples;
         attribs[cnt++] = def(format.samples(), 4);
     }
-
-    if (format.directRendering())
-        attribs[cnt++] = NSOpenGLPFAAccelerated;
 
     if (devType == QInternal::Pbuffer)
         attribs[cnt++] = NSOpenGLPFAPixelBuffer;

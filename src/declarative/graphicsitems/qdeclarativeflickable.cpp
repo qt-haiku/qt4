@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtDeclarative module of the Qt Toolkit.
@@ -798,22 +798,19 @@ void QDeclarativeFlickablePrivate::handleMouseMoveEvent(QGraphicsSceneMouseEvent
                 newY = minY + (newY - minY) / 2;
             if (newY < maxY && maxY - minY <= 0)
                 newY = maxY + (newY - maxY) / 2;
-            if (boundsBehavior == QDeclarativeFlickable::StopAtBounds && (newY > minY || newY < maxY)) {
-                rejectY = true;
-                if (newY < maxY) {
-                    newY = maxY;
-                    rejectY = false;
-                }
-                if (newY > minY) {
-                    newY = minY;
-                    rejectY = false;
-                }
+            if (boundsBehavior == QDeclarativeFlickable::StopAtBounds && newY <= maxY) {
+                newY = maxY;
+                rejectY = vData.pressPos == maxY && dy < 0;
+            }
+            if (boundsBehavior == QDeclarativeFlickable::StopAtBounds && newY >= minY) {
+                newY = minY;
+                rejectY = vData.pressPos == minY && dy > 0;
             }
             if (!rejectY && stealMouse && dy != 0) {
                 vData.move.setValue(qRound(newY));
                 vMoved = true;
             }
-            if (qAbs(dy) > QApplication::startDragDistance())
+            if (!rejectY && qAbs(dy) > QApplication::startDragDistance())
                 stealY = true;
         }
     }
@@ -830,23 +827,20 @@ void QDeclarativeFlickablePrivate::handleMouseMoveEvent(QGraphicsSceneMouseEvent
                 newX = minX + (newX - minX) / 2;
             if (newX < maxX && maxX - minX <= 0)
                 newX = maxX + (newX - maxX) / 2;
-            if (boundsBehavior == QDeclarativeFlickable::StopAtBounds && (newX > minX || newX < maxX)) {
-                rejectX = true;
-                if (newX < maxX) {
-                    newX = maxX;
-                    rejectX = false;
-                }
-                if (newX > minX) {
-                    newX = minX;
-                    rejectX = false;
-                }
+            if (boundsBehavior == QDeclarativeFlickable::StopAtBounds && newX <= maxX) {
+                newX = maxX;
+                rejectX = hData.pressPos == maxX && dx < 0;
+            }
+            if (boundsBehavior == QDeclarativeFlickable::StopAtBounds && newX >= minX) {
+                newX = minX;
+                rejectX = hData.pressPos == minX && dx > 0;
             }
             if (!rejectX && stealMouse && dx != 0) {
                 hData.move.setValue(qRound(newX));
                 hMoved = true;
             }
 
-            if (qAbs(dx) > QApplication::startDragDistance())
+            if (!rejectX && qAbs(dx) > QApplication::startDragDistance())
                 stealX = true;
         }
     }

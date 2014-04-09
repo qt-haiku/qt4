@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -48,6 +48,7 @@
 #include <QtCore/QVector>
 
 #include "externaltests.h"
+#include "nontracked.h"
 #include "wrapper.h"
 
 #include <stdlib.h>
@@ -89,6 +90,7 @@ private slots:
     void dynamicCastDifferentPointers();
     void dynamicCastVirtualBase();
     void dynamicCastFailure();
+    void dynamicCastFailureNoLeak();
 #endif
     void constCorrectness();
     void customDeleter();
@@ -1080,6 +1082,11 @@ void tst_QSharedPointer::dynamicCastFailure()
     }
     QCOMPARE(int(refCountData(baseptr)->weakref), 1);
     QCOMPARE(int(refCountData(baseptr)->strongref), 1);
+}
+
+void tst_QSharedPointer::dynamicCastFailureNoLeak()
+{
+    NonTracked::dynamicCastFailureNoLeak();
 }
 #endif
 

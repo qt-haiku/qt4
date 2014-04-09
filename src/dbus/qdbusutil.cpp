@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtDBus module of the Qt Toolkit.
@@ -259,7 +259,7 @@ static const char *validateSingleType(const char *signature)
 {
     register char c = *signature;
     if (c == DBUS_TYPE_INVALID)
-        return false;
+        return 0;
 
     // is it one of the one-letter types?
     if (strchr(oneLetterTypes, c) != NULL)

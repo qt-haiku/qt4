@@ -83,6 +83,7 @@ public:
     void updateHierarchy();
 
     void onWindowPost(QBBWindow* window);
+    void adjustOrientation();
     void ensureDisplayCreated();
 
     QSharedPointer<QBBRootWindow> rootWindow() const { return mRootWindow; }
@@ -93,6 +94,7 @@ public Q_SLOTS:
     void setRotation(int rotation);
     void newWindowCreated(screen_window_t window);
     void windowClosed(screen_window_t window);
+    void windowGroupStateChanged(const QByteArray &id, Qt::WindowState state);
     void activateWindowGroup(const QByteArray &id);
     void deactivateWindowGroup(const QByteArray &id);
 
@@ -105,6 +107,8 @@ private:
     void resizeWindows(const QRect &previousScreenGeometry);
     void addOverlayWindow(screen_window_t window);
     void removeOverlayWindow(screen_window_t window);
+
+    QWidget *topMostChildWindow() const;
 
     screen_context_t mContext;
     screen_display_t mDisplay;

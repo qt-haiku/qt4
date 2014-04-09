@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtSql module of the Qt Toolkit.
@@ -1030,7 +1030,7 @@ QVariant QDB2Result::data(int field)
                     v = new QVariant(qGetIntData(d->hStmt, field, isNull));
                     break;
                 case QSql::LowPrecisionInt64:
-                    v = new QVariant(qGetBigIntData(d->hStmt, field, isNull));
+                    v = new QVariant((qint64) qGetBigIntData(d->hStmt, field, isNull));
                     break;
                 case QSql::LowPrecisionDouble:
                     v = new QVariant(qGetDoubleData(d->hStmt, field, isNull));

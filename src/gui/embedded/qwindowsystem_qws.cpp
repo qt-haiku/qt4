@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
@@ -3885,8 +3885,13 @@ void QWSServerPrivate::request_region(int wid, const QString &surfaceKey,
 
     const bool wasOpaque = changingw->opaque;
 
-    changingw->createSurface(surfaceKey, surfaceData);
     QWSWindowSurface *surface = changingw->windowSurface();
+    if (!surface) {
+        changingw->createSurface(surfaceKey, surfaceData);
+        surface = changingw->windowSurface();
+    } else {
+        surface->setPermanentState(surfaceData);
+    }
 
     changingw->opaque = surface->isOpaque();
 

@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
@@ -58,10 +58,6 @@
 #include "QtCore/qmetatype.h"
 
 #include "qlocale.h"
-
-#if defined(Q_OS_QNX)
-#include "qsocketnotifier.h"
-#endif
 
 #if defined(Q_OS_SYMBIAN) && !defined(QT_NO_SYSTEMLOCALE)
 class CEnvironmentChangeNotifier;
@@ -272,25 +268,6 @@ public:
 
 private:
     CEnvironmentChangeNotifier *iChangeNotifier;
-};
-#endif
-
-#if defined(Q_OS_QNX)
-class QBBLocaleData: public QObject
-{
-    Q_OBJECT
-public:
-    QBBLocaleData();
-    virtual ~QBBLocaleData();
-    void readPPSLocale();
-
-public Q_SLOTS:
-    void updateMesurementSystem();
-
-public:
-    uint ppsMeasurement;
-    QSocketNotifier *ppsNotifier;
-    int ppsFd;
 };
 #endif
 

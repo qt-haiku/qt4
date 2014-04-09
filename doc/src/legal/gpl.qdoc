@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the documentation of the Qt Toolkit.
@@ -30,7 +30,7 @@
 \ingroup licensing
 \brief About the GPL license used for Qt.
 
-The Qt GUI Toolkit is Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).\br
+The Qt GUI Toolkit is Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).\br
 Contact: http://www.qt-project.org/legal
 
 Qt is available under the GPL.
@@ -47,7 +47,7 @@ Reference: \l{GNU General Public License}
 \ingroup licensing
 \brief About the LGPL license used for Qt.
 
-The Qt GUI Toolkit is Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).\br
+The Qt GUI Toolkit is Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).\br
 Contact: http://www.qt-project.org/legal
 
 Qt is available under the LGPL.
@@ -58,7 +58,7 @@ Reference: \l{GNU Lesser General Public License, version 2.1}
 
 \snippet doc/src/snippets/code/doc_src_lgpl.qdoc LGPL v2.1
 
-\section1 Nokia Qt LGPL Exception version 1.0
+\section1 Digia Qt LGPL Exception version 1.1
 
 As a special exception to the GNU Lesser General Public License version 2.1,
 the object code form of a "work that uses the Library" may incorporate material

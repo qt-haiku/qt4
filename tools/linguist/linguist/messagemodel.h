@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the Qt Linguist of the Qt Toolkit.
@@ -216,6 +216,7 @@ public:
     void setSourceLanguageAndCountry(QLocale::Language lang, QLocale::Country country);
     QLocale::Language sourceLanguage() const { return m_sourceLanguage; }
     QLocale::Country sourceCountry() const { return m_sourceCountry; }
+    QByteArray codecName() const { return m_codecName; }
 
     const QString &localizedLanguage() const { return m_localizedLanguage; }
     const QStringList &numerusForms() const { return m_numerusForms; }

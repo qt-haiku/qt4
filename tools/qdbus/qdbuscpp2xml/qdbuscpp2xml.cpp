@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the tools applications of the Qt Toolkit.
@@ -70,7 +70,7 @@ QT_END_NAMESPACE
 
 #define PROGRAMNAME     "qdbuscpp2xml"
 #define PROGRAMVERSION  "0.1"
-#define PROGRAMCOPYRIGHT "Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies)."
+#define PROGRAMCOPYRIGHT "Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies)."
 
 static QString outputFile;
 static int flags;
@@ -280,8 +280,8 @@ void MocParser::parse(const char *fname, QIODevice *io, int lineNum)
 MocParser::~MocParser()
 {
     foreach (QMetaObject mo, objects) {
-        delete const_cast<char *>(mo.d.stringdata);
-        delete const_cast<uint *>(mo.d.data);
+        delete[] const_cast<char *>(mo.d.stringdata);
+        delete[] const_cast<uint *>(mo.d.data);
     }
 }
 

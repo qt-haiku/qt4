@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -41,6 +41,7 @@
 #include <qtest.h>
 #include <QtDeclarative/qdeclarativeengine.h>
 #include <QtDeclarative/qdeclarativecomponent.h>
+#include <QtDeclarative/qdeclarativeprivate.h>
 #include <QtCore/qfile.h>
 #include <QtCore/qdebug.h>
 #include <QtCore/qfileinfo.h>
@@ -103,6 +104,7 @@ private slots:
     void assignLiteralToVariant();
     void customParserTypes();
     void rootAsQmlComponent();
+    void qmlComponentType();
     void inlineQmlComponents();
     void idProperty();
     void autoNotifyConnection();
@@ -136,6 +138,7 @@ private slots:
     void reservedWords();
     void inlineAssignmentsOverrideBindings();
     void nestedComponentRoots();
+    void implicitImportsLast();
 
     void basicRemote_data();
     void basicRemote();
@@ -639,6 +642,16 @@ void tst_qdeclarativelanguage::rootAsQmlComponent()
     QVERIFY(object != 0);
     QCOMPARE(object->property("x"), QVariant(11));
     QCOMPARE(object->getChildren()->count(), 2);
+}
+
+// Tests that types can be specified from a QML only component
+void tst_qdeclarativelanguage::qmlComponentType()
+{
+    QDeclarativeComponent component(&engine, TEST_FILE("qmlComponentType.qml"));
+    VERIFY_ERRORS(0);
+    QObject *object = qobject_cast<QObject *>(component.create());
+    QVERIFY(object != 0);
+    QCOMPARE(object->property("test"), QVariant(11));
 }
 
 // Tests that components can be specified inline
@@ -1448,101 +1461,101 @@ void tst_qdeclarativelanguage::importsBuiltin_data()
         << ""
         << "Test is not a type";
     QTest::newRow("not in version 0.0")
-        << "import com.nokia.Test 0.0\n"
+        << "import org.qtproject.Test 0.0\n"
            "Test {}"
         << ""
         << "Test is not a type";
     QTest::newRow("version not installed")
-        << "import com.nokia.Test 99.0\n"
+        << "import org.qtproject.Test 99.0\n"
            "Test {}"
         << ""
-        << "module \"com.nokia.Test\" version 99.0 is not installed";
+        << "module \"org.qtproject.Test\" version 99.0 is not installed";
     QTest::newRow("in version 0.0")
-        << "import com.nokia.Test 0.0\n"
+        << "import org.qtproject.Test 0.0\n"
            "TestTP {}"
         << "TestType"
         << "";
     QTest::newRow("qualified in version 0.0")
-        << "import com.nokia.Test 0.0 as T\n"
+        << "import org.qtproject.Test 0.0 as T\n"
            "T.TestTP {}"
         << "TestType"
         << "";
     QTest::newRow("in version 1.0")
-        << "import com.nokia.Test 1.0\n"
+        << "import org.qtproject.Test 1.0\n"
            "Test {}"
         << "TestType"
         << "";
     QTest::newRow("qualified wrong")
-        << "import com.nokia.Test 1.0 as T\n" // QT-610
+        << "import org.qtproject.Test 1.0 as T\n" // QT-610
            "Test {}"
         << ""
         << "Test is not a type";
     QTest::newRow("qualified right")
-        << "import com.nokia.Test 1.0 as T\n"
+        << "import org.qtproject.Test 1.0 as T\n"
            "T.Test {}"
         << "TestType"
         << "";
     QTest::newRow("qualified right but not in version 0.0")
-        << "import com.nokia.Test 0.0 as T\n"
+        << "import org.qtproject.Test 0.0 as T\n"
            "T.Test {}"
         << ""
         << "T.Test is not a type";
     QTest::newRow("in version 1.1")
-        << "import com.nokia.Test 1.1\n"
+        << "import org.qtproject.Test 1.1\n"
            "Test {}"
         << "TestType"
         << "";
     QTest::newRow("in version 1.3")
-        << "import com.nokia.Test 1.3\n"
+        << "import org.qtproject.Test 1.3\n"
            "Test {}"
         << "TestType"
         << "";
     QTest::newRow("in version 1.5")
-        << "import com.nokia.Test 1.5\n"
+        << "import org.qtproject.Test 1.5\n"
            "Test {}"
         << "TestType"
         << "";
     QTest::newRow("changed in version 1.8")
-        << "import com.nokia.Test 1.8\n"
+        << "import org.qtproject.Test 1.8\n"
            "Test {}"
         << "TestType2"
         << "";
     QTest::newRow("in version 1.12")
-        << "import com.nokia.Test 1.12\n"
+        << "import org.qtproject.Test 1.12\n"
            "Test {}"
         << "TestType2"
         << "";
     QTest::newRow("old in version 1.9")
-        << "import com.nokia.Test 1.9\n"
+        << "import org.qtproject.Test 1.9\n"
            "OldTest {}"
         << "TestType"
         << "";
     QTest::newRow("old in version 1.11")
-        << "import com.nokia.Test 1.11\n"
+        << "import org.qtproject.Test 1.11\n"
            "OldTest {}"
         << "TestType"
         << "";
     QTest::newRow("multiversion 1")
-        << "import com.nokia.Test 1.11\n"
-           "import com.nokia.Test 1.12\n"
+        << "import org.qtproject.Test 1.11\n"
+           "import org.qtproject.Test 1.12\n"
            "Test {}"
         << (!qmlCheckTypes()?"TestType2":"")
-        << (!qmlCheckTypes()?"":"Test is ambiguous. Found in com/nokia/Test in version 1.12 and 1.11");
+        << (!qmlCheckTypes()?"":"Test is ambiguous. Found in org/qtproject/Test in version 1.12 and 1.11");
     QTest::newRow("multiversion 2")
-        << "import com.nokia.Test 1.11\n"
-           "import com.nokia.Test 1.12\n"
+        << "import org.qtproject.Test 1.11\n"
+           "import org.qtproject.Test 1.12\n"
            "OldTest {}"
         << (!qmlCheckTypes()?"TestType":"")
-        << (!qmlCheckTypes()?"":"OldTest is ambiguous. Found in com/nokia/Test in version 1.12 and 1.11");
+        << (!qmlCheckTypes()?"":"OldTest is ambiguous. Found in org/qtproject/Test in version 1.12 and 1.11");
     QTest::newRow("qualified multiversion 3")
-        << "import com.nokia.Test 1.0 as T0\n"
-           "import com.nokia.Test 1.8 as T8\n"
+        << "import org.qtproject.Test 1.0 as T0\n"
+           "import org.qtproject.Test 1.8 as T8\n"
            "T0.Test {}"
         << "TestType"
         << "";
     QTest::newRow("qualified multiversion 4")
-        << "import com.nokia.Test 1.0 as T0\n"
-           "import com.nokia.Test 1.8 as T8\n"
+        << "import org.qtproject.Test 1.0 as T0\n"
+           "import org.qtproject.Test 1.8 as T8\n"
            "T8.Test {}"
         << "TestType2"
         << "";
@@ -1599,10 +1612,10 @@ void tst_qdeclarativelanguage::importsLocal_data()
         << "Test is not a type";
     QTest::newRow("library precedence over local import")
         << "import \"subdir\"\n"
-           "import com.nokia.Test 1.0\n"
+           "import org.qtproject.Test 1.0\n"
            "Test {}"
         << (!qmlCheckTypes()?"TestType":"")
-        << (!qmlCheckTypes()?"":"Test is ambiguous. Found in com/nokia/Test and in subdir");
+        << (!qmlCheckTypes()?"":"Test is ambiguous. Found in org/qtproject/Test and in subdir");
 }
 
 void tst_qdeclarativelanguage::importsLocal()
@@ -1692,47 +1705,47 @@ void tst_qdeclarativelanguage::importsInstalled_data()
 
     // import installed
     QTest::newRow("installed import 0")
-        << "import com.nokia.installedtest0 0.0\n"
+        << "import org.qtproject.installedtest0 0.0\n"
            "InstalledTestTP {}"
         << "QDeclarativeRectangle"
         << "";
     QTest::newRow("installed import 0 as TP")
-        << "import com.nokia.installedtest0 0.0 as TP\n"
+        << "import org.qtproject.installedtest0 0.0 as TP\n"
            "TP.InstalledTestTP {}"
         << "QDeclarativeRectangle"
         << "";
     QTest::newRow("installed import 1")
-        << "import com.nokia.installedtest 1.0\n"
+        << "import org.qtproject.installedtest 1.0\n"
            "InstalledTest {}"
         << "QDeclarativeRectangle"
         << "";
     QTest::newRow("installed import 2")
-        << "import com.nokia.installedtest 1.3\n"
+        << "import org.qtproject.installedtest 1.3\n"
            "InstalledTest {}"
         << "QDeclarativeRectangle"
         << "";
     QTest::newRow("installed import 3")
-        << "import com.nokia.installedtest 1.4\n"
+        << "import org.qtproject.installedtest 1.4\n"
            "InstalledTest {}"
         << "QDeclarativeText"
         << "";
     QTest::newRow("installed import minor version not available") // QTBUG-11936
-        << "import com.nokia.installedtest 0.1\n"
+        << "import org.qtproject.installedtest 0.1\n"
            "InstalledTest {}"
         << ""
-        << "module \"com.nokia.installedtest\" version 0.1 is not installed";
+        << "module \"org.qtproject.installedtest\" version 0.1 is not installed";
     QTest::newRow("installed import minor version not available") // QTBUG-9627
-        << "import com.nokia.installedtest 1.10\n"
+        << "import org.qtproject.installedtest 1.10\n"
            "InstalledTest {}"
         << ""
-        << "module \"com.nokia.installedtest\" version 1.10 is not installed";
+        << "module \"org.qtproject.installedtest\" version 1.10 is not installed";
     QTest::newRow("installed import major version not available") // QTBUG-9627
-        << "import com.nokia.installedtest 9.0\n"
+        << "import org.qtproject.installedtest 9.0\n"
            "InstalledTest {}"
         << ""
-        << "module \"com.nokia.installedtest\" version 9.0 is not installed";
+        << "module \"org.qtproject.installedtest\" version 9.0 is not installed";
     QTest::newRow("installed import visibility") // QT-614
-        << "import com.nokia.installedtest 1.4\n"
+        << "import org.qtproject.installedtest 1.4\n"
            "PrivateType {}"
         << ""
         << "PrivateType is not a type";
@@ -1754,60 +1767,60 @@ void tst_qdeclarativelanguage::importsOrder_data()
     QTest::addColumn<QString>("error");
 
     QTest::newRow("double import") <<
-           "import com.nokia.installedtest 1.4\n"
-           "import com.nokia.installedtest 1.4\n"
+           "import org.qtproject.installedtest 1.4\n"
+           "import org.qtproject.installedtest 1.4\n"
            "InstalledTest {}"
            << (!qmlCheckTypes()?"QDeclarativeText":"")
-           << (!qmlCheckTypes()?"":"InstalledTest is ambiguous. Found in lib/com/nokia/installedtest in version 1.4 and 1.4");
+           << (!qmlCheckTypes()?"":"InstalledTest is ambiguous. Found in lib/org/qtproject/installedtest in version 1.4 and 1.4");
     QTest::newRow("installed import overrides 1") <<
-           "import com.nokia.installedtest 1.0\n"
-           "import com.nokia.installedtest 1.4\n"
+           "import org.qtproject.installedtest 1.0\n"
+           "import org.qtproject.installedtest 1.4\n"
            "InstalledTest {}"
            << (!qmlCheckTypes()?"QDeclarativeText":"")
-           << (!qmlCheckTypes()?"":"InstalledTest is ambiguous. Found in lib/com/nokia/installedtest in version 1.4 and 1.0");
+           << (!qmlCheckTypes()?"":"InstalledTest is ambiguous. Found in lib/org/qtproject/installedtest in version 1.4 and 1.0");
     QTest::newRow("installed import overrides 2") <<
-           "import com.nokia.installedtest 1.4\n"
-           "import com.nokia.installedtest 1.0\n"
+           "import org.qtproject.installedtest 1.4\n"
+           "import org.qtproject.installedtest 1.0\n"
            "InstalledTest {}"
            << (!qmlCheckTypes()?"QDeclarativeRectangle":"")
-           << (!qmlCheckTypes()?"":"InstalledTest is ambiguous. Found in lib/com/nokia/installedtest in version 1.0 and 1.4");
+           << (!qmlCheckTypes()?"":"InstalledTest is ambiguous. Found in lib/org/qtproject/installedtest in version 1.0 and 1.4");
     QTest::newRow("installed import re-overrides 1") <<
-           "import com.nokia.installedtest 1.4\n"
-           "import com.nokia.installedtest 1.0\n"
-           "import com.nokia.installedtest 1.4\n"
+           "import org.qtproject.installedtest 1.4\n"
+           "import org.qtproject.installedtest 1.0\n"
+           "import org.qtproject.installedtest 1.4\n"
            "InstalledTest {}"
            << (!qmlCheckTypes()?"QDeclarativeText":"")
-           << (!qmlCheckTypes()?"":"InstalledTest is ambiguous. Found in lib/com/nokia/installedtest in version 1.4 and 1.0");
+           << (!qmlCheckTypes()?"":"InstalledTest is ambiguous. Found in lib/org/qtproject/installedtest in version 1.4 and 1.0");
     QTest::newRow("installed import re-overrides 2") <<
-           "import com.nokia.installedtest 1.4\n"
-           "import com.nokia.installedtest 1.0\n"
-           "import com.nokia.installedtest 1.4\n"
-           "import com.nokia.installedtest 1.0\n"
+           "import org.qtproject.installedtest 1.4\n"
+           "import org.qtproject.installedtest 1.0\n"
+           "import org.qtproject.installedtest 1.4\n"
+           "import org.qtproject.installedtest 1.0\n"
            "InstalledTest {}"
            << (!qmlCheckTypes()?"QDeclarativeRectangle":"")
-           << (!qmlCheckTypes()?"":"InstalledTest is ambiguous. Found in lib/com/nokia/installedtest in version 1.0 and 1.4");
+           << (!qmlCheckTypes()?"":"InstalledTest is ambiguous. Found in lib/org/qtproject/installedtest in version 1.0 and 1.4");
 
     QTest::newRow("installed import versus builtin 1") <<
-           "import com.nokia.installedtest 1.5\n"
+           "import org.qtproject.installedtest 1.5\n"
            "import QtQuick 1.0\n"
            "Rectangle {}"
            << (!qmlCheckTypes()?"QDeclarativeRectangle":"")
-           << (!qmlCheckTypes()?"":"Rectangle is ambiguous. Found in Qt and in lib/com/nokia/installedtest");
+           << (!qmlCheckTypes()?"":"Rectangle is ambiguous. Found in Qt and in lib/org/qtproject/installedtest");
     QTest::newRow("installed import versus builtin 2") <<
            "import QtQuick 1.0\n"
-           "import com.nokia.installedtest 1.5\n"
+           "import org.qtproject.installedtest 1.5\n"
            "Rectangle {}"
            << (!qmlCheckTypes()?"QDeclarativeText":"")
-           << (!qmlCheckTypes()?"":"Rectangle is ambiguous. Found in lib/com/nokia/installedtest and in Qt");
+           << (!qmlCheckTypes()?"":"Rectangle is ambiguous. Found in lib/org/qtproject/installedtest and in Qt");
     QTest::newRow("namespaces cannot be overridden by types 1") <<
            "import QtQuick 1.0 as Rectangle\n"
-           "import com.nokia.installedtest 1.5\n"
+           "import org.qtproject.installedtest 1.5\n"
            "Rectangle {}"
         << ""
         << "Namespace Rectangle cannot be used as a type";
     QTest::newRow("namespaces cannot be overridden by types 2") <<
            "import QtQuick 1.0 as Rectangle\n"
-           "import com.nokia.installedtest 1.5\n"
+           "import org.qtproject.installedtest 1.5\n"
            "Rectangle.Image {}"
         << "QDeclarativeImage"
         << "";
@@ -1816,10 +1829,15 @@ void tst_qdeclarativelanguage::importsOrder_data()
         << "QDeclarativeText"
         << "";
     QTest::newRow("local last 2") <<
-           "import com.nokia.installedtest 1.0\n"
+           "import org.qtproject.installedtest 1.0\n"
            "LocalLast {}"
-           << (!qmlCheckTypes()?"QDeclarativeRectangle":"")// i.e. from com.nokia.installedtest, not data/LocalLast.qml
-           << (!qmlCheckTypes()?"":"LocalLast is ambiguous. Found in lib/com/nokia/installedtest and in local directory");
+           << (!qmlCheckTypes()?"QDeclarativeRectangle":"")// i.e. from org.qtproject.installedtest, not data/LocalLast.qml
+           << (!qmlCheckTypes()?"":"LocalLast is ambiguous. Found in lib/org/qtproject/installedtest and in local directory");
+    QTest::newRow("local last 3") <<
+           "import org.qtproject.installedtest 1.0\n"
+           "LocalLast {LocalLast2{}}"
+           << (!qmlCheckTypes()?"QDeclarativeRectangle":"")// i.e. from org.qtproject.installedtest, not data/LocalLast.qml
+           << (!qmlCheckTypes()?"":"LocalLast is ambiguous. Found in lib/org/qtproject/installedtest and in local directory");
 }
 
 void tst_qdeclarativelanguage::importsOrder()
@@ -1838,9 +1856,9 @@ void tst_qdeclarativelanguage::importIncorrectCase()
     QCOMPARE(errors.count(), 1);
 
 #if defined(Q_OS_MAC) || defined(Q_OS_WIN32)
-    QString expectedError = QLatin1String("cannot load module \"com.Nokia.installedtest\": File name case mismatch for \"") + QFileInfo(__FILE__).absoluteDir().filePath("data/lib/com/Nokia/installedtest/qmldir") + QLatin1String("\"");
+    QString expectedError = QLatin1String("cannot load module \"org.QtProject.installedtest\": File name case mismatch for \"") + QFileInfo(__FILE__).absoluteDir().filePath("data/lib/org/QtProject/installedtest/qmldir") + QLatin1String("\"");
 #else
-    QString expectedError = QLatin1String("module \"com.Nokia.installedtest\" is not installed");
+    QString expectedError = QLatin1String("module \"org.QtProject.installedtest\" is not installed");
 #endif
 
     QCOMPARE(errors.at(0).description(), expectedError);
@@ -1971,19 +1989,21 @@ void tst_qdeclarativelanguage::revisionOverloads()
 void tst_qdeclarativelanguage::initTestCase()
 {
     registerTypes();
+    // Registered here because it uses TEST_FILE
+    QDeclarativePrivate::qmlRegisterType(TEST_FILE("MyComponentType.qml"), "Test", 1, 0, "RegisteredComponentType");
 
     // Registering the TestType class in other modules should have no adverse effects
-    qmlRegisterType<TestType>("com.nokia.TestPre", 1, 0, "Test");
+    qmlRegisterType<TestType>("org.qtproject.TestPre", 1, 0, "Test");
 
-    qmlRegisterType<TestType>("com.nokia.Test", 0, 0, "TestTP");
-    qmlRegisterType<TestType>("com.nokia.Test", 1, 0, "Test");
-    qmlRegisterType<TestType>("com.nokia.Test", 1, 5, "Test");
-    qmlRegisterType<TestType2>("com.nokia.Test", 1, 8, "Test");
-    qmlRegisterType<TestType>("com.nokia.Test", 1, 9, "OldTest");
-    qmlRegisterType<TestType2>("com.nokia.Test", 1, 12, "Test");
+    qmlRegisterType<TestType>("org.qtproject.Test", 0, 0, "TestTP");
+    qmlRegisterType<TestType>("org.qtproject.Test", 1, 0, "Test");
+    qmlRegisterType<TestType>("org.qtproject.Test", 1, 5, "Test");
+    qmlRegisterType<TestType2>("org.qtproject.Test", 1, 8, "Test");
+    qmlRegisterType<TestType>("org.qtproject.Test", 1, 9, "OldTest");
+    qmlRegisterType<TestType2>("org.qtproject.Test", 1, 12, "Test");
 
     // Registering the TestType class in other modules should have no adverse effects
-    qmlRegisterType<TestType>("com.nokia.TestPost", 1, 0, "Test");
+    qmlRegisterType<TestType>("org.qtproject.TestPost", 1, 0, "Test");
 
     // Create locale-specific file
     // For POSIX, this will just be data/I18nType.qml, since POSIX is 7-bit
@@ -2022,6 +2042,23 @@ void tst_qdeclarativelanguage::aliasPropertyChangeSignals()
 
         delete o;
     }
+}
+
+// Tests that the implicit import has lowest precedence, in the case where
+// there are conflicting types and types only found in the local import.
+// Tests that just check one (or the root) type are in ::importsOrder
+void tst_qdeclarativelanguage::implicitImportsLast()
+{
+    if (qmlCheckTypes())
+        QSKIP("This test is about maintaining the same choice when type is ambiguous.", SkipAll);
+    QDeclarativeComponent component(&engine, TEST_FILE("localOrderTest.qml"));
+    VERIFY_ERRORS(0);
+    QObject *object = qobject_cast<QObject *>(component.create());
+    QVERIFY(object != 0);
+    QVERIFY(QString(object->metaObject()->className()).startsWith(QLatin1String("QDeclarativeMouseArea")));
+    QObject* object2 = object->property("item").value<QObject*>();
+    QVERIFY(object2 != 0);
+    QCOMPARE(QString(object2->metaObject()->className()), QLatin1String("QDeclarativeRectangle"));
 }
 
 QTEST_MAIN(tst_qdeclarativelanguage)

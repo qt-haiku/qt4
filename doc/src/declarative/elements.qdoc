@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the documentation of the Qt Toolkit.
@@ -167,6 +167,7 @@ Elements that animate properties based on data types
 \o \l {WorkerScript} - Enables the use of threads in QML
 \o \l {Loader} - Controls the loading of items or components
 \o \l {LayoutItem} - Allows declarative UI elements inside Qt's Graphics View layouts
+\o \l {LayoutMirroring} - Used to mirror layout behavior
 \endlist
 
 \section1 Graphical Effects

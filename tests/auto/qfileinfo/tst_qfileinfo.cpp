@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -255,10 +255,9 @@ static QFileInfoPrivate* getPrivate(QFileInfo &info)
 
 void tst_QFileInfo::copy()
 {
-    QTemporaryFile *t;
-    t = new QTemporaryFile;
-    t->open();
-    QFileInfo info(t->fileName());
+    QTemporaryFile t;
+    t.open();
+    QFileInfo info(t.fileName());
     QVERIFY(info.exists());
 
     //copy constructor

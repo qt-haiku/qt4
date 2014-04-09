@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtDeclarative module of the Qt Toolkit.
@@ -896,6 +896,8 @@ void QDeclarativeListViewPrivate::layout()
         fixupPosition();
         q->refill();
     }
+    if (sectionCriteria)
+        updateCurrentSection();
     if (header)
         updateHeader();
     if (footer)
@@ -3576,7 +3578,8 @@ void QDeclarativeListView::itemsMoved(int from, int to, int count)
     }
 
     // Ensure we don't cause an ugly list scroll.
-    d->visibleItems.first()->setPosition(d->visibleItems.first()->position() + moveBy);
+    if (!d->visibleItems.isEmpty())
+        d->visibleItems.first()->setPosition(d->visibleItems.first()->position() + moveBy);
 
     d->updateSections();
     d->layout();

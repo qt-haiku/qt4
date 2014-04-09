@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtDeclarative module of the Qt Toolkit.
@@ -2623,10 +2623,17 @@ QScriptValue QDeclarativeItem::mapFromItem(const QScriptValue &item, qreal x, qr
         return 0;
     }
 
-    QScriptValue sv = item.engine()->newObject();
-
     // If QGraphicsItem::mapFromItem() is called with 0, behaves the same as mapFromScene()
     QPointF p = qobject_cast<QGraphicsItem*>(this)->mapFromItem(itemObj, x, y);
+
+    // Use the script engine from the passed item, if available. Use this item's one otherwise.
+    QScriptEngine* const se = itemObj ? item.engine() : QDeclarativeEnginePrivate::getScriptEngine(qmlEngine(this));
+
+    // Engine-less items are unlikely, but nevertheless possible. Handle them.
+    if (0 == se)
+        return QScriptValue(QScriptValue::UndefinedValue);
+
+    QScriptValue sv = se->newObject();
     sv.setProperty(QLatin1String("x"), p.x());
     sv.setProperty(QLatin1String("y"), p.y());
     return sv;
@@ -2661,10 +2668,17 @@ QScriptValue QDeclarativeItem::mapToItem(const QScriptValue &item, qreal x, qrea
         return 0;
     }
 
-    QScriptValue sv = item.engine()->newObject();
-
     // If QGraphicsItem::mapToItem() is called with 0, behaves the same as mapToScene()
     QPointF p = qobject_cast<QGraphicsItem*>(this)->mapToItem(itemObj, x, y);
+
+    // Use the script engine from the passed item, if available. Use this item's one otherwise.
+    QScriptEngine* const se = itemObj ? item.engine() : QDeclarativeEnginePrivate::getScriptEngine(qmlEngine(this));
+
+    // Engine-less items are unlikely, but nevertheless possible. Handle them.
+    if (0 == se)
+        return QScriptValue(QScriptValue::UndefinedValue);
+
+    QScriptValue sv = se->newObject();
     sv.setProperty(QLatin1String("x"), p.x());
     sv.setProperty(QLatin1String("y"), p.y());
     return sv;
@@ -2726,9 +2740,27 @@ QDeclarativeItem *QDeclarativeItem::childAt(qreal x, qreal y) const
 void QDeclarativeItemPrivate::focusChanged(bool flag)
 {
     Q_Q(QDeclarativeItem);
-    if (!(flags & QGraphicsItem::ItemIsFocusScope) && parent)
-        emit q->activeFocusChanged(flag);   //see also QDeclarativeItemPrivate::subFocusItemChange()
-    emit q->focusChanged(flag);
+
+    if (hadActiveFocus != flag) {
+        hadActiveFocus = flag;
+        emit q->activeFocusChanged(flag);
+    }
+
+    QDeclarativeItem *focusItem = q;
+    for (QDeclarativeItem *p = q->parentItem(); p; p = p->parentItem()) {
+        if (p->flags() & QGraphicsItem::ItemIsFocusScope) {
+            if (!flag && QGraphicsItemPrivate::get(p)->focusScopeItem != focusItem)
+                break;
+            if (p->d_func()->hadActiveFocus != flag) {
+                p->d_func()->hadActiveFocus = flag;
+                emit p->activeFocusChanged(flag);
+            }
+            focusItem = p;
+        }
+    }
+
+    // For all but the top most focus scope/item this will be called for us by QGraphicsItem.
+    focusItem->d_func()->focusScopeItemChange(flag);
 }
 
 QDeclarativeListProperty<QObject> QDeclarativeItemPrivate::resources()

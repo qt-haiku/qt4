@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
@@ -976,8 +976,8 @@ void QFormLayoutPrivate::setLayout(int row, QFormLayout::ItemRole role, QLayout 
 {
     if (layout) {
         Q_Q(QFormLayout);
-        q->addChildLayout(layout);
-        setItem(row, role, layout);
+        if (q->adoptLayout(layout))
+            setItem(row, role, layout);
     }
 }
 

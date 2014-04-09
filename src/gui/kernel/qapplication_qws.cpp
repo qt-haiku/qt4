@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
@@ -102,11 +102,6 @@
 #include <locale.h>
 #include <errno.h>
 #include <fcntl.h>
-#ifdef Q_OS_VXWORKS
-#  include <sys/times.h>
-#else
-#  include <sys/time.h>
-#endif
 #include <sys/stat.h>
 #include <sys/types.h>
 

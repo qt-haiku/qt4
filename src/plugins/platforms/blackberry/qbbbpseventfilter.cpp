@@ -47,6 +47,7 @@
 #include "qbbscreeneventhandler.h"
 #include "qbbvirtualkeyboardbps.h"
 
+#include <QCoreApplication>
 #include <QAbstractEventDispatcher>
 #include <QDebug>
 
@@ -220,6 +221,29 @@ bool QBBBpsEventFilter::handleNavigatorEvent(bps_event_t *event)
         mNavigatorEventHandler->handleExit();
         break;
 
+    case NAVIGATOR_WINDOW_STATE: {
+        #if defined(QBBBPSEVENTFILTER_DEBUG)
+        qDebug() << Q_FUNC_INFO << "WINDOW STATE event";
+        #endif
+
+        const navigator_window_state_t state = navigator_event_get_window_state(event);
+        const QByteArray id(navigator_event_get_groupid(event));
+
+        switch (state) {
+        case NAVIGATOR_WINDOW_FULLSCREEN:
+            mNavigatorEventHandler->handleWindowGroupStateChanged(id, Qt::WindowFullScreen);
+            break;
+        case NAVIGATOR_WINDOW_THUMBNAIL:
+            mNavigatorEventHandler->handleWindowGroupStateChanged(id, Qt::WindowMinimized);
+            break;
+        case NAVIGATOR_WINDOW_INVISIBLE:
+            mNavigatorEventHandler->handleWindowGroupDeactivated(id);
+            break;
+        }
+
+        break;
+    }
+
     case NAVIGATOR_WINDOW_ACTIVE: {
         #if defined(QBBBPSEVENTFILTER_DEBUG)
         qDebug() << "QBB: Navigator WINDOW ACTIVE event";
@@ -239,6 +263,11 @@ bool QBBBpsEventFilter::handleNavigatorEvent(bps_event_t *event)
         mNavigatorEventHandler->handleWindowGroupDeactivated(id);
         break;
     }
+
+    case NAVIGATOR_LOW_MEMORY:
+        qWarning() << "QApplication based process" << QCoreApplication::applicationPid()
+                   << "received \"NAVIGATOR_LOW_MEMORY\" event";
+        return false;
 
     default:
         #if defined(QBBBPSEVENTFILTER_DEBUG)

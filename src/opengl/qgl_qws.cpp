@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtOpenGL module of the Qt Toolkit.
@@ -149,7 +149,7 @@ static EGLSurface qt_egl_create_surface
     }
 
     // Create the EGL surface to draw into, based on the native drawable.
-    const int *props;
+    const EGLint *props;
     if (properties)
         props = properties->properties();
     else

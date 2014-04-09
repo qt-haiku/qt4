@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtSCriptTools module of the Qt Toolkit.
@@ -881,6 +881,7 @@ void QScriptDebuggerPrivate::_q_goToLine()
     QScriptDebuggerCodeViewInterface *view = codeWidget->currentView();
     if (!view)
         return;
+#ifndef QT_NO_INPUTDIALOG
     bool ok = false;
     int lineNumber = QInputDialog::getInteger(0, QScriptDebugger::tr("Go to Line"),
                                               QScriptDebugger::tr("Line:"),
@@ -888,6 +889,7 @@ void QScriptDebuggerPrivate::_q_goToLine()
                                               1, INT_MAX, 1, &ok);
     if (ok)
         view->gotoLine(lineNumber);
+#endif
 }
 
 class QScriptDebuggerShowLineJob : public QScriptDebuggerCommandSchedulerJob

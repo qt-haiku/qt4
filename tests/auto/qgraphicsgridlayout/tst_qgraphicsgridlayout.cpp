@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -126,6 +126,7 @@ private slots:
     void spanningItem2x3_data();
     void spanningItem2x3();
     void spanningItem();
+    void spanAcrossEmptyRow();
     void heightForWidth();
     void widthForHeight();
     void heightForWidthWithSpanning();
@@ -3183,23 +3184,19 @@ void tst_QGraphicsGridLayout::heightForWidthWithSpanning()
 
     QCOMPARE(layout->effectiveSizeHint(Qt::MinimumSize, QSizeF(-1, -1)), QSizeF(1, 1));
     QCOMPARE(layout->effectiveSizeHint(Qt::PreferredSize, QSizeF(-1, -1)), QSizeF(200, 100));
-    QEXPECT_FAIL("", "Due to an old bug this wrongly returns QWIDGETSIZE_MAX", Continue);
     QCOMPARE(layout->effectiveSizeHint(Qt::MaximumSize, QSizeF(-1, -1)), QSizeF(30000, 30000));
 
     QCOMPARE(layout->effectiveSizeHint(Qt::MinimumSize, QSizeF(200, -1)), QSizeF(200, 100));
     QCOMPARE(layout->effectiveSizeHint(Qt::PreferredSize, QSizeF(200, -1)), QSizeF(200, 100));
-    QEXPECT_FAIL("", "Due to an old bug this wrongly returns QWIDGETSIZE_MAX", Continue);
     QCOMPARE(layout->effectiveSizeHint(Qt::MaximumSize, QSizeF(200, -1)), QSizeF(200, 100));
 
     QCOMPARE(layout->effectiveSizeHint(Qt::MinimumSize, QSizeF(2, -1)), QSizeF(2, 10000));
     QCOMPARE(layout->effectiveSizeHint(Qt::PreferredSize, QSizeF(2, -1)), QSizeF(2, 10000));
-    QEXPECT_FAIL("", "Due to an old bug this wrongly returns QWIDGETSIZE_MAX", Continue);
     QCOMPARE(layout->effectiveSizeHint(Qt::MaximumSize, QSizeF(2, -1)), QSizeF(2, 10000));
 
     QCOMPARE(layout->effectiveSizeHint(Qt::MinimumSize, QSizeF(200, -1)), QSizeF(200, 100));
     QCOMPARE(layout->effectiveSizeHint(Qt::PreferredSize, QSizeF(200, -1)), QSizeF(200, 100));
-    QEXPECT_FAIL("", "Due to an old bug this wrongly returns QWIDGETSIZE_MAX", Continue);
-    QCOMPARE(layout->effectiveSizeHint(Qt::MaximumSize, QSizeF(200, -1)), QSizeF(200, 10000));
+    QCOMPARE(layout->effectiveSizeHint(Qt::MaximumSize, QSizeF(200, -1)), QSizeF(200, 100));
 }
 
 Q_DECLARE_METATYPE(QSizePolicy::Policy)
@@ -3353,6 +3350,37 @@ void tst_QGraphicsGridLayout::spanningItem()
 
     QCOMPARE(layout->minimumSize(), QSizeF(160,80));
     QCOMPARE(layout->maximumSize(), QSizeF(160,80));
+}
+
+void tst_QGraphicsGridLayout::spanAcrossEmptyRow()
+{
+    QGraphicsWidget *form = new QGraphicsWidget(0, Qt::Window);
+    QGraphicsGridLayout *layout = new QGraphicsGridLayout(form);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    RectWidget *w1 = new RectWidget;
+    RectWidget *w2 = new RectWidget;
+    RectWidget *w3 = new RectWidget;
+
+    QSizeF size(10, 10);
+    for (int i = 0; i < 3; ++i) {
+        w1->setSizeHint((Qt::SizeHint)i, size);
+        w2->setSizeHint((Qt::SizeHint)i, size);
+        w3->setSizeHint((Qt::SizeHint)i, size);
+        size+=size;                 //[(10,10), (20,20), (40,40)]
+    }
+    layout->addItem(w1, 0, 0, 1, 1);
+    layout->addItem(w2, 0, 1, 1, 2);
+    layout->addItem(w3, 0, 99, 1, 1);
+
+    form->resize(60,20);
+    QCOMPARE(w1->geometry(), QRectF( 0, 0, 20, 20));
+    QCOMPARE(w2->geometry(), QRectF(20, 0, 20, 20));
+    QCOMPARE(w3->geometry(), QRectF(40, 0, 20, 20));
+
+    QCOMPARE(layout->effectiveSizeHint(Qt::MinimumSize), QSizeF(30, 10));
+    QCOMPARE(layout->effectiveSizeHint(Qt::PreferredSize), QSizeF(60, 20));
+    QCOMPARE(layout->effectiveSizeHint(Qt::MaximumSize), QSizeF(120, 40));
 }
 
 void tst_QGraphicsGridLayout::stretchAndHeightForWidth()

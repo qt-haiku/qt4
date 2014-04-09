@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -436,6 +436,7 @@ private slots:
     void ensureDirtySceneTransform();
     void focusScope();
     void focusScope2();
+    void focusScopeItemChangedWhileScopeDoesntHaveFocus();
     void stackBefore();
     void sceneModality();
     void panelModality();
@@ -477,6 +478,7 @@ private slots:
     void QTBUG_13473_sceneposchange();
     void QTBUG_16374_crashInDestructor();
     void QTBUG_20699_focusScopeCrash();
+    void QTBUG_30990_rightClickSelection();
 
 private:
     QList<QGraphicsItem *> paintedItems;
@@ -9364,6 +9366,62 @@ void tst_QGraphicsItem::focusScope2()
     QCOMPARE(siblingFocusScope->focusItem(), (QGraphicsItem *)siblingChild2);
 }
 
+class FocusScopeItemPrivate;
+class FocusScopeItem : public QGraphicsItem
+{
+    Q_DECLARE_PRIVATE(FocusScopeItem)
+public:
+    FocusScopeItem(QGraphicsItem *parent = 0);
+    QRectF boundingRect() const { return QRectF(); }
+    void paint(QPainter *, const QStyleOptionGraphicsItem *, QWidget *) { }
+
+    int focusScopeChanged;
+    FocusScopeItemPrivate *d_ptr;
+};
+
+class FocusScopeItemPrivate : QGraphicsItemPrivate
+{
+    Q_DECLARE_PUBLIC(FocusScopeItem)
+public:
+    void focusScopeItemChange(bool)
+    { ++q_func()->focusScopeChanged; }
+};
+
+FocusScopeItem::FocusScopeItem(QGraphicsItem *parent)
+    : QGraphicsItem(*new FocusScopeItemPrivate, parent, 0), focusScopeChanged(0)
+{
+    setFlag(ItemIsFocusable);
+}
+
+void tst_QGraphicsItem::focusScopeItemChangedWhileScopeDoesntHaveFocus()
+{
+    QGraphicsRectItem rect;
+    rect.setFlags(QGraphicsItem::ItemIsFocusScope | QGraphicsItem::ItemIsFocusable);
+
+    FocusScopeItem *child1 = new FocusScopeItem(&rect);
+    FocusScopeItem *child2 = new FocusScopeItem(&rect);
+
+    QCOMPARE(rect.focusScopeItem(), (QGraphicsItem *)0);
+    QCOMPARE(child1->focusScopeChanged, 0);
+    QCOMPARE(child2->focusScopeChanged, 0);
+    child1->setFocus();
+    QCOMPARE(rect.focusScopeItem(), (QGraphicsItem *)child1);
+    QCOMPARE(child1->focusScopeChanged, 1);
+    QCOMPARE(child2->focusScopeChanged, 0);
+    child2->setFocus();
+    QCOMPARE(rect.focusScopeItem(), (QGraphicsItem *)child2);
+    QCOMPARE(child1->focusScopeChanged, 2);
+    QCOMPARE(child2->focusScopeChanged, 1);
+    child1->setFocus();
+    QCOMPARE(rect.focusScopeItem(), (QGraphicsItem *)child1);
+    QCOMPARE(child1->focusScopeChanged, 3);
+    QCOMPARE(child2->focusScopeChanged, 2);
+    child1->clearFocus();
+    QCOMPARE(rect.focusScopeItem(), (QGraphicsItem *)0);
+    QCOMPARE(child1->focusScopeChanged, 4);
+    QCOMPARE(child2->focusScopeChanged, 2);
+}
+
 void tst_QGraphicsItem::stackBefore()
 {
     QGraphicsRectItem parent;
@@ -11438,6 +11496,33 @@ void tst_QGraphicsItem::QTBUG_20699_focusScopeCrash()
     fi->setParentItem(fi2);
     fi->setFocus();
     fs.setFocus();
+}
+
+void tst_QGraphicsItem::QTBUG_30990_rightClickSelection()
+{
+    QGraphicsScene scene;
+    QGraphicsItem *item1 = scene.addRect(10, 10, 10, 10);
+    item1->setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable);
+    QGraphicsItem *item2 = scene.addRect(100, 100, 10, 10);
+    item2->setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable);
+
+    // right mouse press & release over an item should not make it selected
+    sendMousePress(&scene, item1->boundingRect().center(), Qt::RightButton);
+    QVERIFY(!item1->isSelected());
+    sendMouseRelease(&scene, item1->boundingRect().center(), Qt::RightButton);
+    QVERIFY(!item1->isSelected());
+
+    // right mouse press over one item, moving over another item,
+    // and then releasing should make neither of the items selected
+    sendMousePress(&scene, item1->boundingRect().center(), Qt::RightButton);
+    QVERIFY(!item1->isSelected());
+    QVERIFY(!item2->isSelected());
+    sendMouseMove(&scene, item2->boundingRect().center(), Qt::RightButton);
+    QVERIFY(!item1->isSelected());
+    QVERIFY(!item2->isSelected());
+    sendMouseRelease(&scene, item2->boundingRect().center(), Qt::RightButton);
+    QVERIFY(!item1->isSelected());
+    QVERIFY(!item2->isSelected());
 }
 
 QTEST_MAIN(tst_QGraphicsItem)

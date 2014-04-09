@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
@@ -932,14 +932,6 @@ static const int scriptForWritingSystem[] = {
     QUnicodeTables::Common, // Japanese
     QUnicodeTables::Hangul, // Korean
     QUnicodeTables::Common, // Vietnamese
-    QUnicodeTables::Common, // Yi
-    QUnicodeTables::Common, // Tagalog
-    QUnicodeTables::Common, // Hanunoo
-    QUnicodeTables::Common, // Buhid
-    QUnicodeTables::Common, // Tagbanwa
-    QUnicodeTables::Common, // Limbu
-    QUnicodeTables::Common, // TaiLe
-    QUnicodeTables::Common, // Braille
     QUnicodeTables::Common, // Symbol
     QUnicodeTables::Ogham,  // Ogham
     QUnicodeTables::Runic, // Runic

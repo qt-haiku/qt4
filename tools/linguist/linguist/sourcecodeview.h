@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the Qt Linguist of the Qt Toolkit.
@@ -54,6 +54,7 @@ class SourceCodeView : public QPlainTextEdit
 public:
     SourceCodeView(QWidget *parent = 0);
     void setSourceContext(const QString &fileName, const int lineNum);
+    void setCodecName(const QByteArray &codecName);
 
 public slots:
     void setActivated(bool activated);
@@ -65,6 +66,7 @@ private:
     QString m_fileToLoad;
     int m_lineNumToLoad;
     QString m_currentFileName;
+    QByteArray m_codecName;
 
     QHash<QString, QString> fileHash;
 };

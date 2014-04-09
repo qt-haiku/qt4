@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -525,7 +525,7 @@ void tst_qdeclarativevisualdatamodel::qaimRowsMoved()
     SingleRoleModel model;
     model.list.clear();
     for (int i=0; i<30; i++)
-        model.list << ("item " + i);
+        model.list << (QLatin1String("item ") + QString::number(i));
     engine.rootContext()->setContextProperty("myModel", &model);
 
     QDeclarativeVisualDataModel *obj = qobject_cast<QDeclarativeVisualDataModel*>(c.create());

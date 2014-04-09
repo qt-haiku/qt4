@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QML Shaders plugin of the Qt Toolkit.
@@ -143,8 +143,6 @@ private:
     bool m_hasShaderPrograms : 1;
     bool m_mirrored : 1;
     bool m_defaultVertexShader : 1;
-
-    QGLFramebufferObject* m_contextObserver;
 };
 
 QT_END_HEADER

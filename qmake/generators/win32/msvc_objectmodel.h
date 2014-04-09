@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the qmake application of the Qt Toolkit.
@@ -103,10 +103,10 @@ enum asmListingOption {
     asmListingAsmSrc
 };
 enum basicRuntimeCheckOption {
-    runtimeBasicCheckNone,
-    runtimeCheckStackFrame,
-    runtimeCheckUninitVariables,
-    runtimeBasicCheckAll
+    runtimeBasicCheckNone = 0,
+    runtimeCheckStackFrame = 1,
+    runtimeCheckUninitVariables = 2,
+    runtimeBasicCheckAll = runtimeCheckStackFrame | runtimeCheckUninitVariables
 };
 enum browseInfoOption {
     brInfoNone,
@@ -558,6 +558,7 @@ public:
     QStringList             UndefinePreprocessorDefinitions;
     pchOption               UsePrecompiledHeader;
     triState                UseUnicodeForAssemblerListing;
+    QStringList             TreatSpecificWarningsAsErrors;
     triState                WarnAsError;
     warningLevelOption      WarningLevel;
     triState                WholeProgramOptimization;
@@ -576,6 +577,9 @@ public:
     QString                 PreprocessOutputPath;
 
     VCConfiguration*        config;
+
+private:
+    bool parseRuntimeCheckOption(char c, int *rtc);
 };
 
 class VCLinkerTool : public VCToolBase

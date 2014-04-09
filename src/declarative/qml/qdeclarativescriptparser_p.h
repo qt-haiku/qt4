@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtDeclarative module of the Qt Toolkit.
@@ -75,7 +75,7 @@ public:
     public:
         Import() : type(Library) {}
 
-        enum Type { Library, File, Script };
+        enum Type { Library, File, Script, Implicit }; //Implicit is only used internally
         Type type;
 
         QString uri;
