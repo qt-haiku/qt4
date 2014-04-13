@@ -1,11 +1,11 @@
-resource app_signature "application/x-vnd.designer";
+resource app_signature "application/x-vnd.digia.qt-designer";
 
 resource app_flags B_SINGLE_LAUNCH;
 
 resource app_version {
     major  = 4,
-    middle = 7,
-    minor  = 0,
+    middle = 8,
+    minor  = 5,
     variety = 0,
     internal = 0,
     short_info = "Qt Designer",

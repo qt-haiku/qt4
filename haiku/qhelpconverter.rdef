@@ -1,11 +1,11 @@
-resource app_signature "application/x-vnd.qhelpconverter";
+resource app_signature "application/x-vnd.digia.qt-helpconverter";
 
 resource app_flags B_SINGLE_LAUNCH;
 
 resource app_version {
     major  = 4,
-    middle = 7,
-    minor  = 0,
+    middle = 8,
+    minor  = 5,
     variety = 0,
     internal = 0,
     short_info = "Qt Help Conversion Wizard",
@@ -13,7 +13,7 @@ resource app_version {
 };
 
 resource vector_icon {
-$"6E6369660A030062250380C34205FF04003303663333020106023DDD49000000"
+    $"6E6369660A030062250380C34205FF04003303663333020106023DDD49000000"
     $"0000003DDD4949EEA449EEA400B00000FF993300020106043DA9380000000000"
     $"003DA93849EEA449EEA400FFFFFF2FFF93936CFF0000FFCF000004FF7F04FF66"
     $"04614C1E060AEFE707B93AB30DB93AB30DB8EB20B852B302B89DB2FCB852B302"
