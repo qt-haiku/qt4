@@ -32,6 +32,12 @@
 #include <limits>
 #include <stdlib.h>
 
+/* FIXME: Haiku-specific patch. Dunno why this is necessary */
+#define isnan std::isnan
+#define isfinite std::isfinite
+#define isinf std::isinf
+#define signbit std::signbit
+
 #if OS(QNX)
 #include <math.h>
 #endif
