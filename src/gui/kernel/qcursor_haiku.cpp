@@ -54,7 +54,7 @@ BCursor *QCursor::handle() const
     if (!QCursorData::initialized)
         QCursorData::initialize();
 	
-	for(i=0;i<sizeof(CursorMapList)/2;i+=2) {
+	for(i=0;i<sizeof(CursorMapList)/sizeof(CursorMapList[0]);i+=2) {
 		if(CursorMapList[i]==d->cshape) {
 			if(HaikuCursorCache[CursorMapList[i+1]])
 				return HaikuCursorCache[CursorMapList[i+1]];
@@ -67,8 +67,9 @@ BCursor *QCursor::handle() const
 QCursorData::QCursorData(Qt::CursorShape s)
     : cshape(s), bm(0), bmm(0), hx(0), hy(0)
 {
+	/* TODO: code is prone to errors. Maybe use a static QMap instead? */
 	int i;
-	for(i=0;i<sizeof(CursorMapList)/2;i+=2) {
+	for(i=0;i<sizeof(CursorMapList)/sizeof(CursorMapList[0]);i+=2) {
 		if(CursorMapList[i]==s) {
 			if(!HaikuCursorCache[CursorMapList[i+1]])
 				HaikuCursorCache[CursorMapList[i+1]] = new BCursor((BCursorID)CursorMapList[i+1]);					
