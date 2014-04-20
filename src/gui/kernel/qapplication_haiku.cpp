@@ -2,17 +2,19 @@
 #include "qsessionmanager.h"
 #include "qapplication.h"
 #include "qevent.h"
-#include "qeventdispatcher_haiku_p.h"
+#include "private/qeventdispatcher_unix_p.h"
 #include "qwidget.h"
 #include "qwidget_p.h"
 #include "private/qsystemtrayicon_p.h"
+
 #include <QtGui>
+
 #include <Application.h>
 #include <Path.h>
 #include <Entry.h>
 #include <String.h>
 #include <OS.h>
-#include <QDebug>
+
 #include <stdio.h>
 
 /*****************************************************************************
@@ -188,11 +190,7 @@ QString QApplicationPrivate::appName() const
 void QApplicationPrivate::createEventDispatcher()
 {
 	Q_Q(QApplication);
-	qDebug("Reimplemented: void  QApplicationPrivate::createEventDispatcher\n");
-	if (q->type() != QApplication::Tty)
-		eventDispatcher = new QEventDispatcherHaiku(q);
-	else
-		eventDispatcher = new QEventDispatcherUNIX(q);
+	eventDispatcher = new QEventDispatcherUNIX(q);
 }
 
 /*****************************************************************************

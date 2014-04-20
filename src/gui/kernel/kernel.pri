@@ -346,7 +346,6 @@ haiku {
 		kernel/qclipboard_haiku.cpp \
 		kernel/qcursor_haiku.cpp \
 		kernel/qkeymapper_haiku.cpp \
-		kernel/qsound_haiku.cpp \
-		kernel/qeventdispatcher_haiku.cpp
+		kernel/qsound_haiku.cpp
 }
 
