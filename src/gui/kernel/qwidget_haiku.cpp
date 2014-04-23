@@ -1221,39 +1221,81 @@ QPaintEngine *QWidget::paintEngine() const
 
 QPoint QWidget::mapToGlobal(const QPoint &pos) const
 {
-	//Q_D(QWidget);
-//	qDebug()<<"QWidget::mapToGlobal() pos:"<<pos;
-    if (!testAttribute(Qt::WA_WState_Created) || !internalWinId()) {
-        QPoint p = pos + data->crect.topLeft();
-        //cannot trust that !isWindow() implies parentWidget() before create
-        return (isWindow() || !parentWidget()) ?  p : parentWidget()->mapToGlobal(p);
+	/* Copied line-for-line from qwidget_win.h */
+    //Q_D(QWidget);
+    QWidget *parentWindow = window();
+    QWExtra *extra = parentWindow->d_func()->extra;
+    if (!isVisible() || parentWindow->isMinimized() || !testAttribute(Qt::WA_WState_Created) || !internalWinId()
+        || (extra
+#ifndef QT_NO_GRAPHICSVIEW
+            && extra->proxyWidget
+#endif //QT_NO_GRAPHICSVIEW
+            )) {
+        if (extra && extra->topextra && extra->topextra->embedded) {
+            if (nativeView()->LockLooper()) {
+            	BPoint p = nativeView()->ConvertToScreen(BPoint(pos.x(), pos.y()));
+            	return mapFrom(parentWindow, QPoint(p.x, p.y));
+        	} else {
+        		qDebug("WARN: QWidgetHaiku::mapToGlobal[extra] failed!");
+        		return QPoint(); // ???
+        	}
+        } else {
+            QPoint toGlobal = mapTo(parentWindow, pos) + parentWindow->pos();
+            // Adjust for window decorations
+            toGlobal += parentWindow->geometry().topLeft() - parentWindow->frameGeometry().topLeft();
+            return toGlobal;
+        }
     }
-
-	if (nativeView()->LockLooper())
-	{
+    
+    /* Haiku-specific */
+	if (nativeView()->LockLooper()) {
 		BPoint p = nativeView()->ConvertToScreen(BPoint(pos.x(),pos.y()));
 		nativeView()->UnlockLooper();
-		return QPoint(p.x,p.y);
+		return QPoint(p.x, p.y);
+	} else {
+		qDebug("WARN: QWidgetHaiku::mapToGlobal[final] failed!");
 	}
+	
 	return QPoint(); // ???
 }
 
 QPoint QWidget::mapFromGlobal(const QPoint &pos) const
 {
-//		qDebug()<<"QWidget::mapFromGlobal() pos:"<<pos;
-    if (!testAttribute(Qt::WA_WState_Created) || !internalWinId()) {
-        //cannot trust that !isWindow() implies parentWidget() before create
-        QPoint p = (isWindow() || !parentWidget()) ?  pos : parentWidget()->mapFromGlobal(pos);
-        return p - data->crect.topLeft();
+	/* Copied line-for-line from qwidget_win.h */
+    //Q_D(QWidget);
+    QWidget *parentWindow = window();
+    QWExtra *extra = parentWindow->d_func()->extra;
+    if (!isVisible() || parentWindow->isMinimized() || !testAttribute(Qt::WA_WState_Created) || !internalWinId()
+        || (extra
+#ifndef QT_NO_GRAPHICSVIEW
+            && extra->proxyWidget
+#endif //QT_NO_GRAPHICSVIEW
+            )) {
+        if (extra && extra->topextra && extra->topextra->embedded) {
+        	if (nativeView()->LockLooper()) {
+            	BPoint p = nativeView()->ConvertFromScreen(BPoint(pos.x(),pos.y()));
+            	return mapFrom(parentWindow, QPoint(p.x, p.y));
+        	} else {
+        		qDebug("WARN: QWidgetHaiku::mapFromGlobal[extra] failed!");
+        		return QPoint(); // ???
+        	}
+        } else {
+            QPoint fromGlobal = mapFrom(parentWindow, pos - parentWindow->pos());
+            // Adjust for window decorations
+            fromGlobal -= parentWindow->geometry().topLeft() - parentWindow->frameGeometry().topLeft();
+            return fromGlobal;
+        }
     }
 
-	if (nativeView()->LockLooper())
-	{
+	/* Haiku-specific */
+	if (nativeView()->LockLooper()) {
 		BPoint p = nativeView()->ConvertFromScreen(BPoint(pos.x(),pos.y()));
 		nativeView()->UnlockLooper();
 		return QPoint(p.x,p.y);
+	} else {
+		qDebug("WARN: QWidgetHaiku::mapFromGlobal[final] failed!");
+		return QPoint(); // ???
 	}
-	return QPoint(); // ???
 }
 
 void QWidget::activateWindow()
