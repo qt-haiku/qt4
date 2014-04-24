@@ -3635,7 +3635,7 @@ if [ -z "$QT_INSTALL_PREFIX" ]; then
             QT_INSTALL_LIBS="$EPOCROOT/epoc32/release/armv5/lib/"
         fi
     elif [ "$PLATFORM_HAIKU" = "yes" ]; then
-   	    QT_INSTALL_PREFIX="/boot/common/data/Qt"
+   	    QT_INSTALL_PREFIX=$(finddir B_SYSTEM_NONPACKAGED_DATA_DIRECTORY)
     else
         QT_INSTALL_PREFIX="/usr/local/Trolltech/Qt-${QT_VERSION}" # the default install prefix is /usr/local/Trolltech/Qt-$QT_VERSION
     fi
@@ -3675,7 +3675,7 @@ else
 	    if [ "$PLATFORM_MAC" = "yes" ]; then
 	        QT_INSTALL_DOCS="/Developer/Documentation/Qt"
 		elif [ "$PLATFORM_HAIKU" = "yes" ]; then
-		    QT_INSTALL_DOCS="/boot/common/documentation/Qt"
+		    QT_INSTALL_DOCS=$(finddir B_SYSTEM_NONPACKAGED_DOCUMENTATION_DIRECTORY)
         fi
         fi
         [ -z "$QT_INSTALL_DOCS" ] && QT_INSTALL_DOCS="$QT_INSTALL_PREFIX/doc" #fallback
@@ -3691,7 +3691,7 @@ else
 		    QT_INSTALL_HEADERS=
                 fi
 		elif [ "$PLATFORM_HAIKU" = "yes" ]; then
-		    QT_INSTALL_HEADERS="/boot/common/include"
+		    QT_INSTALL_HEADERS=$(finddir B_SYSTEM_NONPACKAGED_HEADERS_DIRECTORY)
         fi
         fi
         [ -z "$QT_INSTALL_HEADERS" ] && QT_INSTALL_HEADERS="$QT_INSTALL_PREFIX/include"
@@ -3707,7 +3707,7 @@ else
                    QT_INSTALL_LIBS="/Library/Frameworks"
                 fi
 		elif [ "$PLATFORM_HAIKU" = "yes" ]; then
-		    QT_INSTALL_LIBS="/boot/common/lib"
+		    QT_INSTALL_LIBS=$(finddir B_USER_NONPACKAGED_LIB_DIRECTORY)
         fi
         fi
         [ -z "$QT_INSTALL_LIBS" ] && QT_INSTALL_LIBS="$QT_INSTALL_PREFIX/lib" #fallback
@@ -3720,7 +3720,7 @@ else
 	    if [ "$PLATFORM_MAC" = "yes" ]; then
 	        QT_INSTALL_BINS="/Developer/Applications/Qt"
 		elif [ "$PLATFORM_HAIKU" = "yes" ]; then
-		    QT_INSTALL_BINS="/boot/common/bin"
+		    QT_INSTALL_BINS=$(finddir B_USER_NONPACKAGED_BIN_DIRECTORY)
         fi
         fi
         [ -z "$QT_INSTALL_BINS" ] && QT_INSTALL_BINS="$QT_INSTALL_PREFIX/bin" #fallback
@@ -3734,7 +3734,7 @@ else
 	    if [ "$PLATFORM_MAC" = "yes" ]; then
 	        QT_INSTALL_PLUGINS="/Developer/Applications/Qt/plugins"
 		elif [ "$PLATFORM_HAIKU" = "yes" ]; then
-		    QT_INSTALL_PLUGINS="/boot/common/data/Qt/plugins"
+		    QT_INSTALL_PLUGINS=$(finddir B_USER_NONPACKAGED_LIB_DIRECTORY)
         fi
         fi
         [ -z "$QT_INSTALL_PLUGINS" ] && QT_INSTALL_PLUGINS="$QT_INSTALL_PREFIX/plugins" #fallback
@@ -3746,9 +3746,7 @@ else
         if [ "$CFG_PREFIX_INSTALL" = "no" ]; then
 	    if [ "$PLATFORM_MAC" = "yes" ]; then
 	        QT_INSTALL_IMPORTS="/Developer/Applications/Qt/imports"
-		elif [ "$PLATFORM_HAIKU" = "yes" ]; then
-		    QT_INSTALL_IMPORTS="/boot/common/data/Qt/imports"
-        fi
+	    fi
         fi
         [ -z "$QT_INSTALL_IMPORTS" ] && QT_INSTALL_IMPORTS="$QT_INSTALL_PREFIX/imports" #fallback
     fi
@@ -3756,21 +3754,13 @@ else
 
     #data
     if [ -z "$QT_INSTALL_DATA" ]; then #default
-		if [ "$PLATFORM_HAIKU" = "yes" ] && [ "$CFG_PREFIX_INSTALL" = "no" ]; then
-		    QT_INSTALL_DATA="/boot/common/data/Qt"
-	    else
-    		QT_INSTALL_DATA="$QT_INSTALL_PREFIX"
-	    fi
+		QT_INSTALL_DATA="$QT_INSTALL_PREFIX"
     fi
     QT_INSTALL_DATA=`"$relpath/config.tests/unix/makeabs" "$QT_INSTALL_DATA"`
 
     #translations
     if [ -z "$QT_INSTALL_TRANSLATIONS" ]; then #default
-		if [ "$PLATFORM_HAIKU" = "yes" ] && [ "$CFG_PREFIX_INSTALL" = "no" ]; then
-		    QT_INSTALL_TRANSLATIONS="/boot/common/data/Qt/translations"
-		else
-    	    QT_INSTALL_TRANSLATIONS="$QT_INSTALL_PREFIX/translations"
-	    fi
+		QT_INSTALL_TRANSLATIONS="$QT_INSTALL_PREFIX/translations"
     fi
     QT_INSTALL_TRANSLATIONS=`"$relpath/config.tests/unix/makeabs" "$QT_INSTALL_TRANSLATIONS"`
 
@@ -3778,8 +3768,8 @@ else
     if [ -z "$QT_INSTALL_SETTINGS" ]; then #default
         if [ "$PLATFORM_MAC" = "yes" ]; then
 	    	QT_INSTALL_SETTINGS=/Library/Preferences/Qt
-		elif [ "$PLATFORM_HAIKU" = "yes" ] && [ "$CFG_PREFIX_INSTALL" = "no" ]; then
-			QT_INSTALL_SETTINGS="/boot/common/data/Qt/settings"
+		elif [ "$PLATFORM_HAIKU" = "yes" ]; then
+			QT_INSTALL_TRANSLATIONS="$QT_INSTALL_PREFIX/settings"
         else
 		    QT_INSTALL_SETTINGS=/etc/xdg
         fi
@@ -3791,8 +3781,6 @@ else
         if [ "$CFG_PREFIX_INSTALL" = "no" ]; then
 	    if [ "$PLATFORM_MAC" = "yes" ]; then
 	        QT_INSTALL_EXAMPLES="/Developer/Examples/Qt"
-		elif [ "$PLATFORM_HAIKU" = "yes" ]; then
-		    QT_INSTALL_EXAMPLES="/boot/common/data/Qt/Examples"
         fi
         fi
         [ -z "$QT_INSTALL_EXAMPLES" ] && QT_INSTALL_EXAMPLES="$QT_INSTALL_PREFIX/examples" #fallback
@@ -3804,8 +3792,6 @@ else
         if [ "$CFG_PREFIX_INSTALL" = "no" ]; then
 	    if [ "$PLATFORM_MAC" = "yes" ]; then
 	        QT_INSTALL_DEMOS="/Developer/Examples/Qt/Demos"
-		elif [ "$PLATFORM_HAIKU" = "yes" ]; then
-		    QT_INSTALL_DEMOS="/boot/common/data/Qt/Demos"
         fi
         fi
         [ -z "$QT_INSTALL_DEMOS" ] && QT_INSTALL_DEMOS="$QT_INSTALL_PREFIX/demos"
