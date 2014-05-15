@@ -5,7 +5,7 @@ resource app_flags B_SINGLE_LAUNCH;
 resource app_version {
     major  = 4,
     middle = 8,
-    minor  = 5,
+    minor  = 6,
     variety = 0,
     internal = 0,
     short_info = "Qt Help Conversion Wizard",
