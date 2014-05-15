@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtSql module of the Qt Toolkit.
@@ -253,7 +253,7 @@ QVariant QSqlCachedResult::data(int i)
 bool QSqlCachedResult::isNull(int i)
 {
     int idx = d->forwardOnly ? i : at() * d->colCount + i;
-    if (i > d->colCount || i < 0 || at() < 0 || idx >= d->rowCacheEnd)
+    if (i >= d->colCount || i < 0 || at() < 0 || idx >= d->rowCacheEnd)
         return true;
 
     return d->cache.at(idx).isNull();

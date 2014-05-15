@@ -3,8 +3,8 @@
 ** Copyright (C) 2003-2006 Ben van Klinken and the CLucene Team.
 ** All rights reserved.
 **
-** Portion Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
-** All rights reserved.
+** Portion Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
+
 **
 ** This file may be used under the terms of the GNU Lesser General Public
 ** License version 2.1 as published by the Free Software Foundation and

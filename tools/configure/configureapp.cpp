@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the tools applications of the Qt Toolkit.
@@ -1374,7 +1374,8 @@ void Configure::parseCmdLine()
             qmakeSpec.endsWith("-msvc2005") ||
             qmakeSpec.endsWith("-msvc2008") ||
             qmakeSpec.endsWith("-msvc2010") ||
-            qmakeSpec.endsWith("-msvc2012")) {
+            qmakeSpec.endsWith("-msvc2012") ||
+            qmakeSpec.endsWith("-msvc2013")) {
             if (dictionary[ "MAKE" ].isEmpty()) dictionary[ "MAKE" ] = "nmake";
             dictionary[ "QMAKEMAKEFILE" ] = "Makefile.win32";
         } else if (qmakeSpec.contains("win32-g++")) {

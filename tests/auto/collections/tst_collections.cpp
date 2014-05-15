@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -3698,6 +3698,8 @@ void tst_Collections::QTBUG13079_collectionInsideCollection()
     QTBUG13079_collectionInsidePtrImpl<QSharedPointer>();
     QTBUG13079_collectionInsidePtrImpl<QExplicitlySharedDataPointer>();
     QTBUG13079_collectionInsidePtrImpl<QSharedDataPointer>();
+#else
+    QSKIP("Template-Template Parameters are not supported", SkipAll);
 #endif
 }
 

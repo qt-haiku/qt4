@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the Qt Linguist of the Qt Toolkit.
@@ -1411,6 +1411,7 @@ void CppParser::processInclude(const QString &file, ConversionData &cd, const QS
         parser.functionContextUnresolved = functionContextUnresolved;
         parser.pendingContext = pendingContext;
         parser.setInput(ts, cleanFile);
+        parser.setTranslator(tor);
         QStringList stack = includeStack;
         stack << cleanFile;
         parser.parseInternal(cd, stack, inclusions);

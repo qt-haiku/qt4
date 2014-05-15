@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the Qt Linguist of the Qt Toolkit.
@@ -1365,7 +1365,7 @@ void MainWindow::about()
     box.setText(tr("<center><img src=\":/images/splash.png\"/></img><p>%1</p></center>"
                     "<p>Qt Linguist is a tool for adding translations to Qt "
                     "applications.</p>"
-                    "<p>Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies)."
+                    "<p>Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies)."
                    ).arg(version));
 
     box.setWindowTitle(QApplication::translate("AboutDialog", "Qt Linguist"));
@@ -1530,8 +1530,8 @@ void MainWindow::selectedMessageChanged(const QModelIndex &sortedIndex, const QM
                 m_sourceAndFormView->setCurrentWidget(m_sourceCodeView);
                 QDir dir = QFileInfo(m_dataModel->srcFileName(model)).dir();
                 QString fileName = QDir::cleanPath(dir.absoluteFilePath(m->fileName()));
-                m_sourceCodeView->setSourceContext(fileName, m->lineNumber());
                 m_sourceCodeView->setCodecName(m_dataModel->model(model)->codecName());
+                m_sourceCodeView->setSourceContext(fileName, m->lineNumber());
             }
             m_errorsView->setEnabled(true);
         } else {

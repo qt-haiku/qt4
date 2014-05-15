@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -216,6 +216,7 @@ private Q_SLOTS:
     void postToHttpSynchronous();
     void postToHttpMultipart_data();
     void postToHttpMultipart();
+    void multipartSkipIndices(); // QTBUG-32534
     void deleteFromHttp_data();
     void deleteFromHttp();
     void putGetDeleteGetFromHttp_data();
@@ -1702,7 +1703,7 @@ void tst_QNetworkReply::getErrors_data()
             << int(QNetworkReply::ProtocolUnknownError) << 0 << true;
 
     // file: errors
-    QTest::newRow("file-host") << "file://this-host-doesnt-exist.troll.no/foo.txt"
+    QTest::newRow("file-host") << "file://invalid.test.qt-project.org/foo.txt"
 #if !defined Q_OS_WIN
                                << int(QNetworkReply::ProtocolInvalidOperationError) << 0 << true;
 #else
@@ -1723,7 +1724,7 @@ void tst_QNetworkReply::getErrors_data()
                                           << int(QNetworkReply::ContentAccessDenied) << 0 << true;
 
     // ftp: errors
-    QTest::newRow("ftp-host") << "ftp://this-host-doesnt-exist.troll.no/foo.txt"
+    QTest::newRow("ftp-host") << "ftp://invalid.test.qt-project.org/foo.txt"
                               << int(QNetworkReply::HostNotFoundError) << 0 << true;
     QTest::newRow("ftp-no-path") << "ftp://" + QtNetworkSettings::serverName()
                                  << int(QNetworkReply::ContentOperationNotPermittedError) << 0 << true;
@@ -1737,7 +1738,7 @@ void tst_QNetworkReply::getErrors_data()
                                << int(QNetworkReply::ContentNotFoundError) << 0 << true;
 
     // http: errors
-    QTest::newRow("http-host") << "http://this-host-will-never-exist.troll.no/"
+    QTest::newRow("http-host") << "http://invalid.test.qt-project.org/"
                                << int(QNetworkReply::HostNotFoundError) << 0 << true;
     QTest::newRow("http-exist") << "http://" + QtNetworkSettings::serverName() + "/this-file-doesnt-exist.txt"
                                 << int(QNetworkReply::ContentNotFoundError) << 404 << false;
@@ -2277,6 +2278,49 @@ void tst_QNetworkReply::postToHttpMultipart()
     expectedReplyData.prepend("content type: multipart/" + contentType + "; boundary=\"" + multiPart->boundary() + "\"\n");
 //    QEXPECT_FAIL("nested", "the server does not understand nested multipart messages", Continue); // see above
     QCOMPARE(replyData, expectedReplyData);
+}
+
+void tst_QNetworkReply::multipartSkipIndices() // QTBUG-32534
+{
+    QHttpMultiPart *multiPart = new QHttpMultiPart(QHttpMultiPart::MixedType);
+    QUrl url("http://" + QtNetworkSettings::serverName() + "/qtest/cgi-bin/multipart.cgi");
+    QNetworkRequest request(url);
+    QList<QByteArray> parts;
+    parts << QByteArray(56083, 'X') << QByteArray(468, 'X') << QByteArray(24952, 'X');
+
+    QHttpPart part1;
+    part1.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"field1\"; filename=\"aaaa.bin\"");
+    part1.setHeader(QNetworkRequest::ContentTypeHeader, "application/octet-stream");
+    part1.setBody(parts.at(0));
+    multiPart->append(part1);
+
+    QHttpPart part2;
+    part2.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"field2\"; filename=\"bbbb.txt\"");
+    part2.setHeader(QNetworkRequest::ContentTypeHeader, "text/plain");
+    part2.setBody(parts.at(1));
+    multiPart->append(part2);
+
+    QHttpPart part3;
+    part3.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"text-3\"; filename=\"cccc.txt\"");
+    part3.setHeader(QNetworkRequest::ContentTypeHeader, "text/plain");
+    part3.setBody(parts.at(2));
+    multiPart->append(part3);
+
+    QNetworkReplyPtr reply;
+    RUN_REQUEST(runMultipartRequest(request, reply, multiPart, "POST"));
+
+    QCOMPARE(reply->error(), QNetworkReply::NoError);
+
+    QCOMPARE(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt(), 200); // 200 Ok
+    QByteArray line;
+    int partIndex = 0;
+    while ((line = reply->readLine()) != QByteArray("")) {
+        if (line.startsWith("content:")) {
+            // before, the 3rd part would return garbled output at the end
+            QCOMPARE("content: " + parts[partIndex++] + "\n", line);
+        }
+    }
+    multiPart->deleteLater();
 }
 
 void tst_QNetworkReply::putToHttpMultipart_data()

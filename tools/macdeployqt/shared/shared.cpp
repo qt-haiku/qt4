@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the tools applications of the Qt Toolkit.
@@ -91,6 +91,8 @@ inline QDebug operator<<(QDebug debug, const ApplicationBundleInfo &info)
 bool copyFilePrintStatus(const QString &from, const QString &to)
 {
     if (QFile::copy(from, to)) {
+        QFile dest(to);
+        dest.setPermissions(dest.permissions() | QFile::WriteOwner | QFile::WriteUser);
         LogNormal() << " copied:" << from;
         LogNormal() << " to" << to;
         return true;

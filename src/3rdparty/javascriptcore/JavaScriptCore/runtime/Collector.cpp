@@ -52,6 +52,8 @@
 #include <mach/task.h>
 #include <mach/thread_act.h>
 #include <mach/vm_map.h>
+// clang's libc++ headers does not pull in pthread.h (but libstdc++ does)
+#include <pthread.h>
 
 #elif OS(WINDOWS)
 
@@ -81,10 +83,7 @@
 #endif
 
 #if OS(QNX)
-#include <fcntl.h>
-#include <sys/procfs.h>
-#include <stdio.h>
-#include <errno.h>
+#include <sys/storage.h>
 #endif
 
 #endif
@@ -546,33 +545,6 @@ static void *hpux_get_stack_base()
 }
 #endif
 
-#if OS(QNX)
-static inline void *currentThreadStackBaseQNX()
-{
-    static void* stackBase = 0;
-    static size_t stackSize = 0;
-    static pthread_t stackThread;
-    pthread_t thread = pthread_self();
-    if (stackBase == 0 || thread != stackThread) {
-        struct _debug_thread_info threadInfo;
-        memset(&threadInfo, 0, sizeof(threadInfo));
-        threadInfo.tid = pthread_self();
-        int fd = open("/proc/self", O_RDONLY);
-        if (fd == -1) {
-            LOG_ERROR("Unable to open /proc/self (errno: %d)", errno);
-            return 0;
-        }
-        devctl(fd, DCMD_PROC_TIDSTATUS, &threadInfo, sizeof(threadInfo), 0);
-        close(fd);
-        stackBase = reinterpret_cast<void*>(threadInfo.stkbase);
-        stackSize = threadInfo.stksize;
-        ASSERT(stackBase);
-        stackThread = thread;
-    }
-    return static_cast<char*>(stackBase) + stackSize;
-}
-#endif
-
 static inline void* currentThreadStackBase()
 {
 #if OS(DARWIN)
@@ -611,9 +583,7 @@ static inline void* currentThreadStackBase()
 #elif OS(HPUX)
     return hpux_get_stack_base();
 #elif OS(QNX)
-    AtomicallyInitializedStatic(Mutex&, mutex = *new Mutex);
-    MutexLocker locker(mutex);
-    return currentThreadStackBaseQNX();
+    return (void *) (((uintptr_t)__tls() + __PAGESIZE - 1) & ~(__PAGESIZE - 1));
 #elif OS(SOLARIS)
     stack_t s;
     thr_stksegment(&s);

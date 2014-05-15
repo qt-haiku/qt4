@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -1116,9 +1116,7 @@ void tst_QByteArray::toULongLong()
 void tst_QByteArray::qAllocMore()
 {
     static const int t[] = {
-        INT_MIN, INT_MIN + 1, -1234567, -66000, -1025,
-        -3, -1, 0, +1, +3, +1025, +66000, +1234567, INT_MAX - 1, INT_MAX,
-        INT_MAX/3
+        0, +1, +3, +1025, +66000, +1234567, INT_MAX/4
     };
     static const int N = sizeof(t)/sizeof(t[0]);
 

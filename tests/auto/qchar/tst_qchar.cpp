@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -693,6 +693,20 @@ void tst_QChar::normalization_manual()
         QVERIFY(composed.normalized(QString::NormalizationForm_C) == composed);
         QVERIFY(composed.normalized(QString::NormalizationForm_KD) == decomposed);
         QVERIFY(composed.normalized(QString::NormalizationForm_KC) == decomposed);
+    }
+    {
+        QString composed;
+        composed += QChar(0x0061);
+        composed += QChar(0x00f2);
+        QString decomposed;
+        decomposed += QChar(0x0061);
+        decomposed += QChar(0x006f);
+        decomposed += QChar(0x0300);
+
+        QVERIFY(decomposed.normalized(QString::NormalizationForm_D) == decomposed);
+        QVERIFY(decomposed.normalized(QString::NormalizationForm_C) == composed);
+        QVERIFY(decomposed.normalized(QString::NormalizationForm_KD) == decomposed);
+        QVERIFY(decomposed.normalized(QString::NormalizationForm_KC) == composed);
     }
 }
 

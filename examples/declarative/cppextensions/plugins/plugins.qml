@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the examples of the Qt Toolkit.
@@ -38,9 +38,9 @@
 **
 ****************************************************************************/
 //![0]
-import com.nokia.TimeExample 1.0 // import types from the plugin
+import org.qtproject.TimeExample 1.0 // import types from the plugin
 
-Clock { // this class is defined in QML (com/nokia/TimeExample/Clock.qml)
+Clock { // this class is defined in QML (org/qtproject/TimeExample/Clock.qml)
 
     Time { // this class is defined in C++ (plugin.cpp)
         id: time

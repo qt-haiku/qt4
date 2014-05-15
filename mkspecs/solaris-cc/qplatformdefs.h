@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the qmake spec of the Qt Toolkit.
@@ -92,7 +92,7 @@
 #define QT_SOCKLEN_T            size_t
 #else
 // always this case in practice
-#define QT_SOCKLEN_T            int
+#define QT_SOCKLEN_T            socklen_t
 #endif
 
 // Solaris redefines connect -> __xnet_connect with _XOPEN_SOURCE_EXTENDED

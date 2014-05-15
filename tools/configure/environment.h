@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the tools applications of the Qt Toolkit.
@@ -55,7 +55,8 @@ enum Compiler {
     CC_NET2005 = 0x80,
     CC_NET2008 = 0x90,
     CC_NET2010 = 0xA0,
-    CC_NET2012 = 0xB0
+    CC_NET2012 = 0xB0,
+    CC_NET2013 = 0xC0
 };
 
 struct CompilerInfo;
@@ -65,7 +66,7 @@ public:
     static Compiler detectCompiler();
     static QString detectQMakeSpec();
     static bool detectExecutable(const QString &executable);
-    static int detectGPlusPlusVersion(const QString &executable, bool *is64bit);
+    static int detectGPlusPlusVersion(const QString &executable);
     static QString readProcessStandardOutput(const QString &commandLine);
 
     static int execute(QStringList arguments, const QStringList &additionalEnv, const QStringList &removeEnv);

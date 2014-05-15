@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtTest module of the Qt Toolkit.
@@ -102,6 +102,9 @@ public:
     static bool testFailed();
     static void setSkipCurrentTest(bool value);
     static bool skipCurrentTest();
+
+    static void setCurrentAppName(const char *appName);
+    static const char *currentAppName();
 
 private:
     Q_DISABLE_COPY(QTestResult)

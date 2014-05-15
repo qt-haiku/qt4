@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the documentation of the Qt Toolkit.
@@ -327,7 +327,8 @@ SOURCES = myclass.cpp \
 
 #! [50]
 SUBDIRS = kernel \
-          tools
+          tools \
+          myapp
 #! [50]
 
 

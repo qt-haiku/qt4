@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the tools applications of the Qt Toolkit.
@@ -82,6 +82,8 @@ struct CompilerInfo{
     {CC_NET2010, "Microsoft (R) 32-bit C/C++ Optimizing Compiler.NET 2010 (10.0)", "Software\\Microsoft\\VisualStudio\\SxS\\VC7\\10.0", "cl.exe"}, // link.exe, lib.exe
     {CC_NET2012, "Microsoft (R) 32-bit C/C++ Optimizing Compiler.NET 2012 (11.0)", "Software\\Microsoft\\VisualStudio\\SxS\\VC7\\11.0", "cl.exe"}, // link.exe, lib.exe
     {CC_NET2012, "Microsoft (R) 32-bit C/C++ Optimizing Compiler.NET 2012 (11.0)", "Software\\Wow6432Node\\Microsoft\\VisualStudio\\SxS\\VC7\\11.0", "cl.exe"}, // link.exe, lib.exe
+    {CC_NET2013, "Microsoft (R) 32-bit C/C++ Optimizing Compiler.NET 2013 (12.0)", "Software\\Microsoft\\VisualStudio\\SxS\\VC7\\12.0", "cl.exe"}, // link.exe, lib.exe
+    {CC_NET2013, "Microsoft (R) 32-bit C/C++ Optimizing Compiler.NET 2013 (12.0)", "Software\\Wow6432Node\\Microsoft\\VisualStudio\\SxS\\VC7\\12.0", "cl.exe"}, // link.exe, lib.exe
     {CC_UNKNOWN, "Unknown", 0, 0},
 };
 
@@ -107,6 +109,9 @@ QString Environment::detectQMakeSpec()
 {
     QString spec;
     switch (detectCompiler()) {
+    case CC_NET2013:
+        spec = "win32-msvc2013";
+        break;
     case CC_NET2012:
         spec = "win32-msvc2012";
         break;
@@ -167,8 +172,18 @@ Compiler Environment::detectCompiler()
             QStringList::iterator it;
             for(it = pathlist.begin(); it != pathlist.end(); ++it) {
                 if((*it).contains(productPath)) {
-                    ++installed;
-                    detectedCompiler = compiler_info[i].compiler;
+                    if (detectedCompiler != compiler_info[i].compiler) {
+                        ++installed;
+                        detectedCompiler = compiler_info[i].compiler;
+                    }
+                    /* else {
+
+                        We detected the same compiler again, which happens when
+                        configure is run on a 64 bit Windows. Skip the
+                        duplicate so that we don't think it's installed twice.
+
+                    }
+                    */
                     break;
                 }
             }
@@ -180,14 +195,23 @@ Compiler Environment::detectCompiler()
         for(int i = 0; compiler_info[i].compiler; ++i) {
             QString executable = QString(compiler_info[i].executable).toLower();
             if (executable.length() && Environment::detectExecutable(executable)) {
-                ++installed;
-                detectedCompiler = compiler_info[i].compiler;
-                if (detectedCompiler == CC_MINGW) {
-                    bool is64bit;
-                    const int version = detectGPlusPlusVersion(executable, &is64bit);
-                    if (version < 0x040600)
-                        detectedCompiler = CC_MINGW_44;
+                if (detectedCompiler != compiler_info[i].compiler) {
+                    ++installed;
+                    detectedCompiler = compiler_info[i].compiler;
+                    if (detectedCompiler == CC_MINGW) {
+                        const int version = detectGPlusPlusVersion(executable);
+                        if (version < 0x040600)
+                            detectedCompiler = CC_MINGW_44;
+                    }
                 }
+                /* else {
+
+                    We detected the same compiler again, which happens when
+                    configure is run on a 64 bit Windows. Skip the
+                    duplicate so that we don't think it's installed twice.
+
+                }
+                */
                 break;
             }
         }
@@ -232,21 +256,17 @@ bool Environment::detectExecutable(const QString &executable)
   Determine the g++ version.
 */
 
-int Environment::detectGPlusPlusVersion(const QString &executable,
-                                        bool *is64bit)
+int Environment::detectGPlusPlusVersion(const QString &executable)
 {
-    QRegExp regexp(QLatin1String("[gG]\\+\\+[\\.exEX]{0,4} ([^\\s]+) (\\d+)\\.(\\d+)\\.(\\d+)"));
+    QRegExp regexp(QLatin1String("[gG]\\+\\+[\\.exEX]{0,4} ([^\\n]+) (\\d+)\\.(\\d+)\\.(\\d+)"));
     QString stdOut = readProcessStandardOutput(executable + QLatin1String(" --version"));
     if (regexp.indexIn(stdOut) != -1) {
         const QString compiler = regexp.cap(1);
-        // Check for "tdm64-1"
-        *is64bit = compiler.contains(QLatin1String("64"));
         const int major = regexp.cap(2).toInt();
         const int minor = regexp.cap(3).toInt();
         const int patch = regexp.cap(4).toInt();
         return (major << 16) + (minor << 8) + patch;
     }
-    *is64bit = false;
     return 0;
 }
 

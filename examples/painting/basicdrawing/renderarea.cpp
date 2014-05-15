@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the examples of the Qt Toolkit.
@@ -189,7 +189,7 @@ void RenderArea::paintEvent(QPaintEvent * /* event */)
                 painter.drawPath(path);
                 break;
             case Text:
-                painter.drawText(rect, Qt::AlignCenter, tr("Qt by\nNokia"));
+                painter.drawText(rect, Qt::AlignCenter, tr("Qt by\nDigia"));
                 break;
             case Pixmap:
                 painter.drawPixmap(10, 10, pixmap);

@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtMultimedia module of the Qt Toolkit.
@@ -264,7 +264,7 @@ void QAudioDeviceInfoInternal::updateLists()
     // redo all lists based on current settings
     bool base = false;
     bool match = false;
-    DWORD fmt = NULL;
+    DWORD fmt = 0;
     QString tmp;
 
     if(device.compare(QLatin1String("default")) == 0)

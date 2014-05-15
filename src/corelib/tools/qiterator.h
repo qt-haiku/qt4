@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
@@ -47,7 +47,7 @@
 QT_BEGIN_HEADER
 
 #ifdef QT_NO_STL
-# include <ciso646> // No-op, indirectly include additional configuration headers.
+# include <new> // No-op, indirectly include additional configuration headers.
 # if defined(_LIBCPP_VERSION)
 // libc++ may declare these structs in an inline namespace. Forward-declare
 // these iterators in the same namespace so that we do not shadow the original

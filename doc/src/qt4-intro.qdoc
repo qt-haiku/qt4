@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the documentation of the Qt Toolkit.
@@ -523,6 +523,9 @@
     \e QPA allows porting Qt to different windowing systems and devices
     easier. It provides a clean abstraction layer for porting QtGui to new
     window systems.
+
+    \note QPA is considered an experimental feature in Qt 4.8. In Qt 5 it
+    is a supported and complete feature.
 
     \section1 Qt WebKit 2.2
 

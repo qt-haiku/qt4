@@ -1,9 +1,9 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtCore module of the Qt Toolkit.
+** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -39,10 +39,18 @@
 **
 ****************************************************************************/
 
-#include "qfilesystemengine_p.h"
+// IMPORTANT!!!! If you want to add testdata to this file,
+// always add it to the end in order to not change the linenumbers of translations!!!
 
-QT_BEGIN_NAMESPACE
+#include <QObject>
 
-// Mac-specific implementations only!
+namespace nm {
 
-QT_END_NAMESPACE
+class Test : public QObject {
+    Q_OBJECT
+
+public:
+    Test();
+};
+
+}

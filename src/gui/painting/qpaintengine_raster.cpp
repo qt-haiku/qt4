@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
@@ -2371,7 +2371,7 @@ void QRasterPaintEngine::drawImage(const QRectF &r, const QImage &img, const QRe
                 SrcOverScaleFunc func = qScaleFunctions[d->rasterBuffer->format][img.format()];
                 if (func && (!clip || clip->hasRectClip)) {
                     func(d->rasterBuffer->buffer(), d->rasterBuffer->bytesPerLine(),
-                         img.bits(), img.bytesPerLine(),
+                         img.bits(), img.bytesPerLine(), img.height(),
                          qt_mapRect_non_normalizing(r, s->matrix), sr,
                          !clip ? d->deviceRect : clip->clipRect,
                          s->intOpacity);

@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtTest module of the Qt Toolkit.
@@ -146,6 +146,8 @@ namespace QTest
     Q_TESTLIB_EXPORT void *qGlobalData(const char *tagName, int typeId);
     Q_TESTLIB_EXPORT void *qElementData(const char *elementName, int metaTypeId);
     Q_TESTLIB_EXPORT QObject *testObject();
+
+    Q_TESTLIB_EXPORT const char *currentAppName();
 
     Q_TESTLIB_EXPORT const char *currentTestFunction();
     Q_TESTLIB_EXPORT const char *currentDataTag();

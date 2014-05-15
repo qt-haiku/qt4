@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtOpenGL module of the Qt Toolkit.
@@ -187,7 +187,8 @@ public:
             snapToPixelGrid(false),
             nativePaintingActive(false),
             inverseScale(1),
-            lastMaskTextureUsed(0)
+            lastMaskTextureUsed(0),
+            hasCompatibilityExtension(false)
     { }
 
     ~QGL2PaintEngineExPrivate();
@@ -318,6 +319,8 @@ public:
     QVector<GLuint> unusedIBOSToClean;
 
     const GLfloat *vertexAttribPointers[3];
+
+    bool hasCompatibilityExtension;
 };
 
 

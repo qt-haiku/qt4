@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the documentation of the Qt Toolkit.
@@ -1826,18 +1826,18 @@
 
     \snippet doc/src/snippets/code/doc_src_qmake-manual.pro 38
 
+    \bold{Note:} On Windows, specifying libraries with the \c{-l} option
+    will cause the library with the highest version
+    number to be used. For example, \c{math2.lib} could potentially be used
+    instead of \c{math.lib}. To avoid this ambiguity, we recommend that you
+    explicitly specify the library to be used by including the \c{.lib}
+    file name suffix, as in the example above.
+
     To specify a path containing spaces, quote the path using the technique
     mentioned in the \l{qmake Project Files#Whitespace}{qmake Project Files}
     document.
 
     \snippet doc/src/snippets/qmake/spaces.pro quoting library paths with spaces
-
-    \bold{Note:} On Windows, specifying libraries with the \c{-l} option,
-    as in the above example, will cause the library with the highest version
-    number to be used; for example, \c{libmath2.lib} could potentially be used
-    instead of \c{libmathlib}. To avoid this ambiguity, we recommend that you
-    explicitly specify the library to be used by including the \c{.lib}
-    file name suffix.
 
     \bold{Note:} On the Symbian platform, the build system makes a
     distinction between shared and
@@ -3223,19 +3223,23 @@
     \target SUBDIRS
     \section1 SUBDIRS
 
-    This variable, when used with the \l{#TEMPLATE}{\c subdirs template}
-    contains the names of all subdirectories or project files that contain
-    parts of the project that need be built. Each subdirectory specified
+    This variable, when used with the \c subdirs \l{#TEMPLATE}{template}
+    specifies the names of all subdirectories or project files that contain
+    parts of the project that need to be built. Each subdirectory specified
     using this variable must contain its own project file.
+
+    It is recommended that the project file in each subdirectory has the same
+    base name as the subdirectory itself, because that makes it possible to omit
+    the file name. For example, if the subdirectory is called \c myapp, the
+    project file in that directory should be called \c myapp.pro.
+
+    Alternatively, you can specify a relative path to a .pro file in any
+    directory. It is strongly recommended that you specify only paths in the
+    current project's parent directory or its subdirectories.
 
     For example:
 
     \snippet doc/src/snippets/code/doc_src_qmake-manual.pro 50
-
-    It is essential that the project file in each subdirectory has the same
-    name as the subdirectory itself, so that \l{qmake Manual#qmake}{\c qmake}
-    can find it. For example, if the subdirectory is called \c myapp then the
-    project file in that directory should be called \c myapp.pro.
 
     If you need to ensure that the subdirectories are built in the order in
     which they are specified, update the \l{#CONFIG}{CONFIG} variable to
@@ -4765,9 +4769,12 @@
     \l{qmake Manual#qmake}{\c qmake} will do this if the configuration
     supports PCH.
 
-    All platforms that support precompiled headers have the configuration
-    option \c precompile_header set. Using this option, you may trigger
-    conditional blocks in your project file to add settings when using PCH.
+    The MSVC and g++ specs targeting Windows (and Windows CE) enable
+    \c precompile_header by default.
+
+    Using this option, you may trigger
+    conditional blocks in your project file to add settings when using
+    precompiled headers.
     For example:
 
     \snippet doc/src/snippets/code/doc_src_qmake-manual.pro 106

@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtDBus module of the Qt Toolkit.
@@ -53,6 +53,7 @@
 #include "qdbusinterface_p.h"
 #include "qdbusutil_p.h"
 #include "qdbusconnectionmanager_p.h"
+#include "qdbuspendingcall_p.h"
 
 #include "qdbusthreaddebug_p.h"
 
@@ -625,7 +626,7 @@ QDBusPendingCall QDBusConnection::asyncCall(const QDBusMessage &message, int tim
         return QDBusPendingCall(0); // null pointer -> disconnected
     }
 
-    QDBusPendingCallPrivate *priv = d->sendWithReplyAsync(message, timeout);
+    QDBusPendingCallPrivate *priv = d->sendWithReplyAsync(message, 0, 0, 0, timeout);
     return QDBusPendingCall(priv);
 }
 

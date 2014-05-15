@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the plugins of the Qt Toolkit.
@@ -67,6 +67,11 @@ QCocoaWindow::QCocoaWindow(QWidget *tlw)
 
     [m_nsWindow makeKeyAndOrderFront:nil];
     [m_nsWindow setAcceptsMouseMovedEvents:YES];
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_7
+    if ([m_nsWindow respondsToSelector:@selector(setRestorable:)])
+        [m_nsWindow setRestorable: NO];
+#endif
 }
 
 QCocoaWindow::~QCocoaWindow()

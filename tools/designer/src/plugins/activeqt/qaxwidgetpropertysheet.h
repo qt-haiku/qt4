@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the Qt Designer of the Qt Toolkit.
@@ -66,6 +66,7 @@ public:
     explicit QAxWidgetPropertySheet(QDesignerAxWidget *object, QObject *parent = 0);
 
     virtual bool isEnabled(int index) const;
+    virtual QVariant property(int index) const;
     virtual void setProperty(int index, const QVariant &value);
     virtual bool reset(int index);
     int indexOf(const QString &name) const;

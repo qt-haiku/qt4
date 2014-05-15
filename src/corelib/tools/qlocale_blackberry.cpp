@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
@@ -60,7 +60,7 @@ static const char ppsRegionLocalePath[] = "/pps/services/locale/settings";
 static const char ppsLanguageLocalePath[] = "/pps/services/confstr/_CS_LOCALE";
 static const char ppsHourFormatPath[] = "/pps/system/settings";
 
-static const size_t ppsBufferSize = 256;
+static const int MAX_PPS_SIZE = 16000;
 
 QBBSystemLocaleData::QBBSystemLocaleData()
     : languageNotifier(0)
@@ -68,17 +68,20 @@ QBBSystemLocaleData::QBBSystemLocaleData()
     , measurementNotifier(0)
     , hourNotifier(0)
 {
+    // Do not use qWarning to log warnings if qt_safe_open fails to open the pps file
+    // since the user code may install a message handler that invokes QLocale API again
+    // (i.e QDate, QDateTime, ...) which will cause an infinite loop.
     if ((measurementFd = qt_safe_open(ppsUomPath, O_RDONLY)) == -1)
-        qWarning("Failed to open uom pps, errno=%d", errno);
+        fprintf(stderr, "Failed to open uom pps, errno=%d\n", errno);
 
     if ((regionFd = qt_safe_open(ppsRegionLocalePath, O_RDONLY)) == -1)
-        qWarning("Failed to open region pps, errno=%d", errno);
+        fprintf(stderr, "Failed to open region pps, errno=%d\n", errno);
 
     if ((languageFd = qt_safe_open(ppsLanguageLocalePath, O_RDONLY)) == -1)
-        qWarning("Failed to open language pps, errno=%d", errno);
+        fprintf(stderr, "Failed to open language pps, errno=%d\n", errno);
 
     if ((hourFd = qt_safe_open(ppsHourFormatPath, O_RDONLY)) == -1)
-        qWarning("Failed to open hour format pps, errno=%d", errno);
+       fprintf(stderr, "Failed to open hour format pps, errno=%d\n", errno);
 
     // we cannot call this directly, because by the time this constructor is
     // called, the event dispatcher has not yet been created, causing the
@@ -183,11 +186,31 @@ QByteArray QBBSystemLocaleData::readPpsValue(const char *ppsObject, int ppsFd)
     if (!ppsObject || ppsFd == -1)
         return result;
 
-    char buffer[ppsBufferSize];
 
-    int bytes = qt_safe_read(ppsFd, buffer, ppsBufferSize - 1);
+    // PPS objects are of unknown size, but must be read all at once.
+    // Relying on the file size may not be a good idea since the size may change before reading.
+    // Let's try with an initial size (512), and if the buffer is too small try with bigger one,
+    // until we succeed or until other non buffer-size-related error occurs.
+    // Using QVarLengthArray means the first try (of size == 512) uses a buffer on the stack - no allocation necessary.
+     // Hopefully that covers most use cases.
+    int bytes;
+    QVarLengthArray<char, 512> buffer;
+    for (;;) {
+        errno = 0;
+        bytes = qt_safe_read(ppsFd, buffer.data(), buffer.capacity() - 1);
+        const bool bufferIsTooSmall = (bytes == -1 && errno == EMSGSIZE && buffer.capacity() < MAX_PPS_SIZE);
+        if (!bufferIsTooSmall)
+            break;
+
+        buffer.resize(qMin(buffer.capacity()*2, MAX_PPS_SIZE));
+    }
+
+    // This method is called in the ctor(), so do not use qWarning to log warnings
+    // if qt_safe_read fails to read the pps file
+    // since the user code may install a message handler that invokes QLocale API again
+    // (i.e QDate, QDateTime, ...) which will cause a infinite loop.
     if (bytes == -1) {
-        qWarning("Failed to read Locale pps, errno=%d", errno);
+        fprintf(stderr, "Failed to read pps object:%s, errno=%d\n", ppsObject, errno);
         return result;
     }
     // ensure data is null terminated
@@ -195,7 +218,7 @@ QByteArray QBBSystemLocaleData::readPpsValue(const char *ppsObject, int ppsFd)
 
     pps_decoder_t ppsDecoder;
     pps_decoder_initialize(&ppsDecoder, 0);
-    if (pps_decoder_parse_pps_str(&ppsDecoder, buffer) == PPS_DECODER_OK) {
+    if (pps_decoder_parse_pps_str(&ppsDecoder, buffer.data()) == PPS_DECODER_OK) {
         pps_decoder_push(&ppsDecoder, 0);
         const char *ppsBuff;
         if (pps_decoder_get_string(&ppsDecoder, ppsObject, &ppsBuff) == PPS_DECODER_OK) {
@@ -289,9 +312,9 @@ QVariant QSystemLocale::query(QueryType type, QVariant in) const
     case DateToStringShort:
         return lc_region.toString(in.toDate(), QLocale::ShortFormat);
     case TimeToStringLong:
-        return lc_region.toString(in.toTime(), QLocale::LongFormat);
+        return lc_region.toString(in.toTime(), d->timeFormat(QLocale::LongFormat).toString());
     case TimeToStringShort:
-        return lc_region.toString(in.toTime(), QLocale::ShortFormat);
+        return lc_region.toString(in.toTime(), d->timeFormat(QLocale::ShortFormat).toString());
     case DateTimeToStringShort:
         return lc_region.toString(in.toDateTime(), d->dateTimeFormat(QLocale::ShortFormat).toString());
     case DateTimeToStringLong:

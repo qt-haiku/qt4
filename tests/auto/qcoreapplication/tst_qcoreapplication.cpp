@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -80,7 +80,7 @@ public:
 void tst_QCoreApplication::sendEventsOnProcessEvents()
 {
     int argc = 1;
-    char *argv[] = { "tst_qcoreapplication" };
+    char *argv[] = { const_cast<char*>(QTest::currentAppName()) };
     QCoreApplication app(argc, argv);
 
     EventSpy spy;
@@ -102,7 +102,7 @@ void tst_QCoreApplication::getSetCheck()
     // Test the property
     {
         int argc = 1;
-        char *argv[] = { "tst_qcoreapplication" };
+        char *argv[] = { const_cast<char*>(QTest::currentAppName()) };
         QCoreApplication app(argc, argv);
         QCOMPARE(app.property("applicationVersion").toString(), v);
     }
@@ -114,7 +114,7 @@ void tst_QCoreApplication::getSetCheck()
 void tst_QCoreApplication::qAppName()
 {
     int argc = 1;
-    char *argv[] = { "tst_qcoreapplication" };
+    char *argv[] = { const_cast<char*>(QTest::currentAppName()) };
     QCoreApplication app(argc, argv);
     QVERIFY(!::qAppName().isEmpty());
 }
@@ -123,7 +123,7 @@ void tst_QCoreApplication::argc()
 {
     {
         int argc = 1;
-        char *argv[] = { "tst_qcoreapplication" };
+        char *argv[] = { const_cast<char*>(QTest::currentAppName()) };
         QCoreApplication app(argc, argv);
         QCOMPARE(argc, 1);
         QCOMPARE(app.argc(), 1);
@@ -131,7 +131,7 @@ void tst_QCoreApplication::argc()
 
     {
         int argc = 4;
-        char *argv[] = { "tst_qcoreapplication", "arg1", "arg2", "arg3" };
+        char *argv[] = { const_cast<char*>(QTest::currentAppName()), "arg1", "arg2", "arg3" };
         QCoreApplication app(argc, argv);
         QCOMPARE(argc, 4);
         QCOMPARE(app.argc(), 4);
@@ -147,7 +147,7 @@ void tst_QCoreApplication::argc()
 
     {
         int argc = 2;
-        char *argv[] = { "tst_qcoreapplication", "-qmljsdebugger=port:3768,block" };
+        char *argv[] = { const_cast<char*>(QTest::currentAppName()), "-qmljsdebugger=port:3768,block" };
         QCoreApplication app(argc, argv);
         QCOMPARE(argc, 1);
         QCOMPARE(app.argc(), 1);
@@ -179,7 +179,7 @@ public:
 void tst_QCoreApplication::postEvent()
 {
     int argc = 1;
-    char *argv[] = { "tst_qcoreapplication" };
+    char *argv[] = { const_cast<char*>(QTest::currentAppName()) };
     QCoreApplication app(argc, argv);
 
     EventSpy spy;
@@ -264,7 +264,7 @@ void tst_QCoreApplication::postEvent()
 void tst_QCoreApplication::removePostedEvents()
 {
     int argc = 1;
-    char *argv[] = { "tst_qcoreapplication" };
+    char *argv[] = { const_cast<char*>(QTest::currentAppName()) };
     QCoreApplication app(argc, argv);
 
     EventSpy spy;
@@ -431,7 +431,7 @@ public:
 void tst_QCoreApplication::deliverInDefinedOrder()
 {
     int argc = 1;
-    char *argv[] = { "tst_qcoreapplication" };
+    char *argv[] = { const_cast<char*>(QTest::currentAppName()) };
     QCoreApplication app(argc, argv);
 
     DeliverInDefinedOrderObject obj(&app);
@@ -474,7 +474,7 @@ public:
 void tst_QCoreApplication::globalPostedEventsCount()
 {
     int argc = 1;
-    char *argv[] = { "tst_qcoreapplication" };
+    char *argv[] = { const_cast<char*>(QTest::currentAppName()) };
     QCoreApplication app(argc, argv);
 
     QCoreApplication::sendPostedEvents();
@@ -520,7 +520,7 @@ public:
 void tst_QCoreApplication::processEventsAlwaysSendsPostedEvents()
 {
     int argc = 1;
-    char *argv[] = { "tst_qcoreapplication" };
+    char *argv[] = { const_cast<char*>(QTest::currentAppName()) };
     QCoreApplication app(argc, argv);
 
     ProcessEventsAlwaysSendsPostedEventsObject object;
@@ -538,7 +538,7 @@ void tst_QCoreApplication::processEventsAlwaysSendsPostedEvents()
 void tst_QCoreApplication::reexec()
 {
     int argc = 1;
-    char *argv[] = { "tst_qcoreapplication" };
+    char *argv[] = { const_cast<char*>(QTest::currentAppName()) };
     QCoreApplication app(argc, argv);
 
     // exec once
@@ -553,7 +553,7 @@ void tst_QCoreApplication::reexec()
 void tst_QCoreApplication::execAfterExit()
 {
     int argc = 1;
-    char *argv[] = { "tst_qcoreapplication" };
+    char *argv[] = { const_cast<char*>(QTest::currentAppName()) };
     QCoreApplication app(argc, argv);
 
     app.exit(1);
@@ -564,7 +564,7 @@ void tst_QCoreApplication::execAfterExit()
 void tst_QCoreApplication::eventLoopExecAfterExit()
 {
     int argc = 1;
-    char *argv[] = { "tst_qcoreapplication" };
+    char *argv[] = { const_cast<char*>(QTest::currentAppName()) };
     QCoreApplication app(argc, argv);
 
     // exec once and exit
@@ -576,6 +576,19 @@ void tst_QCoreApplication::eventLoopExecAfterExit()
     QMetaObject::invokeMethod(&loop, "quit", Qt::QueuedConnection);
     QCOMPARE(loop.exec(), 0);
 }
+
+static void createQObjectOnDestruction()
+{
+    // Make sure that we can create a QObject after the last QObject has been
+    // destroyed (especially after QCoreApplication has).
+    //
+    // Before the fixes, this would cause a dangling pointer dereference. If
+    // the problem comes back, it's possible that the following causes no
+    // effect.
+    QObject obj;
+    obj.thread()->setProperty("testing", 1);
+}
+Q_DESTRUCTOR_FUNCTION(createQObjectOnDestruction)
 
 QTEST_APPLESS_MAIN(tst_QCoreApplication)
 #include "tst_qcoreapplication.moc"

@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the Qt Assistant of the Qt Toolkit.
@@ -90,6 +90,7 @@ HelpNetworkReply::HelpNetworkReply(const QNetworkRequest &request,
     TRACE_OBJ
     setRequest(request);
     setOpenMode(QIODevice::ReadOnly);
+    setUrl(request.url());
 
     setHeader(QNetworkRequest::ContentTypeHeader, mimeType);
     setHeader(QNetworkRequest::ContentLengthHeader, QByteArray::number(origLen));

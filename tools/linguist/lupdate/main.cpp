@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the Qt Linguist of the Qt Toolkit.
@@ -371,7 +371,7 @@ static void processProject(
         ConversionData cd;
         cd.m_noUiLines = options & NoUiLines;
         cd.m_codecForSource = codecForSource;
-        cd.m_includePath = visitor.values(QLatin1String("INCLUDEPATH"));
+        cd.m_includePath = visitor.absolutePathValues(QLatin1String("INCLUDEPATH"), pfi.absolutePath());
         QStringList sourceFiles = getSources(visitor, pfi.absolutePath());
         QSet<QString> sourceDirs;
         sourceDirs.insert(QDir::cleanPath(pfi.absolutePath()) + QLatin1Char('/'));

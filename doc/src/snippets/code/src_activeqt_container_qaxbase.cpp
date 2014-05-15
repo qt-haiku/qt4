@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the documentation of the Qt Toolkit.
@@ -145,12 +145,12 @@ ctrl->setControl("DOMAIN/user:password@server/{8E27C92B-1264-101C-8A2F-040224009
 
 
 //! [15]
-activeX->dynamicCall("Navigate(const QString&)", "qt.nokia.com");
+activeX->dynamicCall("Navigate(const QString&)", "www.qt-project.org");
 //! [15]
 
 
 //! [16]
-activeX->dynamicCall("Navigate(\"qt.nokia.com\")");
+activeX->dynamicCall("Navigate(\"www.qt-project.org\")");
 //! [16]
 
 

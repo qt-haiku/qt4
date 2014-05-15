@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtDBus module of the Qt Toolkit.
@@ -85,7 +85,6 @@ public:
     QList<int> metaTypes;
     int methodIdx;
 
-    bool autoDelete;
     // }
 
     mutable QMutex mutex;
@@ -103,7 +102,7 @@ public:
     // }
 
     QDBusPendingCallPrivate(const QDBusMessage &sent, QDBusConnectionPrivate *connection)
-        : sentMessage(sent), connection(connection), autoDelete(false), watcherHelper(0), pending(0), waitingForFinished(false)
+        : sentMessage(sent), connection(connection), watcherHelper(0), pending(0), waitingForFinished(false)
     { }
     ~QDBusPendingCallPrivate();
     bool setReplyCallback(QObject *target, const char *member);
