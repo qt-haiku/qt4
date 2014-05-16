@@ -342,15 +342,15 @@ void QRasterWindowSurface::flush(QWidget *widget, const QRegion &rgn, const QPoi
 	BView *view = widget->nativeView();
 	BLooper* looper = view->Looper();
 
-	if (looper->IsLocked())
-		return;
-	if(view->LockLooper()) {
+	if(!looper->IsLocked() && view->LockLooper()) {
 		QRect r = rgn.boundingRect();
 		BRect dst_region = BRect(r.x(), r.y(), r.x()+r.width(), r.y()+r.height());
 		BRect src_region = dst_region;
 		src_region.OffsetBy(offset.x(),offset.y());
 		view->DrawBitmap(d->image->bitmap, src_region, dst_region);
 		view->UnlockLooper();
+	} else {
+		qDebug("ERR(haiku): core draw loop failed!");
 	}
 #endif
 
