@@ -2760,7 +2760,7 @@ fi
 if [ -z "$MAKE" ]; then
     MAKE=
     for mk in gmake make; do
-        if "$WHICH" $mk >/dev/null 2>&1; then
+        if "$WHICH" $mk 2>/dev/null 2>&1; then
             MAKE=`"$WHICH" $mk`
             break
         fi
