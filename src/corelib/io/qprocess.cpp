@@ -39,7 +39,7 @@
 **
 ****************************************************************************/
 
-#define QPROCESS_DEBUG
+//#define QPROCESS_DEBUG
 
 #if defined QPROCESS_DEBUG
 #include <qdebug.h>
