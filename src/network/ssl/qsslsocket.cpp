@@ -2325,7 +2325,7 @@ QList<QByteArray> QSslSocketPrivate::unixRootCertDirectories()
                                << "/var/ssl/certs/" // AIX
                                << "/usr/local/ssl/certs/" // Solaris
                                << "/etc/openssl/certs/" // BlackBerry
-                               << "/boot/system/data/ssl" //Haiku
+                               << "/boot/system/data/ssl" // Haiku
                                << "/opt/openssl/certs/"; // HP-UX
 }
 
