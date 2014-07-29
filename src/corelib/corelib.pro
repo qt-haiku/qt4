@@ -29,7 +29,6 @@ qpa:mac {
 }
 mac:lib_bundle:DEFINES += QT_NO_DEBUG_PLUGIN_CHECK
 win32:DEFINES-=QT_NO_CAST_TO_ASCII
-haiku:DEFINES += QT_NO_SHAREDMEMORY
 
 QMAKE_LIBS += $$QMAKE_LIBS_CORE
 
@@ -49,6 +48,6 @@ symbian: {
     LIBS += -ltzclient
 }
 
-haiku: {
+haiku {
 	LIBS_PRIVATE += -lbe
 }

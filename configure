@@ -5388,7 +5388,7 @@ if [ "$XPLATFORM_SYMBIAN_SBSV2" = "no" ]; then
         if compileTest unix/ipc_posix "ipc_posix" ; then
             QCONFIG_FLAGS="$QCONFIG_FLAGS QT_POSIX_IPC"
         else
-            QCONFIG_FLAGS="$QCONFIG_FLAGS QT_NO_SYSTEMSEMAPHORE QT_NO_SHAREDMEMORY"
+            QCONFIG_FLAGS="$QCONFIG_FLAGS QT_NO_SYSTEMSEMAPHORE"
             if [ "$PLATFORM_QWS" = "yes" ]; then
                 QCONFIG_FLAGS="$QCONFIG_FLAGS QT_NO_SEMAPHORE QT_NO_QWS_MULTIPROCESS QT_NO_QWS_SHARE_FONTS"
             fi
