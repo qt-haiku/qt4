@@ -495,7 +495,6 @@ void QtHaikuWindow::updateWindowFlags(Qt::WindowFlags flags)
 	bool dialog = (type == Qt::Dialog
                    || type == Qt::Sheet
                    || (flags & Qt::MSWindowsFixedSizeDialogHint));
-//    bool desktop = (type == Qt::Desktop);
 	bool tool = (type == Qt::Tool || type == Qt::Drawer);
 	bool tooltip = (type == Qt::ToolTip);
 
@@ -503,59 +502,53 @@ void QtHaikuWindow::updateWindowFlags(Qt::WindowFlags flags)
 	window_feel wfeel = B_NORMAL_WINDOW_FEEL;
 	uint32 wflag = B_NO_WORKSPACE_ACTIVATION | B_NOT_ANCHORED_ON_ACTIVATE ;
 	
-	if(tool) {
+	if (tool) {
 		wlook = B_FLOATING_WINDOW_LOOK;	
 		wflag |= B_WILL_ACCEPT_FIRST_CLICK;			
 	}
 	
-	if(splash) {
+	if (splash) {
 		wlook = B_NO_BORDER_WINDOW_LOOK;			
 	}
 	
-	if(popup) {
+	if (popup) {
 		wlook = B_NO_BORDER_WINDOW_LOOK;			
 		wflag |= B_WILL_ACCEPT_FIRST_CLICK|B_AVOID_FRONT|B_AVOID_FOCUS;
-		flags |= Qt::WindowStaysOnTopHint;
+		wfeel = window_feel(1025);
 	}
-		
+#if 0	
 	if (dialog) {
-//					if (q->parentWidget())
-//						wfeel = B_MODAL_SUBSET_WINDOW_FEEL;
-//					else
-		//wfeel = B_MODAL_APP_WINDOW_FEEL;								
+		if (q->parentWidget())
+			wfeel = B_MODAL_SUBSET_WINDOW_FEEL;
+		else
+			wfeel = B_MODAL_APP_WINDOW_FEEL;								
 	}
-	
+#endif
 	if (tooltip) {
 		wlook = B_NO_BORDER_WINDOW_LOOK;
 		wflag |= B_WILL_ACCEPT_FIRST_CLICK|B_AVOID_FOCUS;
 		flags |= Qt::WindowStaysOnTopHint;
 	}
 
-    if (flags & Qt::FramelessWindowHint)
-    	wlook = B_NO_BORDER_WINDOW_LOOK;
-	if (flags & Qt::MSWindowsFixedSizeDialogHint)// (dialog)
-    	wflag |= B_NOT_RESIZABLE | B_NOT_ZOOMABLE;               
-
-	if (flags & Qt::CustomizeWindowHint){
+	if (flags & Qt::FramelessWindowHint)
+    		wlook = B_NO_BORDER_WINDOW_LOOK;
+	if (flags & Qt::MSWindowsFixedSizeDialogHint) // (dialog)
+    		wflag |= B_NOT_RESIZABLE | B_NOT_ZOOMABLE;
+	if (flags & Qt::CustomizeWindowHint) {
 		//if (flags & Qt::WindowTitleHint)
 			//{ };
 		//if (flags & Qt::WindowSystemMenuHint)
 			//{ };
 		if (!(flags & Qt::WindowMinimizeButtonHint))
-    		wflag |= B_NOT_MINIMIZABLE;
+			wflag |= B_NOT_MINIMIZABLE;
 		if (!(flags & Qt::WindowMaximizeButtonHint))
 			wflag |= B_NOT_ZOOMABLE;					
 		if (!(flags & Qt::WindowCloseButtonHint))
 			wflag |= B_NOT_CLOSABLE;
-		//if (flags & Qt::WindowContextHelpButtonHint)
-	//  	exsty |= WS_EX_CONTEXTHELP;
 	}
 
 	if (flags & Qt::WindowStaysOnTopHint)
-		wfeel = B_FLOATING_ALL_WINDOW_FEEL;	
-
-//	if (flags & Qt::WindowStaysOnBottomHint)
-//		wfeel = B_FLOATING_ALL_WINDOW_FEEL;	
+		wfeel = B_FLOATING_ALL_WINDOW_FEEL;
 	
 	SetLook(wlook);
 	SetFeel(wfeel);
