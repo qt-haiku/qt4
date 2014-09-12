@@ -44,6 +44,7 @@
 #include "msvc_vcxproj.h"
 #include <qstringlist.h>
 #include <qfileinfo.h>
+#include <strings.h>
 
 QT_BEGIN_NAMESPACE
 
