@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -99,7 +99,11 @@ QT_USE_NAMESPACE
 @class QT_MANGLE_NAMESPACE(QNSMenu);
 @class QT_MANGLE_NAMESPACE(QNSImageView);
 
-@interface QT_MANGLE_NAMESPACE(QNSStatusItem) : NSObject {
+@interface QT_MANGLE_NAMESPACE(QNSStatusItem) : NSObject
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_8
+    <NSUserNotificationCenterDelegate>
+#endif
+{
     NSStatusItem *item;
     QSystemTrayIcon *icon;
     QSystemTrayIconPrivate *iconPrivate;
@@ -112,6 +116,11 @@ QT_USE_NAMESPACE
 -(QRectF)geometry;
 - (void)triggerSelector:(id)sender button:(Qt::MouseButton)mouseButton;
 - (void)doubleClickSelector:(id)sender;
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_8
+- (BOOL)userNotificationCenter:(NSUserNotificationCenter *)center shouldPresentNotification:(NSUserNotification *)notification;
+- (void)userNotificationCenter:(NSUserNotificationCenter *)center didActivateNotification:(NSUserNotification *)notification;
+#endif
 @end
 
 @interface QT_MANGLE_NAMESPACE(QNSImageView) : NSImageView {
@@ -148,12 +157,27 @@ public:
     QSystemTrayIconSys(QSystemTrayIcon *icon, QSystemTrayIconPrivate *d) {
         QMacCocoaAutoReleasePool pool;
         item = [[QT_MANGLE_NAMESPACE(QNSStatusItem) alloc] initWithIcon:icon iconPrivate:d];
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_8
+        if (QSysInfo::MacintoshVersion >= QSysInfo::MV_10_8) {
+            [[NSUserNotificationCenter defaultUserNotificationCenter] setDelegate:item];
+        }
+#endif
     }
     ~QSystemTrayIconSys() {
         QMacCocoaAutoReleasePool pool;
         [[[item item] view] setHidden: YES];
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_8
+        if (QSysInfo::MacintoshVersion >= QSysInfo::MV_10_8) {
+            [[NSUserNotificationCenter defaultUserNotificationCenter] setDelegate:nil];
+        }
+#endif
         [item release];
     }
+
+    void emitMessageClicked() {
+        emit [item icon]->messageClicked();
+    }
+
     QT_MANGLE_NAMESPACE(QNSStatusItem) *item;
 };
 
@@ -233,70 +257,80 @@ bool QSystemTrayIconPrivate::supportsMessages_sys()
 
 void QSystemTrayIconPrivate::showMessage_sys(const QString &title, const QString &message, QSystemTrayIcon::MessageIcon icon, int)
 {
+    if (!sys)
+        return;
 
-    if(sys) {
-#ifdef QT_MAC_SYSTEMTRAY_USE_GROWL
-        // Make sure that we have Growl installed on the machine we are running on.
-        QCFType<CFURLRef> cfurl;
-        OSStatus status = LSGetApplicationForInfo(kLSUnknownType, kLSUnknownCreator,
-                                                  CFSTR("growlTicket"), kLSRolesAll, 0, &cfurl);
-        if (status == kLSApplicationNotFoundErr)
-            return;
-        QCFType<CFBundleRef> bundle = CFBundleCreate(0, cfurl);
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_8
+    if (QSysInfo::MacintoshVersion >= QSysInfo::MV_10_8) {
+        NSUserNotification *notification = [[NSUserNotification alloc] init];
+        notification.title = [NSString stringWithUTF8String:title.toUtf8().data()];
+        notification.informativeText = [NSString stringWithUTF8String:message.toUtf8().data()];
 
-        if (CFStringCompare(CFBundleGetIdentifier(bundle), CFSTR("com.Growl.GrowlHelperApp"),
-                    kCFCompareCaseInsensitive |  kCFCompareBackwards) != kCFCompareEqualTo)
-            return;
-        QPixmap notificationIconPixmap;
-        if(icon == QSystemTrayIcon::Information)
-            notificationIconPixmap = QApplication::style()->standardPixmap(QStyle::SP_MessageBoxInformation);
-        else if(icon == QSystemTrayIcon::Warning)
-            notificationIconPixmap = QApplication::style()->standardPixmap(QStyle::SP_MessageBoxWarning);
-        else if(icon == QSystemTrayIcon::Critical)
-            notificationIconPixmap = QApplication::style()->standardPixmap(QStyle::SP_MessageBoxCritical);
-        QTemporaryFile notificationIconFile;
-        QString notificationType(QLatin1String("Notification")), notificationIcon, notificationApp(QApplication::applicationName());
-        if(notificationApp.isEmpty())
-            notificationApp = QLatin1String("Application");
-        if(!notificationIconPixmap.isNull() && notificationIconFile.open()) {
-            QImageWriter writer(&notificationIconFile, "PNG");
-            if(writer.write(notificationIconPixmap.toImage()))
-                notificationIcon = QLatin1String("image from location \"file://") + notificationIconFile.fileName() + QLatin1String("\"");
-        }
-        const QString script(QLatin1String(
-            "tell application \"GrowlHelperApp\"\n"
-            "-- Make a list of all the notification types (all)\n"
-            "set the allNotificationsList to {\"") + notificationType + QLatin1String("\"}\n"
+        [[NSUserNotificationCenter defaultUserNotificationCenter] deliverNotification:notification];
 
-            "-- Make a list of the notifications (enabled)\n"
-            "set the enabledNotificationsList to {\"") + notificationType + QLatin1String("\"}\n"
-
-            "-- Register our script with growl.\n"
-            "register as application \"") + notificationApp + QLatin1String("\" all notifications allNotificationsList default notifications enabledNotificationsList\n"
-
-            "--	Send a Notification...\n") +
-            QLatin1String("notify with name \"") + notificationType +
-            QLatin1String("\" title \"") + title +
-            QLatin1String("\" description \"") + message +
-            QLatin1String("\" application name \"") + notificationApp +
-            QLatin1String("\" ")  + notificationIcon +
-            QLatin1String("\nend tell"));
-        qt_mac_execute_apple_script(script, 0);
-#elif 0
-        Q_Q(QSystemTrayIcon);
-        NSView *v = [[sys->item item] view];
-        NSWindow *w = [v window];
-        w = [[sys->item item] window];
-        qDebug() << w << v;
-        QPoint p(qRound([w frame].origin.x), qRound([w frame].origin.y));
-        qDebug() << p;
-        QBalloonTip::showBalloon(icon, message, title, q, QPoint(0, 0), msecs);
-#else
-        Q_UNUSED(icon);
-        Q_UNUSED(title);
-        Q_UNUSED(message);
-#endif
+        return;
     }
+#endif
+
+#ifdef QT_MAC_SYSTEMTRAY_USE_GROWL
+    // Make sure that we have Growl installed on the machine we are running on.
+    QCFType<CFURLRef> cfurl;
+    OSStatus status = LSGetApplicationForInfo(kLSUnknownType, kLSUnknownCreator,
+                                              CFSTR("growlTicket"), kLSRolesAll, 0, &cfurl);
+    if (status == kLSApplicationNotFoundErr)
+        return;
+    QCFType<CFBundleRef> bundle = CFBundleCreate(0, cfurl);
+
+    if (CFStringCompare(CFBundleGetIdentifier(bundle), CFSTR("com.Growl.GrowlHelperApp"),
+                kCFCompareCaseInsensitive |  kCFCompareBackwards) != kCFCompareEqualTo)
+        return;
+
+    QPixmap notificationIconPixmap;
+    if (icon == QSystemTrayIcon::Information)
+        notificationIconPixmap = QApplication::style()->standardPixmap(QStyle::SP_MessageBoxInformation);
+    else if (icon == QSystemTrayIcon::Warning)
+        notificationIconPixmap = QApplication::style()->standardPixmap(QStyle::SP_MessageBoxWarning);
+    else if (icon == QSystemTrayIcon::Critical)
+        notificationIconPixmap = QApplication::style()->standardPixmap(QStyle::SP_MessageBoxCritical);
+
+    QTemporaryFile notificationIconFile;
+    QString notificationType(QLatin1String("Notification")), notificationIcon, notificationApp(QApplication::applicationName());
+    if (notificationApp.isEmpty())
+        notificationApp = QLatin1String("Application");
+    if (!notificationIconPixmap.isNull() && notificationIconFile.open()) {
+        QImageWriter writer(&notificationIconFile, "PNG");
+        if (writer.write(notificationIconPixmap.toImage()))
+            notificationIcon = QLatin1String("image from location \"file://") + notificationIconFile.fileName() + QLatin1String("\"");
+    }
+    const QString script(QLatin1String(
+        "tell application \"System Events\"\n"
+        "set isRunning to (count of (every process whose bundle identifier is \"com.Growl.GrowlHelperApp\")) > 0\n"
+        "end tell\n"
+        "if isRunning\n"
+        "tell application id \"com.Growl.GrowlHelperApp\"\n"
+        "-- Make a list of all the notification types (all)\n"
+        "set the allNotificationsList to {\"") + notificationType + QLatin1String("\"}\n"
+
+        "-- Make a list of the notifications (enabled)\n"
+        "set the enabledNotificationsList to {\"") + notificationType + QLatin1String("\"}\n"
+
+        "-- Register our script with growl.\n"
+        "register as application \"") + notificationApp + QLatin1String("\" all notifications allNotificationsList default notifications enabledNotificationsList\n"
+
+        "-- Send a Notification...\n") +
+        QLatin1String("notify with name \"") + notificationType +
+        QLatin1String("\" title \"") + title +
+        QLatin1String("\" description \"") + message +
+        QLatin1String("\" application name \"") + notificationApp +
+        QLatin1String("\" ")  + notificationIcon +
+        QLatin1String("\nend tell\nend if"));
+    qt_mac_execute_apple_script(script, 0);
+#else
+    Q_UNUSED(icon);
+    Q_UNUSED(title);
+    Q_UNUSED(message);
+#endif
+
 }
 QT_END_NAMESPACE
 
@@ -357,7 +391,7 @@ QT_END_NAMESPACE
         [nsaltimage release];
     }
 
-    if ((clickCount == 2)) {
+    if (clickCount == 2) {
         [self menuTrackingDone:nil];
         [parent doubleClickSelector:self];
     } else {
@@ -475,6 +509,20 @@ QT_END_NAMESPACE
     qtsystray_sendActivated(icon, QSystemTrayIcon::DoubleClick);
 }
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_8
+- (BOOL)userNotificationCenter:(NSUserNotificationCenter *)center shouldPresentNotification:(NSUserNotification *)notification {
+    Q_UNUSED(center);
+    Q_UNUSED(notification);
+    return YES;
+}
+
+- (void)userNotificationCenter:(NSUserNotificationCenter *)center didActivateNotification:(NSUserNotification *)notification {
+    Q_UNUSED(center);
+    Q_UNUSED(notification);
+    emit iconPrivate->sys->emitMessageClicked();
+}
+#endif
+
 @end
 
 class QSystemTrayIconQMenu : public QMenu
@@ -532,11 +580,11 @@ private:
             [item setState:action->isChecked() ? NSOnState : NSOffState];
             [item setToolTip:(NSString*)QCFString::toCFStringRef(action->toolTip())];
             const QIcon icon = action->icon();
-            if(!icon.isNull()) {
+            if (!icon.isNull() && action->isIconVisibleInMenu()) {
 #ifndef QT_MAC_USE_COCOA
                 const short scale = GetMBarHeight();
 #else
-                const short scale = [[NSApp mainMenu] menuBarHeight];
+                const short scale = [[[NSApplication sharedApplication] mainMenu] menuBarHeight];
 #endif
                 NSImage *nsimage = static_cast<NSImage *>(qt_mac_create_nsimage(icon.pixmap(QSize(scale, scale))));
                 [item setImage: nsimage];

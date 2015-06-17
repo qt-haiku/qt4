@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -263,8 +263,8 @@ int qstrcmp(const char *str1, const char *str2)
 
 int qstricmp(const char *str1, const char *str2)
 {
-    register const uchar *s1 = reinterpret_cast<const uchar *>(str1);
-    register const uchar *s2 = reinterpret_cast<const uchar *>(str2);
+    const uchar *s1 = reinterpret_cast<const uchar *>(str1);
+    const uchar *s2 = reinterpret_cast<const uchar *>(str2);
     int res;
     uchar c;
     if (!s1 || !s2)
@@ -297,8 +297,8 @@ int qstricmp(const char *str1, const char *str2)
 
 int qstrnicmp(const char *str1, const char *str2, uint len)
 {
-    register const uchar *s1 = reinterpret_cast<const uchar *>(str1);
-    register const uchar *s2 = reinterpret_cast<const uchar *>(str2);
+    const uchar *s1 = reinterpret_cast<const uchar *>(str1);
+    const uchar *s2 = reinterpret_cast<const uchar *>(str2);
     int res;
     uchar c;
     if (!s1 || !s2)
@@ -323,7 +323,7 @@ int qstrcmp(const QByteArray &str1, const char *str2)
     const char *str1data = str1.constData();
     const char *str1end = str1data + str1.length();
     for ( ; str1data < str1end && *str2; ++str1data, ++str2) {
-        register int diff = int(uchar(*str1data)) - uchar(*str2);
+        int diff = int(uchar(*str1data)) - uchar(*str2);
         if (diff)
             // found a difference
             return diff;
@@ -359,8 +359,8 @@ int qstrcmp(const QByteArray &str1, const QByteArray &str2)
 #if 0
 static void createCRC16Table()                        // build CRC16 lookup table
 {
-    register unsigned int i;
-    register unsigned int j;
+    unsigned int i;
+    unsigned int j;
     unsigned short crc_tbl[16];
     unsigned int v0, v1, v2, v3;
     for (i = 0; i < 16; i++) {
@@ -412,7 +412,7 @@ static const quint16 crc_tbl[16] = {
 
 quint16 qChecksum(const char *data, uint len)
 {
-    register quint16 crc = 0xffff;
+    quint16 crc = 0xffff;
     uchar c;
     const uchar *p = reinterpret_cast<const uchar *>(data);
     while (len--) {
@@ -2679,7 +2679,7 @@ QByteArray QByteArray::mid(int pos, int len) const
 QByteArray QByteArray::toLower() const
 {
     QByteArray s(*this);
-    register uchar *p = reinterpret_cast<uchar *>(s.data());
+    uchar *p = reinterpret_cast<uchar *>(s.data());
     if (p) {
         while (*p) {
             *p = QChar::toLower((ushort)*p);
@@ -2702,7 +2702,7 @@ QByteArray QByteArray::toLower() const
 QByteArray QByteArray::toUpper() const
 {
     QByteArray s(*this);
-    register uchar *p = reinterpret_cast<uchar *>(s.data());
+    uchar *p = reinterpret_cast<uchar *>(s.data());
     if (p) {
         while (*p) {
             *p = QChar::toUpper((ushort)*p);

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the tools applications of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -535,8 +535,8 @@ void Configure::parseCmdLine()
             dictionary[ "BUILDDEV" ] = "yes";
         else if (configCmdLine.at(i) == "-nokia-developer") {
             cout << "Detected -nokia-developer option" << endl;
-            cout << "Digia employees and agents are allowed to use this software under" << endl;
-            cout << "the authority of Digia Plc and/or its subsidiary(-ies)" << endl;
+            cout << "The Qt Company employees and agents are allowed to use this software under" << endl;
+            cout << "the authority of The Qt Company Ltd" << endl;
             dictionary[ "BUILDNOKIA" ] = "yes";
             dictionary[ "BUILDDEV" ] = "yes";
             dictionary["LICENSE_CONFIRMED"] = "yes";
@@ -1375,7 +1375,8 @@ void Configure::parseCmdLine()
             qmakeSpec.endsWith("-msvc2008") ||
             qmakeSpec.endsWith("-msvc2010") ||
             qmakeSpec.endsWith("-msvc2012") ||
-            qmakeSpec.endsWith("-msvc2013")) {
+            qmakeSpec.endsWith("-msvc2013") ||
+            qmakeSpec.endsWith("-msvc2015")) {
             if (dictionary[ "MAKE" ].isEmpty()) dictionary[ "MAKE" ] = "nmake";
             dictionary[ "QMAKEMAKEFILE" ] = "Makefile.win32";
         } else if (qmakeSpec.contains("win32-g++")) {
@@ -2177,7 +2178,7 @@ bool Configure::findFile(const QString &fileName)
 {
     const QString file = fileName.toLower();
     const QString pathEnvVar = QString::fromLocal8Bit(getenv("PATH"));
-    const QString mingwPath = dictionary["QMAKESPEC"].endsWith("-g++") ?
+    const QString mingwPath = dictionary["QMAKESPEC"].contains("-g++") ?
         findFileInPaths("g++.exe", pathEnvVar) : QString();
 
     QString paths;
@@ -2249,7 +2250,7 @@ QString Configure::defaultTo(const QString &option)
     // By default we do not want to compile OCI driver when compiling with
     // MinGW, due to lack of such support from Oracle. It prob. wont work.
     // (Customer may force the use though)
-    if (dictionary["QMAKESPEC"].endsWith("-g++")
+    if (dictionary["QMAKESPEC"].contains("-g++")
         && option == "SQL_OCI")
         return "no";
 

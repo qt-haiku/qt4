@@ -1,7 +1,7 @@
 /****************************************************************************
 **
 ** Copyright (C) 2013 Olivier Goffart <ogoffart@woboq.com>
-** Contact: http://www.qt-project.org/legal
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the documentation of the Qt Toolkit.
 **
@@ -17,8 +17,8 @@
 **     notice, this list of conditions and the following disclaimer in
 **     the documentation and/or other materials provided with the
 **     distribution.
-**   * Neither the name of Digia Plc and its Subsidiary(-ies) nor the names
-**     of its contributors may be used to endorse or promote products derived
+**   * Neither the name of The Qt Company Ltd nor the names of its
+**     contributors may be used to endorse or promote products derived
 **     from this software without specific prior written permission.
 **
 **
@@ -88,7 +88,7 @@ public:
     Controller() {
         Worker *worker = new Worker;
         worker->moveToThread(&workerThread);
-        connect(workerThread, SIGNAL(finished()), worker, SLOT(deleteLater()));
+        connect(&workerThread, SIGNAL(finished()), worker, SLOT(deleteLater()));
         connect(this, SIGNAL(operate(QString)), worker, SLOT(doWork(QString)));
         connect(worker, SIGNAL(resultReady(QString)), this, SLOT(handleResults(QString)));
         workerThread.start();

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -136,13 +136,24 @@ class tst_Databases
 {
 
 public:
-    tst_Databases(): counter( 0 )
+    tst_Databases(): counter( 0 ), m_sqLitePrefix(QDir::tempPath())
     {
+        if (!m_sqLitePrefix.endsWith(QLatin1Char('/')))
+            m_sqLitePrefix += QLatin1Char('/');
+        m_sqLitePrefix += QLatin1String("foo");
+        m_sqLitePrefix += QString::number(QDateTime::currentDateTime().toMSecsSinceEpoch() % quint64(1000));
     }
 
     ~tst_Databases()
     {
         close();
+        for (int i = m_sqLiteFiles.size() - 1; i >= 0; --i) {
+            QFile sqLiteFile(m_sqLiteFiles.at(i));
+            if (sqLiteFile.exists() && !sqLiteFile.remove()) {
+                qWarning() << "Cannot remove " << QDir::toNativeSeparators(sqLiteFile.fileName())
+                           << ':' << sqLiteFile.errorString();
+            }
+        }
     }
 
     // returns a testtable consisting of the names of all database connections if
@@ -279,7 +290,7 @@ public:
 
 //      use in-memory database to prevent local files
 //         addDb("QSQLITE", ":memory:");
-         addDb( "QSQLITE", QDir::toNativeSeparators(QDir::tempPath()+"/foo.db") );
+         addDb( "QSQLITE", QDir::toNativeSeparators(sqLiteFileName()));
 //         addDb( "QSQLITE2", QDir::toNativeSeparators(QDir::tempPath()+"/foo2.db") );
 //         addDb( "QODBC3", "DRIVER={SQL SERVER};SERVER=iceblink.nokia.troll.no\\ICEBLINK", "troll", "trond", "" );
 //         addDb( "QODBC3", "DRIVER={SQL Native Client};SERVER=silence.nokia.troll.no\\SQLEXPRESS", "troll", "trond", "" );
@@ -569,8 +580,20 @@ public:
             return QString();
     }
 
+    QString sqLiteFileName() // Return a temporary file name for SQLite DB
+    {
+        const QString newFileName = m_sqLitePrefix + QLatin1Char('_')
+            + QString::number(m_sqLiteFiles.size()) + QLatin1String(".db");
+        m_sqLiteFiles.append(newFileName);
+        return newFileName;
+    }
+
     QStringList     dbNames;
     int      counter;
+
+private:
+    QString m_sqLitePrefix;
+    QStringList m_sqLiteFiles;
 };
 
 #endif

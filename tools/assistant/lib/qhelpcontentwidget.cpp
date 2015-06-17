@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the Qt Assistant of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -72,6 +72,7 @@ public:
 
 class QHelpContentProvider : public QThread
 {
+    Q_OBJECT
 public:
     QHelpContentProvider(QHelpEnginePrivate *helpEngine);
     ~QHelpContentProvider();
@@ -80,11 +81,13 @@ public:
     QHelpContentItem *rootItem();
     int nextChildCount() const;
 
+signals:
+    void finishedSuccessFully();
+
 private:
     void run();
 
     QHelpEnginePrivate *m_helpEngine;
-    QHelpContentItem *m_rootItem;
     QStringList m_filterAttributes;
     QQueue<QHelpContentItem*> m_rootItems;
     QMutex m_mutex;
@@ -195,7 +198,6 @@ QHelpContentProvider::QHelpContentProvider(QHelpEnginePrivate *helpEngine)
     : QThread(helpEngine)
 {
     m_helpEngine = helpEngine;
-    m_rootItem = 0;
     m_abort = false;
 }
 
@@ -219,22 +221,28 @@ void QHelpContentProvider::collectContents(const QString &customFilterName)
 
 void QHelpContentProvider::stopCollecting()
 {
-    if (!isRunning())
-        return;
-    m_mutex.lock();
-    m_abort = true;
-    m_mutex.unlock();
-    wait();
+    if (isRunning()) {
+        m_mutex.lock();
+        m_abort = true;
+        m_mutex.unlock();
+        wait();
+    }
+    qDeleteAll(m_rootItems);
+    m_rootItems.clear();
 }
 
 QHelpContentItem *QHelpContentProvider::rootItem()
 {
     QMutexLocker locker(&m_mutex);
+    if (m_rootItems.isEmpty())
+        return 0;
     return m_rootItems.dequeue();
 }
 
 int QHelpContentProvider::nextChildCount() const
 {
+    if (m_rootItems.isEmpty())
+        return 0;
     return m_rootItems.head()->childCount();
 }
 
@@ -246,8 +254,7 @@ void QHelpContentProvider::run()
     QHelpContentItem *item = 0;
 
     m_mutex.lock();
-    m_rootItem = new QHelpContentItem(QString(), QString(), 0);
-    m_rootItems.enqueue(m_rootItem);
+    QHelpContentItem * const rootItem = new QHelpContentItem(QString(), QString(), 0);
     QStringList atts = m_filterAttributes;
     const QStringList fileNames = m_helpEngine->orderedFileNameList;
     m_mutex.unlock();
@@ -255,9 +262,10 @@ void QHelpContentProvider::run()
     foreach (const QString &dbFileName, fileNames) {
         m_mutex.lock();
         if (m_abort) {
+            delete rootItem;
             m_abort = false;
             m_mutex.unlock();
-            break;
+            return;
         }
         m_mutex.unlock();
         QHelpDBReader reader(dbFileName,
@@ -285,8 +293,8 @@ CHECK_DEPTH:
                 if (depth == 0) {
                     m_mutex.lock();
                     item = new QHelpContentItem(title, link,
-                        m_helpEngine->fileNameReaderMap.value(dbFileName), m_rootItem);
-                    m_rootItem->appendChild(item);
+                        m_helpEngine->fileNameReaderMap.value(dbFileName), rootItem);
+                    rootItem->appendChild(item);
                     m_mutex.unlock();
                     stack.push(item);
                     _depth = 1;
@@ -310,8 +318,10 @@ CHECK_DEPTH:
         }
     }
     m_mutex.lock();
+    m_rootItems.enqueue(rootItem);
     m_abort = false;
     m_mutex.unlock();
+    emit finishedSuccessFully();
 }
 
 
@@ -346,9 +356,9 @@ QHelpContentModel::QHelpContentModel(QHelpEnginePrivate *helpEngine)
     d->rootItem = 0;
     d->qhelpContentProvider = new QHelpContentProvider(helpEngine);
 
-    connect(d->qhelpContentProvider, SIGNAL(finished()),
+    connect(d->qhelpContentProvider, SIGNAL(finishedSuccessFully()),
         this, SLOT(insertContents()), Qt::QueuedConnection);
-    connect(helpEngine->q, SIGNAL(setupStarted()), this, SLOT(invalidateContents()));
+    connect(helpEngine->q, SIGNAL(readersAboutToBeInvalidated()), this, SLOT(invalidateContents()));
 }
 
 /*!
@@ -385,6 +395,9 @@ void QHelpContentModel::createContents(const QString &customFilterName)
 
 void QHelpContentModel::insertContents()
 {
+    QHelpContentItem * const newRootItem = d->qhelpContentProvider->rootItem();
+    if (!newRootItem)
+        return;
     int count;
     if (d->rootItem) {
         count = d->rootItem->childCount() - 1;
@@ -396,7 +409,7 @@ void QHelpContentModel::insertContents()
 
     count = d->qhelpContentProvider->nextChildCount() - 1;
     beginInsertRows(QModelIndex(), 0, count > 0 ? count : 0);
-    d->rootItem = d->qhelpContentProvider->rootItem();
+    d->rootItem = newRootItem;
     endInsertRows();
     reset();
     emit contentsCreated();
@@ -583,3 +596,5 @@ void QHelpContentWidget::showLink(const QModelIndex &index)
 }
 
 QT_END_NAMESPACE
+
+#include "qhelpcontentwidget.moc"

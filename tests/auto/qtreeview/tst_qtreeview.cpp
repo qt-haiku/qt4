@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the test suite of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -249,6 +249,7 @@ private slots:
     void taskQTBUG_11466_keyboardNavigationRegression();
     void taskQTBUG_13567_removeLastItemRegression();
     void taskQTBUG_25333_adjustViewOptionsForIndex();
+    void taskQTBUG_37813_crash();
 
 #ifndef QT_NO_ANIMATION
     void quickExpandCollapse();
@@ -4091,6 +4092,32 @@ void tst_QTreeView::quickExpandCollapse()
 }
 #endif
 
+
+void tst_QTreeView::taskQTBUG_37813_crash()
+{
+    // QTBUG_37813: Crash in visual / logical index mapping in QTreeViewPrivate::adjustViewOptionsForIndex()
+    // when hiding/moving columns. It is reproduceable with a QTreeWidget only.
+#ifdef QT_BUILD_INTERNAL
+    QTreeWidget treeWidget;
+    treeWidget.setDragEnabled(true);
+    treeWidget.setColumnCount(2);
+    QList<QTreeWidgetItem *> items;
+    for (int r = 0; r < 2; ++r) {
+        QTreeWidgetItem *item = new QTreeWidgetItem();
+        for (int c = 0; c < treeWidget.columnCount(); ++c)
+            item->setText(c, QString::fromLatin1("Row %1 Column %2").arg(r).arg(c));
+        items.append(item);
+    }
+    treeWidget.addTopLevelItems(items);
+    treeWidget.setColumnHidden(0, true);
+    treeWidget.header()->moveSection(0, 1);
+    QItemSelection sel(treeWidget.model()->index(0, 0), treeWidget.model()->index(0, 1));
+    QRect rect;
+    QAbstractItemViewPrivate *av = static_cast<QAbstractItemViewPrivate*>(qt_widget_private(&treeWidget));
+    const QPixmap pixmap = av->renderToPixmap(sel.indexes(), &rect);
+    QVERIFY(pixmap.size().isValid());
+#endif // QT_BUILD_INTERNAL
+}
 
 QTEST_MAIN(tst_QTreeView)
 #include "tst_qtreeview.moc"

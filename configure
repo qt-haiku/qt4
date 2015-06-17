@@ -1,8 +1,8 @@
 #!/bin/sh
 #############################################################################
 ##
-## Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-## Contact: http://www.qt-project.org/legal
+## Copyright (C) 2015 The Qt Company Ltd.
+## Contact: http://www.qt.io/licensing/
 ##
 ## This file is the build configuration utility of the Qt Toolkit.
 ##
@@ -11,20 +11,21 @@
 ## Licensees holding valid commercial Qt licenses may use this file in
 ## accordance with the commercial license agreement provided with the
 ## Software or, alternatively, in accordance with the terms contained in
-## a written agreement between you and Digia.  For licensing terms and
-## conditions see http://qt.digia.com/licensing.  For further information
-## use the contact form at http://qt.digia.com/contact-us.
+## a written agreement between you and The Qt Company. For licensing terms
+## and conditions see http://www.qt.io/terms-conditions. For further
+## information use the contact form at http://www.qt.io/contact-us.
 ##
 ## GNU Lesser General Public License Usage
 ## Alternatively, this file may be used under the terms of the GNU Lesser
-## General Public License version 2.1 as published by the Free Software
-## Foundation and appearing in the file LICENSE.LGPL included in the
-## packaging of this file.  Please review the following information to
-## ensure the GNU Lesser General Public License version 2.1 requirements
-## will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+## General Public License version 2.1 or version 3 as published by the Free
+## Software Foundation and appearing in the file LICENSE.LGPLv21 and
+## LICENSE.LGPLv3 included in the packaging of this file. Please review the
+## following information to ensure the GNU Lesser General Public License
+## requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+## http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 ##
-## In addition, as a special exception, Digia gives you certain additional
-## rights.  These rights are described in the Digia Qt LGPL Exception
+## As a special exception, The Qt Company gives you certain additional
+## rights. These rights are described in The Qt Company LGPL Exception
 ## version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 ##
 ## GNU General Public License Usage
@@ -34,7 +35,6 @@
 ## packaging of this file.  Please review the following information to
 ## ensure the GNU General Public License version 3.0 requirements will be
 ## met: http://www.gnu.org/copyleft/gpl.html.
-##
 ##
 ## $QT_END_LICENSE$
 ##
@@ -497,7 +497,7 @@ elif [ $COMMERCIAL_USER = "yes" ]; then
             echo
             echo "You are using an old license file."
             echo
-            echo "Please install the license file supplied by Digia,"
+            echo "Please install the license file supplied by The Qt Company,"
             echo "or install the Qt Open Source Edition if you intend to"
             echo "develop free software."
             exit 1
@@ -605,7 +605,7 @@ elif [ $COMMERCIAL_USER = "yes" ]; then
             echo
             echo "You are not licensed for the $Platform platform."
             echo
-            echo "Please use contact form at http://qt.digia.com/contact-us to upgrade your license to"
+            echo "Please use contact form at http://www.qt.io/contact-us to upgrade your license to"
             echo "include the $Platform platform, or install the Qt Open Source Edition"
             echo "if you intend to develop free software."
             exit 1
@@ -746,6 +746,7 @@ CFG_INCREMENTAL=auto
 CFG_QCONFIG=full
 CFG_DEBUG=auto
 CFG_MYSQL_CONFIG=
+CFG_PSQL_CONFIG=
 CFG_DEBUG_RELEASE=no
 CFG_SHARED=yes
 CFG_SM=auto
@@ -1164,7 +1165,7 @@ while [ "$#" -gt 0 ]; do
         shift
         VAL=$1
         ;;
-    -prefix|-docdir|-headerdir|-plugindir|-importdir|-datadir|-libdir|-bindir|-translationdir|-sysconfdir|-examplesdir|-demosdir|-depths|-make|-nomake|-platform|-xplatform|-device-option|-buildkey|-sdk|-arch|-host-arch|-mysql_config|-sysroot)
+    -prefix|-docdir|-headerdir|-plugindir|-importdir|-datadir|-libdir|-bindir|-translationdir|-sysconfdir|-examplesdir|-demosdir|-depths|-make|-nomake|-platform|-xplatform|-device-option|-buildkey|-sdk|-arch|-host-arch|-mysql_config|-psql_config|-sysroot)
         VAR=`echo $1 | sed "s,^-\(.*\),\1,"`
         shift
         VAL="$1"
@@ -1376,6 +1377,9 @@ while [ "$#" -gt 0 ]; do
     mysql_config)
 	CFG_MYSQL_CONFIG="$VAL"
 	;;
+    psql_config)
+        CFG_PSQL_CONFIG="$VAL"
+        ;;
     prefix)
         QT_INSTALL_PREFIX="$VAL"
         ;;
@@ -3091,7 +3095,7 @@ if [ '!' -f "${XQMAKESPEC}/qplatformdefs.h" ]; then
     echo
     echo "      $XQMAKESPEC/qplatformdefs.h"
     echo
-    echo "   Please use the contact form at http://qt.digia.com/contact-us"
+    echo "   Please use the contact form at http://www.qt.io/contact-us"
     echo
     exit 2
 fi
@@ -3134,7 +3138,7 @@ if [ "$CFG_RTOS_ENABLED" = "no" ]; then
             echo ""
             echo "You are not licensed for Qt for `basename $XPLATFORM`."
             echo ""
-            echo "Please use the contact form at http://qt.digia.com/contact-us"
+            echo "Please use the contact form at http://www.qt.io/contact-us"
             echo "to upgrade your license to include this platform, or install"
             echo "the Qt Open Source Edition if you intend to develop free software."
             exit 1
@@ -3238,7 +3242,7 @@ if [ -z "${CFG_HOST_ARCH}" ]; then
         fi
         CFG_HOST_ARCH=powerpc
         ;;
-    *:*:ppc64)
+    *:*:ppc64*)
         if [ "$OPT_VERBOSE" = "yes" ]; then
             echo "    64-bit PowerPC (powerpc)"
         fi
@@ -3250,17 +3254,17 @@ if [ -z "${CFG_HOST_ARCH}" ]; then
     	fi
     	CFG_HOST_ARCH=s390
     	;;
+    *:*:aarch64*|*:*:arm64*)
+        if [ "$OPT_VERBOSE" = "yes" ]; then
+            echo "    AArch64 (aarch64)"
+        fi
+        CFG_HOST_ARCH=aarch64
+        ;;
     *:*:arm*)
         if [ "$OPT_VERBOSE" = "yes" ]; then
             echo "    ARM (arm)"
         fi
         CFG_HOST_ARCH=arm
-        ;;
-    *:*:aarch64*)
-        if [ "$OPT_VERBOSE" = "yes" ]; then
-            echo "    AArch64 (aarch64)"
-        fi
-        CFG_HOST_ARCH=aarch64
         ;;
     Linux:*:sparc*)
         if [ "$OPT_VERBOSE" = "yes" ]; then
@@ -4699,7 +4703,7 @@ elif [ "$Edition" != "OpenSource" ]; then
                     echo "  Your support and upgrade period has expired."
                     echo
                     echo "  You are no longer licensed to use this software. Please"
-                    echo "  use the contact form at http://qt.digia.com/contact-us to"
+                    echo "  use the contact form at http://www.qt.io/contact-us to"
                     echo "  purchase license, or install the Qt Open Source Edition"
                     echo "  if you intend to develop free software."
                     echo
@@ -4718,7 +4722,7 @@ elif [ "$Edition" != "OpenSource" ]; then
                     echo "  support, nor are you entitled to use any more recent"
                     echo "  Qt releases."
                     echo
-                    echo "  Please use the contact form at http://qt.digia.com/contact-us"
+                    echo "  Please use the contact form at http://www.qt.io/contact-us"
                     echo "  to renew your support and upgrades for this license."
                     echo
                     echo "WARNING  WARNING  WARNING  WARNING"
@@ -4733,7 +4737,7 @@ elif [ "$Edition" != "OpenSource" ]; then
                 echo "  Your Evaluation license has expired."
                 echo
                 echo "  You are no longer licensed to use this software. Please"
-                echo "  use the contact form at http://qt.digia.com/contact-us to"
+                echo "  use the contact form at http://www.qt.io/contact-us to"
                 echo "  purchase license, or install the Qt Open Source Edition"
                 echo "  if you intend to develop free software."
                 echo
@@ -5596,10 +5600,11 @@ for _SQLDR in $CFG_SQL_AVAILABLE; do
             ;;
         psql)
             if [ "$CFG_SQL_psql" != "no" ]; then
+                [ -z "$CFG_PSQL_CONFIG" ] && CFG_PSQL_CONFIG=`"$WHICH" pg_config`
                 # Be careful not to use native pg_config when cross building.
-                if [ "$XPLATFORM_MINGW" != "yes" ] && "$WHICH" pg_config >/dev/null 2>&1; then
-                    QT_CFLAGS_PSQL=`pg_config --includedir 2>/dev/null`
-                    QT_LFLAGS_PSQL=`pg_config --libdir 2>/dev/null`
+                if [ "$XPLATFORM_MINGW" != "yes" ] && [ -x "$CFG_PSQL_CONFIG" ]; then
+                    QT_CFLAGS_PSQL=`$CFG_PSQL_CONFIG --includedir 2>/dev/null`
+                    QT_LFLAGS_PSQL=`$CFG_PSQL_CONFIG --libdir 2>/dev/null`
                 fi
                 [ -z "$QT_CFLAGS_PSQL" ] || QT_CFLAGS_PSQL="-I$QT_CFLAGS_PSQL"
                 [ -z "$QT_LFLAGS_PSQL" ] || QT_LFLAGS_PSQL="-L$QT_LFLAGS_PSQL"
@@ -7757,7 +7762,7 @@ case "$XPLATFORM" in
     *-g++*)
 	# Check gcc's version
 	case "$(${QMAKE_CONF_COMPILER} -dumpversion)" in
-	    4*|3.4*)
+	    5*|4*|3.4*)
 		;;
             3.3*)
                 canBuildWebKit="no"
@@ -8059,6 +8064,11 @@ g++*)
         QT_GCC_MINOR_VERSION=`echo $COMPILER_VERSION | sed 's,^\([0-9]*\)\.\([0-9]*\).*,\2,'`
         QT_GCC_PATCH_VERSION=0
         ;;
+    *)
+        QT_GCC_MAJOR_VERSION=$COMPILER_VERSION
+        QT_GCC_MINOR_VERSION=0
+        QT_GCC_PATCH_VERSION=0
+        ;;
     esac
 
     case "$COMPILER_VERSION" in
@@ -8068,7 +8078,7 @@ g++*)
     3.*)
         COMPILER_VERSION="3.*"
         ;;
-    4.*)
+    5*|4.*)
         COMPILER_VERSION="4"
         ;;
     *)

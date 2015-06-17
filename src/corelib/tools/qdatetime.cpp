@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -453,22 +453,6 @@ int QDate::daysInYear() const
     January 2000 has week number 52 in the year 1999, and 31 December
     2002 has week number 1 in the year 2003.
 
-    \legalese
-    Copyright (c) 1989 The Regents of the University of California.
-    All rights reserved.
-
-    Redistribution and use in source and binary forms are permitted
-    provided that the above copyright notice and this paragraph are
-    duplicated in all such forms and that any documentation,
-    advertising materials, and other materials related to such
-    distribution and use acknowledge that the software was developed
-    by the University of California, Berkeley.  The name of the
-    University may not be used to endorse or promote products derived
-    from this software without specific prior written permission.
-    THIS SOFTWARE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS OR
-    IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
-    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
-
     \sa isValid()
 */
 
@@ -478,46 +462,29 @@ int QDate::weekNumber(int *yearNumber) const
         return 0;
 
     int year = QDate::year();
-    int yday = dayOfYear() - 1;
+    int yday = dayOfYear();
     int wday = dayOfWeek();
-    if (wday == 7)
-        wday = 0;
-    int w;
 
-    for (;;) {
-        int len;
-        int bot;
-        int top;
+    int week = (yday - wday + 10) / 7;
 
-        len = isLeapYear(year) ? 366 : 365;
-        /*
-        ** What yday (-3 ... 3) does
-        ** the ISO year begin on?
-        */
-        bot = ((yday + 11 - wday) % 7) - 3;
-        /*
-        ** What yday does the NEXT
-        ** ISO year begin on?
-        */
-        top = bot - (len % 7);
-        if (top < -3)
-            top += 7;
-        top += len;
-        if (yday >= top) {
-            ++year;
-            w = 1;
-            break;
-        }
-        if (yday >= bot) {
-            w = 1 + ((yday - bot) / 7);
-            break;
-        }
+    if (week == 0) {
+        // last week of previous year
         --year;
-        yday += isLeapYear(year) ? 366 : 365;
+        week = (yday + 365 + (QDate::isLeapYear(year) ? 1 : 0) - wday + 10) / 7;
+        Q_ASSERT(week == 52 || week == 53);
+    } else if (week == 53) {
+        // maybe first week of next year
+        int w = (yday - 365 - (QDate::isLeapYear(year + 1) ? 1 : 0) - wday + 10) / 7;
+        if (w > 0) {
+            ++year;
+            week = w;
+        }
+        Q_ASSERT(week == 53 || week == 1);
     }
+
     if (yearNumber != 0)
         *yearNumber = year;
-    return w;
+    return week;
 }
 
 #ifndef QT_NO_TEXTDATE
@@ -1533,7 +1500,7 @@ int QTime::msec() const
     Returns the time as a string. Milliseconds are not included. The
     \a format parameter determines the format of the string.
 
-    If \a format is Qt::TextDate, the string format is HH:MM:SS; e.g. 1
+    If \a format is Qt::TextDate, the string format is HH:mm:ss; e.g. 1
     second before midnight would be "23:59:59".
 
     If \a format is Qt::ISODate, the string format corresponds to the

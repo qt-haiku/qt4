@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the examples of the Qt Toolkit.
 **
@@ -17,8 +17,8 @@
 **     notice, this list of conditions and the following disclaimer in
 **     the documentation and/or other materials provided with the
 **     distribution.
-**   * Neither the name of Digia Plc and its Subsidiary(-ies) nor the names
-**     of its contributors may be used to endorse or promote products derived
+**   * Neither the name of The Qt Company Ltd nor the names of its
+**     contributors may be used to endorse or promote products derived
 **     from this software without specific prior written permission.
 **
 **
@@ -41,15 +41,29 @@
 #include "imagewidget.h"
 #include "mainwidget.h"
 
+#include <QScreen>
+#include <QApplication>
+#include <QDesktopWidget>
+#include <QDir>
+
 MainWidget::MainWidget(QWidget *parent)
     : QMainWindow(parent)
+    , imageWidget(new ImageWidget(this))
 {
-    resize(400, 300);
-    imageWidget = new ImageWidget(this);
     setCentralWidget(imageWidget);
+    const QRect screenGeometry = QApplication::desktop()->availableGeometry();
+    QRect geometry(QPoint(0, 0), QSize(screenGeometry.width() * 3 / 4, screenGeometry.height() * 3 / 4));
+    geometry.moveCenter(screenGeometry.center());
+    setGeometry(geometry);
 }
 
 void MainWidget::openDirectory(const QString &path)
 {
+    setWindowTitle(QDir::toNativeSeparators(path));
     imageWidget->openDirectory(path);
+}
+
+void MainWidget::grabGestures(const QList<Qt::GestureType> &gestures)
+{
+    imageWidget->grabGestures(gestures);
 }

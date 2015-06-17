@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the tools applications of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -84,6 +84,8 @@ struct CompilerInfo{
     {CC_NET2012, "Microsoft (R) 32-bit C/C++ Optimizing Compiler.NET 2012 (11.0)", "Software\\Wow6432Node\\Microsoft\\VisualStudio\\SxS\\VC7\\11.0", "cl.exe"}, // link.exe, lib.exe
     {CC_NET2013, "Microsoft (R) 32-bit C/C++ Optimizing Compiler.NET 2013 (12.0)", "Software\\Microsoft\\VisualStudio\\SxS\\VC7\\12.0", "cl.exe"}, // link.exe, lib.exe
     {CC_NET2013, "Microsoft (R) 32-bit C/C++ Optimizing Compiler.NET 2013 (12.0)", "Software\\Wow6432Node\\Microsoft\\VisualStudio\\SxS\\VC7\\12.0", "cl.exe"}, // link.exe, lib.exe
+    {CC_NET2015, "Microsoft (R) 32-bit C/C++ Optimizing Compiler.NET 2015 (14.0)", "Software\\Microsoft\\VisualStudio\\SxS\\VC7\\14.0", "cl.exe"}, // link.exe, lib.exe
+    {CC_NET2015, "Microsoft (R) 32-bit C/C++ Optimizing Compiler.NET 2015 (14.0)", "Software\\Wow6432Node\\Microsoft\\VisualStudio\\SxS\\VC7\\14.0", "cl.exe"}, // link.exe, lib.exe
     {CC_UNKNOWN, "Unknown", 0, 0},
 };
 
@@ -109,6 +111,9 @@ QString Environment::detectQMakeSpec()
 {
     QString spec;
     switch (detectCompiler()) {
+    case CC_NET2015:
+        spec = "win32-msvc2015";
+        break;
     case CC_NET2013:
         spec = "win32-msvc2013";
         break;

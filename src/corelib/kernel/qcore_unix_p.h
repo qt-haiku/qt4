@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -173,7 +173,7 @@ static inline int qt_safe_open(const char *pathname, int flags, mode_t mode = 07
 #ifdef O_CLOEXEC
     flags |= O_CLOEXEC;
 #endif
-    register int fd;
+    int fd;
     EINTR_LOOP(fd, QT_OPEN(pathname, flags, mode));
 
     // unknown flags are ignored, so we have no way of verifying if
@@ -196,7 +196,7 @@ static inline int qt_safe_pipe(int pipefd[2], int flags = 0)
     Q_ASSERT((flags & ~O_NONBLOCK) == 0);
 #endif
 
-    register int ret;
+    int ret;
 #if QT_UNIX_SUPPORTS_THREADSAFE_CLOEXEC && defined(O_CLOEXEC)
     // use pipe2
     flags |= O_CLOEXEC;
@@ -228,7 +228,7 @@ static inline int qt_safe_dup(int oldfd, int atleast = 0, int flags = FD_CLOEXEC
 {
     Q_ASSERT(flags == FD_CLOEXEC || flags == 0);
 
-    register int ret;
+    int ret;
 #ifdef F_DUPFD_CLOEXEC
     // use this fcntl
     if (flags & FD_CLOEXEC) {
@@ -252,7 +252,7 @@ static inline int qt_safe_dup2(int oldfd, int newfd, int flags = FD_CLOEXEC)
 {
     Q_ASSERT(flags == FD_CLOEXEC || flags == 0);
 
-    register int ret;
+    int ret;
 #if QT_UNIX_SUPPORTS_THREADSAFE_CLOEXEC && defined(O_CLOEXEC)
     // use dup3
     if (flags & FD_CLOEXEC) {
@@ -296,7 +296,7 @@ static inline qint64 qt_safe_write_nosignal(int fd, const void *data, qint64 len
 
 static inline int qt_safe_close(int fd)
 {
-    register int ret;
+    int ret;
     EINTR_LOOP(ret, QT_CLOSE(fd));
     return ret;
 }

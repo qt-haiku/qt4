@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -439,7 +439,7 @@ bool QWinInputContext::endComposition()
 {
     QWidget *fw = focusWidget();
 #ifdef Q_IME_DEBUG
-    qDebug("endComposition! fw = %s", fw ? fw->className() : "(null)");
+    qDebug() << "endComposition! fw=" <<  fw;
 #endif
     bool result = true;
     if(imePosition == -1 || recursionGuard)
@@ -483,7 +483,7 @@ void QWinInputContext::reset()
     QWidget *fw = focusWidget();
 
 #ifdef Q_IME_DEBUG
-    qDebug("sending accept to focus widget %s", fw ? fw->className() : "(null)");
+    qDebug() << "sending accept to focus widget" <<  fw;
 #endif
 
     if (fw && imePosition != -1) {
@@ -538,20 +538,20 @@ bool QWinInputContext::composition(LPARAM lParam)
 #ifdef Q_IME_DEBUG
     QString str;
     if (lParam & GCS_RESULTSTR)
-        str += "RESULTSTR ";
+        str += QLatin1String("RESULTSTR ");
     if (lParam & GCS_COMPSTR)
-        str += "COMPSTR ";
+        str += QLatin1String("COMPSTR ");
     if (lParam & GCS_COMPATTR)
-        str += "COMPATTR ";
+        str += QLatin1String("COMPATTR ");
     if (lParam & GCS_CURSORPOS)
-        str += "CURSORPOS ";
+        str += QLatin1String("CURSORPOS ");
     if (lParam & GCS_COMPCLAUSE)
-        str += "COMPCLAUSE ";
+        str += QLatin1String("COMPCLAUSE ");
     if (lParam & CS_INSERTCHAR)
-       str += "INSERTCHAR ";
+       str += QLatin1String("INSERTCHAR ");
     if (lParam & CS_NOMOVECARET)
-       str += "NOMOVECARET ";
-    qDebug("composition, lParam=(%x) %s imePosition=%d", lParam, str.latin1(), imePosition);
+       str += QLatin1String("NOMOVECARET ");
+    qDebug("composition, lParam=(%x) %s imePosition=%d", lParam, qPrintable(str), imePosition);
 #endif
 
     bool result = true;
@@ -690,7 +690,7 @@ void QWinInputContext::updateImeStatus(QWidget *w, bool hasFocus)
             && !(focusProxyWidget->inputMethodHints() & (Qt::ImhExclusiveInputMask | Qt::ImhHiddenText));
     bool hasIme = e && hasFocus;
 #ifdef Q_IME_DEBUG
-    qDebug("%s HasFocus = %d hasIme = %d e = %d ", w->className(), hasFocus, hasIme, e);
+    qDebug("%s HasFocus = %d hasIme = %d e = %d ", w->metaObject()->className(), hasFocus, hasIme, e);
 #endif
     if (hasFocus || e) {
         if (isInPopup(w))
@@ -710,7 +710,7 @@ void QWinInputContext::enablePopupChild(QWidget *w, bool e)
     if (!w || !isInPopup(w))
         return;
 #ifdef Q_IME_DEBUG
-    qDebug("enablePopupChild: w=%s, enable = %s", w ? w->className() : "(null)" , e ? "true" : "false");
+    qDebug() << "enablePopupChild: w=" << w << "enable=" << e;
 #endif
     QWidget *parent = findParentforPopup(w);
     if (parent) {
@@ -728,7 +728,7 @@ void QWinInputContext::enable(QWidget *w, bool e)
 {
     if(w) {
 #ifdef Q_IME_DEBUG
-        qDebug("enable: w=%s, enable = %s", w ? w->className() : "(null)" , e ? "true" : "false");
+        qDebug() <<"enable: w=" << w << "enable=" << e;
 #endif
         if (!w->testAttribute(Qt::WA_WState_Created))
             return;

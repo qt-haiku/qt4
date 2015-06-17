@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the qmake application of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -201,13 +201,13 @@ const char _slnProjectMid[]     = "\") = ";
 const char _slnProjectEnd[]     = "\nEndProject";
 const char _slnGlobalBeg[]      = "\nGlobal";
 const char _slnGlobalEnd[]      = "\nEndGlobal";
-const char _slnSolutionConf[]   = "\n\tGlobalSection(SolutionConfiguration) = preSolution"
-                                  "\n\t\tConfigName.0 = Debug|Win32"
-                                  "\n\t\tConfigName.1 = Release|Win32"
+const char _slnSolutionConf[]   = "\n\tGlobalSection(SolutionConfigurationPlatforms) = preSolution"
+                                  "\n\t\tDebug|Win32 = Debug|Win32"
+                                  "\n\t\tRelease|Win32 = Release|Win32"
                                   "\n\tEndGlobalSection";
 const char _slnProjDepBeg[]     = "\n\tGlobalSection(ProjectDependencies) = postSolution";
 const char _slnProjDepEnd[]     = "\n\tEndGlobalSection";
-const char _slnProjConfBeg[]    = "\n\tGlobalSection(ProjectConfiguration) = postSolution";
+const char _slnProjConfBeg[]    = "\n\tGlobalSection(ProjectConfigurationPlatforms) = postSolution";
 const char _slnProjRelConfTag1[]= ".Release|%1.ActiveCfg = Release|";
 const char _slnProjRelConfTag2[]= ".Release|%1.Build.0 = Release|";
 const char _slnProjDbgConfTag1[]= ".Debug|%1.ActiveCfg = Debug|";
@@ -373,6 +373,21 @@ QUuid VcprojGenerator::increaseUUID(const QUuid &id)
     result.data4[6] = uchar((dataLast  >>  8) & 0xff);
     result.data4[7] = uchar(dataLast          & 0xff);
     return result;
+}
+
+bool VcprojGenerator::isStandardSuffix(const QString &suffix) const
+{
+    if (!project->values("QMAKE_APP_FLAG").isEmpty()) {
+        if (suffix.compare("exe", Qt::CaseInsensitive) == 0)
+            return true;
+    } else if (project->isActiveConfig("shared")) {
+        if (suffix.compare("dll", Qt::CaseInsensitive) == 0)
+            return true;
+    } else {
+        if (suffix.compare("lib", Qt::CaseInsensitive) == 0)
+            return true;
+    }
+    return false;
 }
 
 QStringList VcprojGenerator::collectSubDirs(QMakeProject *proj)
@@ -917,10 +932,12 @@ void VcprojGenerator::initConfiguration()
     if (!conf.OutputDirectory.endsWith("\\"))
         conf.OutputDirectory += '\\';
     if (conf.CompilerVersion >= NET2010) {
-        // The target name could have been changed.
-        conf.PrimaryOutput = project->first("TARGET");
-        if ( !conf.PrimaryOutput.isEmpty() && !project->first("TARGET_VERSION_EXT").isEmpty() && project->isActiveConfig("shared"))
-            conf.PrimaryOutput.append(project->first("TARGET_VERSION_EXT"));
+        const QFileInfo targetInfo = fileInfo(project->first("MSVCPROJ_TARGET"));
+        conf.PrimaryOutput = targetInfo.completeBaseName();
+
+        const QString targetSuffix = targetInfo.suffix();
+        if (!isStandardSuffix(targetSuffix))
+            conf.PrimaryOutputExtension = '.' + targetSuffix;
     }
 
     conf.Name = project->values("BUILD_NAME").join(" ");
@@ -1283,7 +1300,8 @@ void VcprojGenerator::initGeneratedFiles()
     vcProject.GeneratedFiles.addFiles(project->values("GENERATED_SOURCES"));
     vcProject.GeneratedFiles.addFiles(project->values("GENERATED_FILES"));
     vcProject.GeneratedFiles.addFiles(project->values("IDLSOURCES"));
-    vcProject.GeneratedFiles.addFiles(project->values("RES_FILE"));
+    if (project->values("RC_FILE").isEmpty())
+        vcProject.GeneratedFiles.addFiles(project->values("RES_FILE"));
     vcProject.GeneratedFiles.addFiles(project->values("QMAKE_IMAGE_COLLECTION"));   // compat
     if(!extraCompilerOutputs.isEmpty())
         vcProject.GeneratedFiles.addFiles(extraCompilerOutputs.keys());

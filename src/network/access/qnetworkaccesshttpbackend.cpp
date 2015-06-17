@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtNetwork module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -193,6 +193,7 @@ QNetworkAccessHttpBackendFactory::create(QNetworkAccessManager::Operation op,
 QNetworkAccessHttpBackend::QNetworkAccessHttpBackend()
     : QNetworkAccessBackend()
     , statusCode(0)
+    , uploadByteDevicePosition(false)
     , pendingDownloadDataEmissions(new QAtomicInt())
     , pendingDownloadProgressEmissions(new QAtomicInt())
     , loadingFromCache(false)
@@ -610,9 +611,9 @@ void QNetworkAccessHttpBackend::postRequest()
             forwardUploadDevice->setParent(delegate); // needed to make sure it is moved on moveToThread()
             delegate->httpRequest.setUploadByteDevice(forwardUploadDevice);
 
-            // From main thread to user thread:
-            QObject::connect(this, SIGNAL(haveUploadData(QByteArray, bool, qint64)),
-                             forwardUploadDevice, SLOT(haveDataSlot(QByteArray, bool, qint64)), Qt::QueuedConnection);
+            // From user thread to http thread:
+            QObject::connect(this, SIGNAL(haveUploadData(qint64,QByteArray,bool,qint64)),
+                forwardUploadDevice, SLOT(haveDataSlot(qint64,QByteArray,bool,qint64)), Qt::QueuedConnection);
             QObject::connect(uploadByteDevice.data(), SIGNAL(readyRead()),
                              forwardUploadDevice, SIGNAL(readyRead()),
                              Qt::QueuedConnection);
@@ -620,8 +621,8 @@ void QNetworkAccessHttpBackend::postRequest()
             // From http thread to user thread:
             QObject::connect(forwardUploadDevice, SIGNAL(wantData(qint64)),
                              this, SLOT(wantUploadDataSlot(qint64)));
-            QObject::connect(forwardUploadDevice, SIGNAL(processedData(qint64)),
-                             this, SLOT(sentUploadDataSlot(qint64)));
+            QObject::connect(forwardUploadDevice,SIGNAL(processedData(qint64, qint64)),
+                             this, SLOT(sentUploadDataSlot(qint64,qint64)));
             connect(forwardUploadDevice, SIGNAL(resetData(bool*)),
                     this, SLOT(resetUploadDataSlot(bool*)),
                     Qt::BlockingQueuedConnection); // this is the only one with BlockingQueued!
@@ -915,12 +916,21 @@ void QNetworkAccessHttpBackend::replySslConfigurationChanged(const QSslConfigura
 void QNetworkAccessHttpBackend::resetUploadDataSlot(bool *r)
 {
     *r = uploadByteDevice->reset();
+    if (*r) {
+        // reset our own position which is used for the inter-thread communication
+        uploadByteDevicePosition = 0;
+    }
 }
 
 // Coming from QNonContiguousByteDeviceThreadForwardImpl in HTTP thread
-void QNetworkAccessHttpBackend::sentUploadDataSlot(qint64 amount)
+void QNetworkAccessHttpBackend::sentUploadDataSlot(qint64 pos, qint64 amount)
 {
+    if (uploadByteDevicePosition + amount != pos) {
+        // Sanity check, should not happen.
+        error(QNetworkReply::UnknownNetworkError, "");
+    }
     uploadByteDevice->advanceReadPointer(amount);
+    uploadByteDevicePosition += amount;
 }
 
 // Coming from QNonContiguousByteDeviceThreadForwardImpl in HTTP thread
@@ -933,7 +943,7 @@ void QNetworkAccessHttpBackend::wantUploadDataSlot(qint64 maxSize)
     QByteArray dataArray(data, currentUploadDataLength);
 
     // Communicate back to HTTP thread
-    emit haveUploadData(dataArray, uploadByteDevice->atEnd(), uploadByteDevice->size());
+    emit haveUploadData(uploadByteDevicePosition, dataArray, uploadByteDevice->atEnd(), uploadByteDevice->size());
 }
 
 /*

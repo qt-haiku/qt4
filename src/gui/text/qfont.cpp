@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -277,8 +277,8 @@ QFontPrivate::QFontPrivate(const QFontPrivate &other)
 
 QFontPrivate::~QFontPrivate()
 {
-    if (engineData)
-        engineData->ref.deref();
+    if (engineData && !engineData->ref.deref())
+        delete engineData;
     engineData = 0;
     if (scFont && scFont != this)
         scFont->ref.deref();
@@ -300,7 +300,8 @@ QFontEngine *QFontPrivate::engineForScript(int script) const
         script = QUnicodeTables::Common;
     if (engineData && engineData->fontCache != QFontCache::instance()) {
         // throw out engineData that came from a different thread
-        engineData->ref.deref();
+        if (!engineData->ref.deref())
+            delete engineData;
         engineData = 0;
     }
     if (!engineData || !QT_FONT_ENGINE_FROM_DATA(engineData, script))
@@ -419,13 +420,13 @@ QFontEngineData::~QFontEngineData()
 {
 #if !defined(Q_WS_MAC)
     for (int i = 0; i < QUnicodeTables::ScriptCount; ++i) {
-        if (engines[i])
-            engines[i]->ref.deref();
+        if (engines[i] && !engines[i]->ref.deref())
+            delete engines[i];
         engines[i] = 0;
     }
 #else
-    if (engine)
-        engine->ref.deref();
+    if (engine && !engine->ref.deref())
+        delete engine;
     engine = 0;
 #endif // Q_WS_X11 || Q_WS_WIN || Q_WS_MAC
 }
@@ -772,8 +773,8 @@ QFont::QFont(QFontPrivate *data)
 void QFont::detach()
 {
     if (d->ref == 1) {
-        if (d->engineData)
-            d->engineData->ref.deref();
+        if (d->engineData && !d->engineData->ref.deref())
+            delete d->engineData;
         d->engineData = 0;
         if (d->scFont && d->scFont != d.data())
             d->scFont->ref.deref();
@@ -2821,31 +2822,13 @@ QFontCache::~QFontCache()
         EngineDataCache::ConstIterator it = engineDataCache.constBegin(),
                                  end = engineDataCache.constEnd();
         while (it != end) {
-            if (it.value()->ref == 0)
+            if (it.value()->ref.deref() == 0)
                 delete it.value();
             else
                 FC_DEBUG("QFontCache::~QFontCache: engineData %p still has refcount %d",
                          it.value(), int(it.value()->ref));
             ++it;
         }
-    }
-    EngineCache::ConstIterator it = engineCache.constBegin(),
-                         end = engineCache.constEnd();
-    while (it != end) {
-        if (--it.value().data->cache_count == 0) {
-            if (it.value().data->ref == 0) {
-                FC_DEBUG("QFontCache::~QFontCache: deleting engine %p key=(%d / %g %g %d %d %d)",
-                         it.value().data, it.key().script, it.key().def.pointSize,
-                         it.key().def.pixelSize, it.key().def.weight, it.key().def.style,
-                         it.key().def.fixedPitch);
-
-                delete it.value().data;
-            } else {
-                FC_DEBUG("QFontCache::~QFontCache: engine = %p still has refcount %d",
-                         it.value().data, int(it.value().data->ref));
-            }
-        }
-        ++it;
     }
 }
 
@@ -2858,16 +2841,14 @@ void QFontCache::clear()
             QFontEngineData *data = it.value();
 #if !defined(Q_WS_MAC)
             for (int i = 0; i < QUnicodeTables::ScriptCount; ++i) {
-                if (data->engines[i]) {
-                    data->engines[i]->ref.deref();
-                    data->engines[i] = 0;
-                }
+                if (data->engines[i] && !data->engines[i]->ref.deref())
+                    delete data->engines[i];
+                data->engines[i] = 0;
             }
 #else
-            if (data->engine) {
-                data->engine->ref.deref();
-                data->engine = 0;
-            }
+            if (data->engine && !data->engine->ref.deref())
+                delete data->engine;
+            data->engine = 0;
 #endif
             ++it;
         }
@@ -2875,15 +2856,7 @@ void QFontCache::clear()
 
     for (EngineCache::Iterator it = engineCache.begin(), end = engineCache.end();
          it != end; ++it) {
-        if (it->data->ref == 0) {
-            delete it->data;
-            it->data = 0;
-        }
-    }
-
-    for (EngineCache::Iterator it = engineCache.begin(), end = engineCache.end();
-         it != end; ++it) {
-        if (it->data && it->data->ref == 0) {
+        if (it->data->ref.deref() == 0) {
             delete it->data;
             it->data = 0;
         }
@@ -2918,6 +2891,8 @@ void QFontCache::insertEngineData(const Key &key, QFontEngineData *engineData)
 {
     FC_DEBUG("QFontCache: inserting new engine data %p", engineData);
 
+    Q_ASSERT(!engineDataCache.contains(key));
+    engineData->ref.ref(); // the cache has a reference
     engineDataCache.insert(key, engineData);
     increaseCost(sizeof(QFontEngineData));
 }
@@ -2947,6 +2922,11 @@ void QFontCache::insertEngine(const Key &key, QFontEngine *engine)
 
     Engine data(engine);
     data.timestamp = ++current_timestamp;
+
+    QFontEngine *oldEngine = engineCache.value(key).data;
+    engine->ref.ref(); // the cache has a reference
+    if (oldEngine && !oldEngine->ref.deref())
+        delete oldEngine;
 
     engineCache.insert(key, data);
 
@@ -3007,12 +2987,11 @@ void QFontCache::cleanupPrinterFonts()
                 continue;
             }
 
-            if(it.value()->ref != 0) {
-                for(int i = 0; i < QUnicodeTables::ScriptCount; ++i) {
-                    if(it.value()->engines[i]) {
-                        it.value()->engines[i]->ref.deref();
-                        it.value()->engines[i] = 0;
-                    }
+            if (it.value()->ref > 1) {
+                for (int i = 0; i < QUnicodeTables::ScriptCount; ++i) {
+                    if (it.value()->engines[i] && !it.value()->engines[i]->ref.deref())
+                        delete it.value()->engines[i];
+                    it.value()->engines[i] = 0;
                 }
                 ++it;
             } else {
@@ -3023,7 +3002,8 @@ void QFontCache::cleanupPrinterFonts()
 
                 FC_DEBUG("    %p", rem.value());
 
-                delete rem.value();
+                if (!rem.value()->ref.deref())
+                    delete rem.value();
                 engineDataCache.erase(rem);
             }
         }
@@ -3032,7 +3012,7 @@ void QFontCache::cleanupPrinterFonts()
     EngineCache::Iterator it = engineCache.begin(),
                          end = engineCache.end();
     while(it != end) {
-        if (it.value().data->ref != 0 || it.key().screen == 0) {
+        if (it.value().data->ref != 1 || it.key().screen == 0) {
             ++it;
             continue;
         }
@@ -3046,7 +3026,8 @@ void QFontCache::cleanupPrinterFonts()
             FC_DEBUG("    DELETE: last occurrence in cache");
 
             decreaseCost(it.value().data->cache_cost);
-            delete it.value().data;
+            if (!it.value().data->ref.deref())
+                delete it.value().data;
         }
 
         engineCache.erase(it++);
@@ -3095,7 +3076,7 @@ void QFontCache::timerEvent(QTimerEvent *)
 #  endif // Q_WS_X11 || Q_WS_WIN
 #endif // QFONTCACHE_DEBUG
 
-            if (it.value()->ref != 0)
+            if (it.value()->ref > 1)
                 in_use_cost += engine_data_cost;
         }
     }
@@ -3111,7 +3092,7 @@ void QFontCache::timerEvent(QTimerEvent *)
                      int(it.value().data->ref), it.value().data->cache_count,
                      it.value().data->cache_cost);
 
-            if (it.value().data->ref != 0)
+            if (it.value().data->ref > 1)
                 in_use_cost += it.value().data->cache_cost / it.value().data->cache_count;
         }
 
@@ -3161,7 +3142,7 @@ void QFontCache::timerEvent(QTimerEvent *)
         EngineDataCache::Iterator it = engineDataCache.begin(),
                                  end = engineDataCache.end();
         while (it != end) {
-            if (it.value()->ref != 0) {
+            if (it.value()->ref > 1) {
                 ++it;
                 continue;
             }
@@ -3189,7 +3170,7 @@ void QFontCache::timerEvent(QTimerEvent *)
         uint least_popular = ~0u;
 
         for (; it != end; ++it) {
-            if (it.value().data->ref != 0)
+            if (it.value().data->ref > 1)
                 continue;
 
             if (it.value().timestamp < oldest &&
@@ -3202,7 +3183,7 @@ void QFontCache::timerEvent(QTimerEvent *)
         FC_DEBUG("    oldest %u least popular %u", oldest, least_popular);
 
         for (it = engineCache.begin(); it != end; ++it) {
-            if (it.value().data->ref == 0 &&
+            if (it.value().data->ref == 1 &&
                  it.value().timestamp == oldest &&
                  it.value().hits == least_popular)
                 break;
@@ -3218,7 +3199,8 @@ void QFontCache::timerEvent(QTimerEvent *)
                 FC_DEBUG("    DELETE: last occurrence in cache");
 
                 decreaseCost(it.value().data->cache_cost);
-                delete it.value().data;
+                if (!it.value().data->ref.deref())
+                    delete it.value().data;
             } else {
                 /*
                   this particular font engine is in the cache multiple

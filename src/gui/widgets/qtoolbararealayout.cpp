@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -1106,16 +1106,19 @@ void QToolBarAreaLayout::clear()
     rect = QRect();
 }
 
-QToolBarAreaLayoutItem &QToolBarAreaLayout::item(const QList<int> &path)
+QToolBarAreaLayoutItem *QToolBarAreaLayout::item(const QList<int> &path)
 {
     Q_ASSERT(path.count() == 3);
 
-    Q_ASSERT(path.at(0) >= 0 && path.at(0) < QInternal::DockCount);
+    if (path.at(0) < 0 || path.at(0) >= QInternal::DockCount)
+        return 0;
     QToolBarAreaLayoutInfo &info = docks[path.at(0)];
-    Q_ASSERT(path.at(1) >= 0 && path.at(1) < info.lines.count());
+    if (path.at(1) < 0 || path.at(1) >= info.lines.count())
+        return 0;
     QToolBarAreaLayoutLine &line = info.lines[path.at(1)];
-    Q_ASSERT(path.at(2) >= 0 && path.at(2) < line.toolBarItems.count());
-    return line.toolBarItems[path.at(2)];
+    if (path.at(2) < 0 || path.at(2) >= line.toolBarItems.count())
+        return 0;
+    return &(line.toolBarItems[path.at(2)]);
 }
 
 QRect QToolBarAreaLayout::itemRect(const QList<int> &path) const
@@ -1131,23 +1134,28 @@ QRect QToolBarAreaLayout::itemRect(const QList<int> &path) const
 
 QLayoutItem *QToolBarAreaLayout::plug(const QList<int> &path)
 {
-    QToolBarAreaLayoutItem &item = this->item(path);
-    Q_ASSERT(item.gap);
-    Q_ASSERT(item.widgetItem != 0);
-    item.gap = false;
-    return item.widgetItem;
+    QToolBarAreaLayoutItem *item = this->item(path);
+    if (!item) {
+        qWarning() << Q_FUNC_INFO << "No item at" << path;
+        return 0;
+    }
+    Q_ASSERT(item->gap);
+    Q_ASSERT(item->widgetItem != 0);
+    item->gap = false;
+    return item->widgetItem;
 }
 
 QLayoutItem *QToolBarAreaLayout::unplug(const QList<int> &path, QToolBarAreaLayout *other)
 {
     //other needs to be update as well
     Q_ASSERT(path.count() == 3);
-    QToolBarAreaLayoutItem &item = this->item(path);
+    QToolBarAreaLayoutItem *item = this->item(path);
+    Q_ASSERT(item);
 
     //update the leading space here
     QToolBarAreaLayoutInfo &info = docks[path.at(0)];
     QToolBarAreaLayoutLine &line = info.lines[path.at(1)];
-    if (item.size != pick(line.o, item.realSizeHint())) {
+    if (item->size != pick(line.o, item->realSizeHint())) {
         //the item doesn't have its default size
         //so we'll give this to the next item
         int newExtraSpace = 0;
@@ -1184,9 +1192,9 @@ QLayoutItem *QToolBarAreaLayout::unplug(const QList<int> &path, QToolBarAreaLayo
         }
     }
 
-    Q_ASSERT(!item.gap);
-    item.gap = true;
-    return item.widgetItem;
+    Q_ASSERT(!item->gap);
+    item->gap = true;
+    return item->widgetItem;
 }
 
 static QRect unpackRect(uint geom0, uint geom1, bool *floating)

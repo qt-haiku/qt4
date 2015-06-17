@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -220,7 +220,7 @@ static QSize qt_mac_desktopSize()
 static NSDrawer *qt_mac_drawer_for(const QWidget *widget)
 {
     NSView *widgetView = reinterpret_cast<NSView *>(widget->window()->effectiveWinId());
-    NSArray *windows = [NSApp windows];
+    NSArray *windows = [[NSApplication sharedApplication] windows];
     for (NSWindow *window in windows) {
         NSArray *drawers = [window drawers];
         for (NSDrawer *drawer in drawers) {
@@ -254,7 +254,7 @@ static void qt_mac_destructWindow(OSWindowRef window)
 {
 #ifdef QT_MAC_USE_COCOA
     if ([window isVisible] && [window isSheet]){
-        [NSApp endSheet:window];
+        [[NSApplication sharedApplication] endSheet:window];
         [window orderOut:window];
     }
 
@@ -2439,7 +2439,7 @@ void QWidgetPrivate::recreateMacWindow()
     }
     if ([oldWindow isVisible]){
         if ([oldWindow isSheet])
-            [NSApp endSheet:oldWindow];
+            [[NSApplication sharedApplication] endSheet:oldWindow];
         [oldWindow orderOut:oldWindow];
         show_sys();
     }
@@ -3092,7 +3092,7 @@ void QWidgetPrivate::setParent_sys(QWidget *parent, Qt::WindowFlags f)
 
     // Maintain the glWidgets list on parent change: add "our" gl widgets
     // to the list on the new parent and grandparents.
-    if (glWidgets.isEmpty() == false) {
+    if (glWidgets.isEmpty() == false && !q->isWindow()) {
         QWidget *current = q->parentWidget();
         while (current) {
             current->d_func()->glWidgets += glWidgets;
@@ -3554,7 +3554,7 @@ void QWidgetPrivate::show_sys()
     }
 
 #ifdef QT_MAC_USE_COCOA
-    if ([NSApp isActive] && !qt_button_down && !QWidget::mouseGrabber()){
+    if ([[NSApplication sharedApplication] isActive] && !qt_button_down && !QWidget::mouseGrabber()){
         // Update enter/leave immidiatly, don't wait for a move event. But only
         // if no grab exists (even if the grab points to this widget, it seems, ref X11)
         QPoint qlocal, qglobal;
@@ -3605,7 +3605,7 @@ void QWidgetPrivate::hide_sys()
             else
                 HideSheetWindow(window);
 #else
-            [NSApp endSheet:window];
+            [[NSApplication sharedApplication] endSheet:window];
             [window orderOut:window];
 #endif
         } else if(qt_mac_is_macdrawer(q)) {
@@ -3716,7 +3716,7 @@ void QWidgetPrivate::hide_sys()
     }
 
 #ifdef QT_MAC_USE_COCOA
-    if ([NSApp isActive] && !qt_button_down && !QWidget::mouseGrabber()){
+    if ([[NSApplication sharedApplication] isActive] && !qt_button_down && !QWidget::mouseGrabber()){
         // Update enter/leave immidiatly, don't wait for a move event. But only
         // if no grab exists (even if the grab points to this widget, it seems, ref X11)
         QPoint qlocal, qglobal;
@@ -4619,7 +4619,7 @@ void QWidgetPrivate::setGeometry_sys_helper(int x, int y, int w, int h, bool isM
 
         setWSGeometry(false, oldRect);
 
-        if (isResize && QApplicationPrivate::graphicsSystem())
+        if (isResize && q->parentWidget() && QApplicationPrivate::graphicsSystem())
             invalidateBuffer_resizeHelper(oldp, olds);
     }
 

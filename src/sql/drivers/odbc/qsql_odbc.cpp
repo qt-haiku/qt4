@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtSql module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -1331,12 +1331,12 @@ bool QODBCResult::exec()
     if (isSelect())
         SQLCloseCursor(d->hStmt);
 
-    QList<QByteArray> tmpStorage; // holds temporary buffers
-    QVarLengthArray<SQLLEN, 32> indicators(boundValues().count());
+    QVector<QVariant>& values = boundValues();
+    QVector<QByteArray> tmpStorage(values.count(), QByteArray()); // holds temporary buffers
+    QVarLengthArray<SQLLEN, 32> indicators(values.count());
     memset(indicators.data(), 0, indicators.size() * sizeof(SQLLEN));
 
     // bind parameters - only positional binding allowed
-    QVector<QVariant>& values = boundValues();
     int i;
     SQLRETURN r;
     for (i = 0; i < values.count(); ++i) {
@@ -1348,7 +1348,7 @@ bool QODBCResult::exec()
             *ind = SQL_NULL_DATA;
         switch (val.type()) {
             case QVariant::Date: {
-                QByteArray ba;
+                QByteArray &ba = tmpStorage[i];
                 ba.resize(sizeof(DATE_STRUCT));
                 DATE_STRUCT *dt = (DATE_STRUCT *)ba.constData();
                 QDate qdt = val.toDate();
@@ -1365,10 +1365,9 @@ bool QODBCResult::exec()
                                       (void *) dt,
                                       0,
                                       *ind == SQL_NULL_DATA ? ind : NULL);
-                tmpStorage.append(ba);
                 break; }
             case QVariant::Time: {
-                QByteArray ba;
+                QByteArray &ba = tmpStorage[i];
                 ba.resize(sizeof(TIME_STRUCT));
                 TIME_STRUCT *dt = (TIME_STRUCT *)ba.constData();
                 QTime qdt = val.toTime();
@@ -1385,10 +1384,9 @@ bool QODBCResult::exec()
                                       (void *) dt,
                                       0,
                                       *ind == SQL_NULL_DATA ? ind : NULL);
-                tmpStorage.append(ba);
                 break; }
             case QVariant::DateTime: {
-                QByteArray ba;
+                QByteArray &ba = tmpStorage[i];
                 ba.resize(sizeof(TIMESTAMP_STRUCT));
                 TIMESTAMP_STRUCT * dt = (TIMESTAMP_STRUCT *)ba.constData();
                 QDateTime qdt = val.toDateTime();
@@ -1420,7 +1418,6 @@ bool QODBCResult::exec()
                                       (void *) dt,
                                       0,
                                       *ind == SQL_NULL_DATA ? ind : NULL);
-                tmpStorage.append(ba);
                 break; }
             case QVariant::Int:
                 r = SQLBindParameter(d->hStmt,
@@ -1511,14 +1508,15 @@ bool QODBCResult::exec()
                 break;
             case QVariant::String:
                 if (d->unicode) {
+                    QByteArray &ba = tmpStorage[i];
                     QString str = val.toString();
                     if (*ind != SQL_NULL_DATA)
                         *ind = str.length() * sizeof(SQLTCHAR);
                     int strSize = str.length() * sizeof(SQLTCHAR);
 
                     if (bindValueType(i) & QSql::Out) {
-                        QVarLengthArray<SQLTCHAR> ba(toSQLTCHAR(str));
-                        ba.reserve(str.capacity());
+                        QVarLengthArray<SQLTCHAR> a(toSQLTCHAR(str));
+                        a.reserve(str.capacity());
                         r = SQLBindParameter(d->hStmt,
                                             i + 1,
                                             qParamType[(QFlag)(bindValueType(i)) & QSql::InOut],
@@ -1526,13 +1524,12 @@ bool QODBCResult::exec()
                                             strSize > 254 ? SQL_WLONGVARCHAR : SQL_WVARCHAR,
                                             0, // god knows... don't change this!
                                             0,
-                                            (void *)ba.constData(),
-                                            ba.size(),
+                                            (void *)a.constData(),
+                                            a.size(),
                                             ind);
-                        tmpStorage.append(QByteArray((const char *)ba.constData(), ba.size()*sizeof(SQLTCHAR)));
                         break;
                     }
-                    QByteArray strba((const char *)toSQLTCHAR(str).constData(), str.size()*sizeof(SQLTCHAR));
+                    ba = QByteArray((const char *)toSQLTCHAR(str).constData(), str.size()*sizeof(SQLTCHAR));
                     r = SQLBindParameter(d->hStmt,
                                           i + 1,
                                           qParamType[(QFlag)(bindValueType(i)) & QSql::InOut],
@@ -1540,15 +1537,15 @@ bool QODBCResult::exec()
                                           strSize > 254 ? SQL_WLONGVARCHAR : SQL_WVARCHAR,
                                           strSize,
                                           0,
-                                          (SQLPOINTER)strba.constData(),
-                                          strba.size(),
+                                          (SQLPOINTER)ba.constData(),
+                                          ba.size(),
                                           ind);
-                    tmpStorage.append(strba);
                     break;
                 }
                 else
                 {
-                    QByteArray str = val.toString().toUtf8();
+                    QByteArray &str = tmpStorage[i];
+                    str = val.toString().toUtf8();
                     if (*ind != SQL_NULL_DATA)
                         *ind = str.length();
                     int strSize = str.length();
@@ -1563,12 +1560,11 @@ bool QODBCResult::exec()
                                           (void *)str.constData(),
                                           strSize,
                                           ind);
-                    tmpStorage.append(str);
                     break;
                 }
             // fall through
             default: {
-                QByteArray ba = val.toByteArray();
+                QByteArray &ba = tmpStorage[i];
                 if (*ind != SQL_NULL_DATA)
                     *ind = ba.size();
                 r = SQLBindParameter(d->hStmt,
@@ -1581,7 +1577,6 @@ bool QODBCResult::exec()
                                       (void *) ba.constData(),
                                       ba.length() + 1,
                                       ind);
-                tmpStorage.append(ba);
                 break; }
         }
         if (r != SQL_SUCCESS) {
@@ -1625,16 +1620,16 @@ bool QODBCResult::exec()
     for (i = 0; i < values.count(); ++i) {
         switch (values.at(i).type()) {
             case QVariant::Date: {
-                DATE_STRUCT ds = *((DATE_STRUCT *)tmpStorage.takeFirst().constData());
+                DATE_STRUCT ds = *((DATE_STRUCT *)tmpStorage.at(i).constData());
                 values[i] = QVariant(QDate(ds.year, ds.month, ds.day));
                 break; }
             case QVariant::Time: {
-                TIME_STRUCT dt = *((TIME_STRUCT *)tmpStorage.takeFirst().constData());
+                TIME_STRUCT dt = *((TIME_STRUCT *)tmpStorage.at(i).constData());
                 values[i] = QVariant(QTime(dt.hour, dt.minute, dt.second));
                 break; }
             case QVariant::DateTime: {
                 TIMESTAMP_STRUCT dt = *((TIMESTAMP_STRUCT*)
-                                        tmpStorage.takeFirst().constData());
+                                        tmpStorage.at(i).constData());
                 values[i] = QVariant(QDateTime(QDate(dt.year, dt.month, dt.day),
                                QTime(dt.hour, dt.minute, dt.second, dt.fraction / 1000000)));
                 break; }
@@ -1650,7 +1645,7 @@ bool QODBCResult::exec()
             case QVariant::String:
                 if (d->unicode) {
                     if (bindValueType(i) & QSql::Out) {
-                        QByteArray first = tmpStorage.takeFirst();
+                        const QByteArray &first = tmpStorage.at(i);
                         QVarLengthArray<SQLTCHAR> array;
                         array.append((SQLTCHAR *)first.constData(), first.size());
                         values[i] = fromSQLTCHAR(array, first.size()/sizeof(SQLTCHAR*));
@@ -1660,7 +1655,7 @@ bool QODBCResult::exec()
                 // fall through
             default: {
                 if (bindValueType(i) & QSql::Out)
-                    values[i] = tmpStorage.takeFirst();
+                    values[i] = tmpStorage.at(i);
                 break; }
         }
         if (indicators[i] == SQL_NULL_DATA)

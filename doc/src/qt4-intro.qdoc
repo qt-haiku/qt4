@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the documentation of the Qt Toolkit.
 **
@@ -10,9 +10,9 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Free Documentation License Usage
 ** Alternatively, this file may be used under the terms of the GNU Free
@@ -220,7 +220,7 @@
     \endlist
 
     For more information about improvements in each Qt release, see
-    the \l{http://qt.nokia.com/developer/changes/}
+    the \l{http://code.qt.io/cgit/qt/qt.git/tree/dist}
     {detailed lists of changes}.
 
     \section1 Significant Improvements
@@ -660,7 +660,7 @@
 
     Qt 4.7 adds support for accelerated compositing, which enhances
     the performance of CSS animations and transitions. Read more in
-    \l{http://labs.trolltech.com/blogs/2010/05/17/qtwebkit-now-accelerates-css-animations-3d-transforms/}{this blog}.
+    \l{http://blog.qt.io/blog/2010/05/17/qtwebkit-now-accelerates-css-animations-3d-transforms/}{this blog}.
 
     For hybrid QtWebKit and C++ projects, Qt 4.7 has added support for
     transporting \l{QPixmap}s between Qt C++ and WebKit. We have also
@@ -702,7 +702,7 @@
 
     Qt 4.7 introduces the QStaticText class, which can be used to
     improve text rendering performance.  More info is available from
-    \l{http://labs.trolltech.com/blogs/2010/03/01/insanity-is-shaping-the-same-text-again-and-expecting-a-different-result/}{this blog}.
+    \l{http://blog.qt.io/blog/2010/03/01/insanity-is-shaping-the-same-text-again-and-expecting-a-different-result/}{this blog}.
 
     The QPainter class has a new API for rendering pixmap fragments
     (QPainter::drawPixmapFragments), which can improve the rendering
@@ -731,13 +731,13 @@
 \omit
     A comprehensive list of changes between Qt 4.5 and Qt 4.6 is
     included in the \c changes-4.6.0 file
-    \l{http://qt.nokia.com/developer/changes/changes-4.6.0}{available
+    \l{http://code.qt.io/cgit/qt/qt.git/plain/dist/changes-4.6.0}{available
     online}. A \l{Known Issues in %VERSION%}{list of known issues}
     for this release is also available.
 
     Changes between this release and the previous release are provided
     in the \c{changes-%VERSION%} file (also
-    \l{http://qt.nokia.com/developer/changes/changes-%VERSION%}{available online}).
+    \l{http://code.qt.io/cgit/qt/qt.git/plain/dist/changes-%VERSION%}{available online}).
 \endomit
 
     A list of other Qt 4 features can be found on the \bold{\l{What's
@@ -941,13 +941,13 @@
 
     A comprehensive list of changes between Qt 4.4 and Qt 4.5 is included
     in the \c changes-4.5.0 file
-    \l{http://qt.nokia.com/developer/changes/changes-4.5.0}{available online}.
+    \l{http://code.qt.io/cgit/qt/qt.git/plain/dist/changes-4.5.0}{available online}.
     A \l{Known Issues in %VERSION%}{list of known issues} for this release is also
     available.
 
     Changes between this release and the previous release are provided
     in the \c{changes-%VERSION%} file (also
-    \l{http://qt.nokia.com/developer/changes/changes-%VERSION%}{available online}).
+    \l{http://code.qt.io/cgit/qt/qt.git/plain/dist/changes-%VERSION%}{available online}).
 
     A list of other Qt 4 features can be found on the
     \bold{\l{What's New in Qt 4}} page.

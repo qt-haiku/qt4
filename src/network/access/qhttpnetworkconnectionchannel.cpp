@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtNetwork module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -107,15 +107,19 @@ void QHttpNetworkConnectionChannel::init()
     socket->setProxy(QNetworkProxy::NoProxy);
 #endif
 
+    // We want all signals (except the interactive ones) be connected as QueuedConnection
+    // because else we're falling into cases where we recurse back into the socket code
+    // and mess up the state. Always going to the event loop (and expecting that when reading/writing)
+    // is safer.
     QObject::connect(socket, SIGNAL(bytesWritten(qint64)),
                      this, SLOT(_q_bytesWritten(qint64)),
-                     Qt::DirectConnection);
+                     Qt::QueuedConnection);
     QObject::connect(socket, SIGNAL(connected()),
                      this, SLOT(_q_connected()),
-                     Qt::DirectConnection);
+                     Qt::QueuedConnection);
     QObject::connect(socket, SIGNAL(readyRead()),
                      this, SLOT(_q_readyRead()),
-                     Qt::DirectConnection);
+                     Qt::QueuedConnection);
 
     // The disconnected() and error() signals may already come
     // while calling connectToHost().
@@ -144,13 +148,13 @@ void QHttpNetworkConnectionChannel::init()
         // won't be a sslSocket if encrypt is false
         QObject::connect(sslSocket, SIGNAL(encrypted()),
                          this, SLOT(_q_encrypted()),
-                         Qt::DirectConnection);
+                         Qt::QueuedConnection);
         QObject::connect(sslSocket, SIGNAL(sslErrors(QList<QSslError>)),
                          this, SLOT(_q_sslErrors(QList<QSslError>)),
                          Qt::DirectConnection);
         QObject::connect(sslSocket, SIGNAL(encryptedBytesWritten(qint64)),
                          this, SLOT(_q_encryptedBytesWritten(qint64)),
-                         Qt::DirectConnection);
+                         Qt::QueuedConnection);
     }
 #endif
 }
@@ -163,7 +167,8 @@ void QHttpNetworkConnectionChannel::close()
     else
         state = QHttpNetworkConnectionChannel::ClosingState;
 
-    socket->close();
+    if (socket)
+        socket->close();
 }
 
 
@@ -280,6 +285,14 @@ bool QHttpNetworkConnectionChannel::sendRequest()
                 // nothing to read currently, break the loop
                 break;
             } else {
+                if (written != uploadByteDevice->pos()) {
+                    // Sanity check. This was useful in tracking down an upload corruption.
+                    qWarning() << "QHttpProtocolHandler: Internal error in sendRequest. Expected to write at position" << written << "but read device is at" << uploadByteDevice->pos();
+                    Q_ASSERT(written == uploadByteDevice->pos());
+                    connection->d_func()->emitReplyError(socket, reply, QNetworkReply::ProtocolFailure);
+                    return false;
+                }
+
                 qint64 currentWriteSize = socket->write(readPointer, currentReadSize);
                 if (currentWriteSize == -1 || currentWriteSize != currentReadSize) {
                     // socket broke down
@@ -639,6 +652,14 @@ bool QHttpNetworkConnectionChannel::ensureConnection()
         }
         return false;
     }
+
+    // This code path for ConnectedState
+    if (pendingEncrypt) {
+        // Let's only be really connected when we have received the encrypted() signal. Else the state machine seems to mess up
+        // and corrupt the things sent to the server.
+        return false;
+    }
+
     return true;
 }
 
@@ -980,6 +1001,13 @@ void QHttpNetworkConnectionChannel::_q_readyRead()
 void QHttpNetworkConnectionChannel::_q_bytesWritten(qint64 bytes)
 {
     Q_UNUSED(bytes);
+
+    if (ssl) {
+        // In the SSL case we want to send data from encryptedBytesWritten signal since that one
+        // is the one going down to the actual network, not only into some SSL buffer.
+        return;
+    }
+
     // bytes have been written to the socket. write even more of them :)
     if (isSocketWriting())
         sendRequest();
@@ -1029,7 +1057,7 @@ void QHttpNetworkConnectionChannel::_q_connected()
 
     // ### FIXME: if the server closes the connection unexpectedly, we shouldn't send the same broken request again!
     //channels[i].reconnectAttempts = 2;
-    if (!pendingEncrypt) {
+    if (!pendingEncrypt && !ssl) { // FIXME: Didn't work properly with pendingEncrypt only, we should refactor this into an EncrypingState
         state = QHttpNetworkConnectionChannel::IdleState;
         if (!reply)
             connection->d_func()->dequeueRequest(socket);
@@ -1157,7 +1185,10 @@ void QHttpNetworkConnectionChannel::_q_proxyAuthenticationRequired(const QNetwor
 
 void QHttpNetworkConnectionChannel::_q_uploadDataReadyRead()
 {
-    sendRequest();
+    if (reply && state == QHttpNetworkConnectionChannel::WritingState) {
+        // There might be timing issues, make sure to only send upload data if really in that state
+        sendRequest();
+    }
 }
 
 #ifndef QT_NO_OPENSSL

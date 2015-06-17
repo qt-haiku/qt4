@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -275,7 +275,7 @@ static bool qMemEquals(const quint16 *a, const quint16 *b, int length)
     if (a == b || !length)
         return true;
 
-    register union {
+    union {
         const quint16 *w;
         const quint32 *d;
         quintptr value;
@@ -300,7 +300,7 @@ static bool qMemEquals(const quint16 *a, const quint16 *b, int length)
 
         // both addresses are 4-bytes aligned
         // do a fast 32-bit comparison
-        register const quint32 *e = sa.d + (length >> 1);
+        const quint32 *e = sa.d + (length >> 1);
         for ( ; sa.d != e; ++sa.d, ++sb.d) {
             if (*sa.d != *sb.d)
                 return false;
@@ -310,7 +310,7 @@ static bool qMemEquals(const quint16 *a, const quint16 *b, int length)
         return (length & 1) ? *sa.w == *sb.w : true;
     } else {
         // one of the addresses isn't 4-byte aligned but the other is
-        register const quint16 *e = sa.w + length;
+        const quint16 *e = sa.w + length;
         for ( ; sa.w != e; ++sa.w, ++sb.w) {
             if (*sa.w != *sb.w)
                 return false;
@@ -4709,8 +4709,8 @@ int QString::compare_helper(const QChar *data1, int length1, const QChar *data2,
 {
     if (cs == Qt::CaseSensitive)
         return ucstrcmp(data1, length1, data2, length2);
-    register const ushort *s1 = reinterpret_cast<const ushort *>(data1);
-    register const ushort *s2 = reinterpret_cast<const ushort *>(data2);
+    const ushort *s1 = reinterpret_cast<const ushort *>(data1);
+    const ushort *s2 = reinterpret_cast<const ushort *>(data2);
     return ucstricmp(s1, s1 + length1, s2, s2 + length2);
 }
 

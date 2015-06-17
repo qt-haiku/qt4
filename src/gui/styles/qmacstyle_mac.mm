@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -780,7 +780,7 @@ static QSize qt_aqua_get_known_size(QStyle::ContentsType ct, const QWidget *widg
             if (!GetThemeMenuBarHeight(&size))
                 ret = QSize(-1, size);
 #else
-            ret = QSize(-1, [[NSApp mainMenu] menuBarHeight]);
+            ret = QSize(-1, [[[NSApplication sharedApplication] mainMenu] menuBarHeight]);
             // In the qt_mac_set_native_menubar(false) case,
             // we come it here with a zero-height main menu,
             // preventing the in-window menu from displaying.
@@ -3024,16 +3024,14 @@ void QMacStyle::drawPrimitive(PrimitiveElement pe, const QStyleOption *opt, QPai
                 fdi.version = qt_mac_hitheme_version;
                 fdi.state = tds;
                 SInt32 frame_size;
-                if (pe == PE_FrameLineEdit) {
-                    fdi.kind = kHIThemeFrameTextFieldSquare;
-                    GetThemeMetric(kThemeMetricEditTextFrameOutset, &frame_size);
-                    if ((frame->state & State_ReadOnly) || !(frame->state & State_Enabled))
-                        fdi.state = kThemeStateInactive;
-                } else {
-                    baseColor = QColor(150, 150, 150); //hardcoded since no query function --Sam
-                    fdi.kind = kHIThemeFrameListBox;
-                    GetThemeMetric(kThemeMetricListBoxFrameOutset, &frame_size);
-                }
+                fdi.kind = kHIThemeFrameTextFieldSquare;
+                GetThemeMetric(kThemeMetricEditTextFrameOutset, &frame_size);
+                if ((frame->state & State_ReadOnly) || !(frame->state & State_Enabled))
+                    fdi.state = kThemeStateInactive;
+                else if (fdi.state == kThemeStatePressed)
+                    // This pressed state doesn't make sense for a line edit frame.
+                    // And Yosemite agrees with us. Otherwise it starts showing yellow pixels.
+                    fdi.state = kThemeStateActive;
                 fdi.isFocused = (frame->state & State_HasFocus);
                 int lw = frame->lineWidth;
                 if (lw <= 0)
@@ -3546,6 +3544,9 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
                     return;
                 }
             }
+
+            bool usingYosemiteOrLater = QSysInfo::MacintoshVersion > QSysInfo::MV_10_9;
+
             HIThemeTabDrawInfo tdi;
             tdi.version = 1;
             tdi.style = kThemeTabNonFront;
@@ -3586,10 +3587,13 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
             else
                 tdi.adornment = kHIThemeTabAdornmentNone;
             tdi.kind = kHIThemeTabKindNormal;
-            if (!verticalTabs)
-                tabRect.setY(tabRect.y() - 1);
-            else
-                tabRect.setX(tabRect.x() - 1);
+
+            if (!usingYosemiteOrLater) {
+                if (!verticalTabs)
+                    tabRect.setY(tabRect.y() - 1);
+                else
+                    tabRect.setX(tabRect.x() - 1);
+            }
             QStyleOptionTab::TabPosition tp = tabOpt->position;
             QStyleOptionTab::SelectedPosition sp = tabOpt->selectedPosition;
             if (tabOpt->direction == Qt::RightToLeft && !verticalTabs) {
@@ -3654,18 +3658,21 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
             ThemeTabDirection ttd = getTabDirection(myTab.shape);
             bool verticalTabs = ttd == kThemeTabWest || ttd == kThemeTabEast;
             bool selected = (myTab.state & QStyle::State_Selected);
-            bool usingModernOSX = QSysInfo::MacintoshVersion > QSysInfo::MV_10_6;
+            bool usingLionOrLater = QSysInfo::MacintoshVersion > QSysInfo::MV_10_6;
+            bool usingYosemiteOrLater = QSysInfo::MacintoshVersion > QSysInfo::MV_10_9;
 
-            if (usingModernOSX && selected && !myTab.documentMode)
-                myTab.palette.setColor(QPalette::WindowText, QColor(Qt::white));
+            if (usingLionOrLater && selected && !myTab.documentMode
+                && (!usingYosemiteOrLater || myTab.state & State_Active))
+                myTab.palette.setColor(QPalette::WindowText, Qt::white);
 
             // Check to see if we use have the same as the system font
             // (QComboMenuItem is internal and should never be seen by the
             // outside world, unless they read the source, in which case, it's
             // their own fault).
             bool nonDefaultFont = p->font() != qt_app_fonts_hash()->value("QComboMenuItem");
-            if ((usingModernOSX && selected) || verticalTabs || nonDefaultFont || !tab->icon.isNull()
-                || !myTab.leftButtonSize.isNull() || !myTab.rightButtonSize.isNull()) {
+            bool isSelectedAndNeedsShadow = selected && usingLionOrLater && !usingYosemiteOrLater;
+            if (isSelectedAndNeedsShadow || verticalTabs || nonDefaultFont || !tab->icon.isNull()
+                || !myTab.leftButtonSize.isEmpty() || !myTab.rightButtonSize.isEmpty()) {
                 int heightOffset = 0;
                 if (verticalTabs) {
                     heightOffset = -1;
@@ -3675,7 +3682,7 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
                 }
                 myTab.rect.setHeight(myTab.rect.height() + heightOffset);
 
-                if (myTab.documentMode || (usingModernOSX && selected)) {
+                if (myTab.documentMode || isSelectedAndNeedsShadow) {
                     p->save();
                     rotateTabPainter(p, myTab.shape, myTab.rect);
 
@@ -3811,11 +3818,20 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
         }
         break;
     case CE_FocusFrame: {
-        int xOff = proxy()->pixelMetric(PM_FocusFrameHMargin, opt, w) + 1;
-        int yOff = proxy()->pixelMetric(PM_FocusFrameVMargin, opt, w) + 1;
-        HIRect hirect = CGRectMake(xOff+opt->rect.x(), yOff+opt->rect.y(), opt->rect.width() - 2 * xOff,
-                                   opt->rect.height() - 2 * yOff);
-        HIThemeDrawFocusRect(&hirect, true, QMacCGContext(p), kHIThemeOrientationNormal);
+        int xOff = proxy()->pixelMetric(PM_FocusFrameHMargin, opt, w);
+        int yOff = proxy()->pixelMetric(PM_FocusFrameVMargin, opt, w);
+        NSRect rect = NSMakeRect(xOff+opt->rect.x(), yOff+opt->rect.y(), opt->rect.width() - 2 * xOff,
+                                 opt->rect.height() - 2 * yOff);
+        CGContextSaveGState(cg);
+        [NSGraphicsContext setCurrentContext:[NSGraphicsContext
+             graphicsContextWithGraphicsPort:(CGContextRef)cg flipped:NO]];
+        [NSGraphicsContext saveGraphicsState];
+        NSSetFocusRingStyle(NSFocusRingOnly);
+        NSBezierPath *focusFramePath = [NSBezierPath bezierPathWithRect:rect];
+        [focusFramePath setClip]; // Clear clip path to avoid artifacts when rendering the cursor at zero pos
+        [focusFramePath fill];
+        [NSGraphicsContext restoreGraphicsState];
+        CGContextRestoreGState(cg);
         break; }
     case CE_MenuItem:
     case CE_MenuEmptyArea:

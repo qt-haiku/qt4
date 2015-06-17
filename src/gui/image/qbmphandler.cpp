@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -53,7 +53,7 @@ static void swapPixel01(QImage *image)        // 1-bpp: swap 0 and 1 pixels
 {
     int i;
     if (image->depth() == 1 && image->colorCount() == 2) {
-        register uint *p = (uint *)image->bits();
+        uint *p = (uint *)image->bits();
         int nbytes = image->byteCount();
         for (i=0; i<nbytes/4; i++) {
             *p = ~*p;
@@ -319,10 +319,16 @@ static bool read_dib_body(QDataStream &s, const BMP_INFOHDR &bi, int offset, int
         }
     } else if (comp == BMP_BITFIELDS && (nbits == 16 || nbits == 32)) {
         red_shift = calc_shift(red_mask);
+        if (((red_mask >> red_shift) + 1) == 0)
+            return false;
         red_scale = 256 / ((red_mask >> red_shift) + 1);
         green_shift = calc_shift(green_mask);
+        if (((green_mask >> green_shift) + 1) == 0)
+            return false;
         green_scale = 256 / ((green_mask >> green_shift) + 1);
         blue_shift = calc_shift(blue_mask);
+        if (((blue_mask >> blue_shift) + 1) == 0)
+            return false;
         blue_scale = 256 / ((blue_mask >> blue_shift) + 1);
     } else if (comp == BMP_RGB && (nbits == 24 || nbits == 32)) {
         blue_mask = 0x000000ff;
@@ -368,7 +374,7 @@ static bool read_dib_body(QDataStream &s, const BMP_INFOHDR &bi, int offset, int
         if (comp == BMP_RLE4) {                // run length compression
             int x=0, y=0, c, i;
             quint8 b;
-            register uchar *p = data + (h-1)*bpl;
+            uchar *p = data + (h-1)*bpl;
             const uchar *endp = p + w;
             while (y < h) {
                 if (!d->getChar((char *)&b))
@@ -440,7 +446,7 @@ static bool read_dib_body(QDataStream &s, const BMP_INFOHDR &bi, int offset, int
             while (--h >= 0) {
                 if (d->read((char*)buf,buflen) != buflen)
                     break;
-                register uchar *p = data + h*bpl;
+                uchar *p = data + h*bpl;
                 uchar *b = buf;
                 for (int i=0; i<w/2; i++) {        // convert nibbles to bytes
                     *p++ = *b >> 4;
@@ -457,7 +463,7 @@ static bool read_dib_body(QDataStream &s, const BMP_INFOHDR &bi, int offset, int
         if (comp == BMP_RLE8) {                // run length compression
             int x=0, y=0;
             quint8 b;
-            register uchar *p = data + (h-1)*bpl;
+            uchar *p = data + (h-1)*bpl;
             const uchar *endp = p + w;
             while (y < h) {
                 if (!d->getChar((char *)&b))
@@ -472,12 +478,6 @@ static bool read_dib_body(QDataStream &s, const BMP_INFOHDR &bi, int offset, int
                             p = data + (h-y-1)*bpl;
                             break;
                         case 2:                        // delta (jump)
-                            // Protection
-                            if ((uint)x >= (uint)w)
-                                x = w-1;
-                            if ((uint)y >= (uint)h)
-                                y = h-1;
-
                             {
                                 quint8 tmp;
                                 d->getChar((char *)&tmp);
@@ -485,6 +485,13 @@ static bool read_dib_body(QDataStream &s, const BMP_INFOHDR &bi, int offset, int
                                 d->getChar((char *)&tmp);
                                 y += tmp;
                             }
+
+                            // Protection
+                            if ((uint)x >= (uint)w)
+                                x = w-1;
+                            if ((uint)y >= (uint)h)
+                                y = h-1;
+
                             p = data + (h-y-1)*bpl + x;
                             break;
                         default:                // absolute mode
@@ -520,7 +527,7 @@ static bool read_dib_body(QDataStream &s, const BMP_INFOHDR &bi, int offset, int
     }
 
     else if (nbits == 16 || nbits == 24 || nbits == 32) { // 16,24,32 bit BMP image
-        register QRgb *p;
+        QRgb *p;
         QRgb  *end;
         uchar *buf24 = new uchar[bpl];
         int    bpl24 = ((w*nbits+31)/32)*4;
