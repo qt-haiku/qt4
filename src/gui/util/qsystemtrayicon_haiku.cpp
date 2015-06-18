@@ -114,7 +114,9 @@ QSystemTrayIconSys::QSystemTrayIconSys(QSystemTrayIcon *object)
 	Looper->Run();		
 	
 	pulse = new BMessageRunner(BMessenger(NULL, Looper),new BMessage('PULS'),1000000);
-		
+
+	FindTrayExecutable();
+
 	InstallIcon();
 	
 	QObject::connect(Looper,SIGNAL(sendHaikuMessage(BMessage *)),this,SLOT(HaikuEvent(BMessage *)),Qt::QueuedConnection);
@@ -314,7 +316,7 @@ QSystemTrayIconSys::SendMessageToReplicant(BMessage *msg)
 }
 
 int32	
-QSystemTrayIconSys::ExecuteCommand(char *command)
+QSystemTrayIconSys::ExecuteCommand(const char *command)
 {
    FILE *fpipe;
    char line[256];
@@ -328,12 +330,24 @@ QSystemTrayIconSys::ExecuteCommand(char *command)
    return res;
 }
 
+bool
+QSystemTrayIconSys::FindTrayExecutable(void)
+{
+	sysTrayExecutable.setFile("/bin/qsystray");
+	if (sysTrayExecutable.exists() && sysTrayExecutable.isFile())
+		return true;
+	sysTrayExecutable.setFile("/bin/x86/qsystray");
+	if (sysTrayExecutable.exists() && sysTrayExecutable.isFile())
+		return true;
+	return false;
+}
+
 int32 
 QSystemTrayIconSys::DeskBarLoadIcon(team_id tid)
 {
-	char cmd[256];
-	sprintf(cmd,"qsystray %d",(int)tid);	
-	int32 id = ExecuteCommand(cmd);
+	BString cmd((const char *)(sysTrayExecutable.absoluteFilePath().toUtf8()));
+	cmd << " " << (int)tid;
+	int32 id = ExecuteCommand(cmd.String());
 	return id;
 }
 
@@ -449,7 +463,6 @@ void QSystemTrayIconPrivate::updateToolTip_sys()
 
 bool QSystemTrayIconPrivate::isSystemTrayAvailable_sys()
 {
-	// We assume the qsystray executable will always be available
 	return true;
 }
 

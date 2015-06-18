@@ -45,6 +45,7 @@
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qobject.h>
 #include <qwidget.h>
+#include "qfileinfo.h"
 #include "qsystemtrayicon.h"
 
 #include <Application.h>
@@ -81,19 +82,23 @@ public:
     
     void UpdateIcon();
     void UpdateTooltip();
-	status_t SendMessageToReplicant(BMessage *msg);	
-     
+	status_t SendMessageToReplicant(BMessage *msg);
+
+	bool FindTrayExecutable(void);
+
     QSystemTrayIcon *q;
 	QSystemTrayIconLooper* Looper;
 
 	QRect	shelfRect;
+
+	QFileInfo sysTrayExecutable;
 
 public slots:
     void HaikuEvent(BMessage *m);
 
 private:	
 	BMessenger GetShelfMessenger(void);	
-	int32	ExecuteCommand(char *command);
+	int32	ExecuteCommand(const char *command);
 	int32 	DeskBarLoadIcon(team_id tid);
 	int32 	DeskBarLoadIcon(void);	
 	void 	InstallIcon(void);
