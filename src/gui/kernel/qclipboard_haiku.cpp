@@ -37,7 +37,7 @@ const QMimeData *QClipboard::mimeData(Mode mode) const
 
 				for ( int i = 0; msg->GetInfo(B_MIME_TYPE, i, &name, &type, &count) == B_OK; i++ ) {
 					const void *data;
-					int32 dataLen = 0;
+					ssize_t dataLen = 0;
 					qDebug() << "mimeData " << name;
 					status_t stat = msg->FindData(name,B_MIME_TYPE,&data,&dataLen);
 					if(dataLen && stat==B_OK)	{
