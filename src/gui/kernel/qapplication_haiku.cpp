@@ -74,14 +74,14 @@ HQApplication::HQApplication(const char* signature, QApplicationPrivate *priv)
 		: BApplication(signature)
 {
 	RefHandled = false;
-	
+
 	qDebug("Reimp: HQApplication::HQApplication\n");
 
 	if(qAppSignature)
 		free(qAppSignature);
 	qAppSignature = strdup(signature);
-	
-	priv_ptr = priv;	
+
+	priv_ptr = priv;
 }
 
 HQApplication::~HQApplication()
@@ -94,7 +94,7 @@ void HQApplication::MessageReceived(BMessage* msg)
 	BApplication::MessageReceived(msg);
 }
 
-void 
+void
 HQApplication::RefsReceived(BMessage *pmsg)
 {
 	if (pmsg->HasMessenger("TrackerViewToken")) {
@@ -122,10 +122,10 @@ HQApplication::ArgvReceived(int32 argc, char **argv)
 {
 }
 
-bool 
+bool
 HQApplication::QuitRequested() {
     QEvent quitEvent(QEvent::Quit);
-    QApplication::sendEvent(qApp, &quitEvent);	    
+    QApplication::sendEvent(qApp, &quitEvent);
 	return true;
 }
 
@@ -134,7 +134,7 @@ int32 AppThread(void *data)
 {
 	HQApplication *app = (HQApplication*)data;
 	app->LockLooper();
-	app->Run();	
+	app->Run();
 }
 
 
@@ -143,16 +143,16 @@ void qt_init(QApplicationPrivate *priv, int)
 	int i;
 	qDebug("qt_init()");
 
-	thread_id my_thread;	
-	QString sig = QString("application/x-vnd.") + QFileInfo(QApplication::applicationFilePath()).fileName();
+	thread_id my_thread;
+	QString sig = QString("application/x-vnd.digia.qt-") + QFileInfo(QApplication::applicationFilePath()).fileName();
 	happ = new HQApplication(sig.toLatin1(), priv );
 	be_app = happ;
-    		
-	QApplicationPrivate::haiku_apply_settings();	
-	
+
+	QApplicationPrivate::haiku_apply_settings();
+
 	my_thread = spawn_thread(AppThread,"app_thread",1,(void*)happ);
 	resume_thread(my_thread);
-		
+
 	happ->UnlockLooper();
 
 	if(priv->argc==1) {
@@ -165,10 +165,10 @@ void qt_init(QApplicationPrivate *priv, int)
 				break;
 			}
 			snooze(1000);
-		}	
-		
+		}
+
 		QString appDir = QCoreApplication::applicationDirPath();
-		chdir(appDir.toUtf8());		
+		chdir(appDir.toUtf8());
 	}
 }
 
@@ -334,7 +334,7 @@ bool QApplicationPrivate::haiku_apply_settings()
             pal.setColor(QPalette::Disabled, (QPalette::ColorRole) i,
                          QColor(strlist[i]));
     }
- 
+
 /*    if (!appFont) {
         QFont font(QApplication::font());
         QString fontDescription;
@@ -399,9 +399,9 @@ bool QApplicationPrivate::haiku_apply_settings()
     QTextCodec *codec = QTextCodec::codecForName("UTF-8");
     if (codec) {
      	QTextCodec::setCodecForLocale(codec);
-    }           	
+    }
     qt_input_mapper = QTextCodec::codecForName("UTF-8");
-    
+
 
     int w = settings.value(QLatin1String("globalStrut/width")).toInt();
     int h = settings.value(QLatin1String("globalStrut/height")).toInt();
@@ -436,7 +436,7 @@ bool QApplicationPrivate::haiku_apply_settings()
          }
     }
     settings.endGroup();
-    
+
     settings.endGroup(); // Qt
 
     return true;
@@ -448,7 +448,7 @@ void QApplicationPrivate::haiku_initialize_style()
     if (QApplicationPrivate::app_style)
         return;
 
-    QApplicationPrivate::app_style = QStyleFactory::create(QLatin1String("haiku"));        
+    QApplicationPrivate::app_style = QStyleFactory::create(QLatin1String("haiku"));
 }
 
 /*****************************************************************************
@@ -544,7 +544,7 @@ void QApplication::setMainWidget(QWidget *mainWidget)
 
 void QApplication::setDoubleClickInterval(int ms)
 {
-//	qDebug("Reimplemented: QApplicationPrivate::setDoubleClickInterval - %d\n", ms);	
+//	qDebug("Reimplemented: QApplicationPrivate::setDoubleClickInterval - %d\n", ms);
 #if 0	//change system dblclick interval currently disabled
 	QApplicationPrivate::mouse_double_click_time = ms;
 	bigtime_t	interval = ms*1000;
@@ -556,9 +556,9 @@ int QApplication::doubleClickInterval()
 {
 	bigtime_t	interval;
 	get_click_speed(&interval);
-		
+
 	QApplicationPrivate::mouse_double_click_time = (int)(interval/1000);
-	
+
 	return QApplicationPrivate::mouse_double_click_time;
 }
 
@@ -626,7 +626,7 @@ QWidget *QApplication::topLevelAt(const QPoint &point)
     for (int i = 0; i < list.count(); ++i) {
         QWidget *widget = list.at(i);
         if (widget->isVisible() && !(widget->windowType() == Qt::Desktop)) {
-            if (widget->geometry().adjusted(0,0,1,1).contains(point)) {            	    
+            if (widget->geometry().adjusted(0,0,1,1).contains(point)) {
                     found = widget;			//TODO: check for z-order needed!
                    	if(widget->nativeView()->Window()->IsActive())
                    		break;

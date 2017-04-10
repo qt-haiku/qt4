@@ -1,4 +1,4 @@
-resource app_signature "application/x-vnd.digia.qt-config";
+resource app_signature "application/x-vnd.digia.qt-qtconfig";
 
 resource app_flags B_SINGLE_LAUNCH;
 
